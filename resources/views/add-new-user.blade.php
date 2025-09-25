@@ -228,11 +228,26 @@
     <div class="main-content">
         <div class="page-header">
             <h1 class="page-title">Pending Account Approvals</h1>
+            <div style="margin-top: 15px;">
+                
+            </div>
         </div>
 
         @if(session('success'))
             <div class="success-alert">
                 {{ session('success') }}
+            </div>
+        @endif
+
+        @if(session('warning'))
+            <div style="background: #fff3cd; border: 1px solid #ffeaa7; color: #856404; padding: 15px 20px; margin-bottom: 25px; border-radius: 8px; font-weight: 500;">
+                {{ session('warning') }}
+            </div>
+        @endif
+
+        @if(session('error'))
+            <div style="background: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 15px 20px; margin-bottom: 25px; border-radius: 8px; font-weight: 500;">
+                {{ session('error') }}
             </div>
         @endif
 
@@ -255,6 +270,8 @@
                         <th>Photo</th>
                         <th>Full Name</th>
                         <th>Email Address</th>
+                        <th>Registration Date</th>
+                        <th>Account Status</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -273,17 +290,42 @@
                                 <div class="user-email">{{ $user->email }}</div>
                             </td>
                             <td>
+                                <div style="color: #6c757d; font-size: 14px;">
+                                    {{ $user->created_at->format('M d, Y') }}<br>
+                                    <small>{{ $user->created_at->format('g:i A') }}</small>
+                                </div>
+                            </td>
+                            <td>
+                                <div style="display: flex; flex-direction: column; gap: 5px;">
+                                    <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-align: center;">
+                                        ⏳ Pending Approval
+                                    </span>
+                                    <span style="background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-align: center;">
+                                        ✅ Gmail Verified
+                                    </span>
+                                    <span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-align: center;">
+                                        🚀 Ready for Direct Access
+                                    </span>
+                                </div>
+                            </td>
+                            <td>
                                 <div class="action-buttons">
-                                    <form method="POST" action="/approve-user/{{ $user->id }}" style="display: inline;">
+                                    <form method="POST" action="/approve-user/{{ $user->id }}" style="display: inline;" onsubmit="return confirmApproval('{{ $user->name }}', '{{ $user->email }}')">
                                         @csrf
                                         <button class="btn btn-approve" type="submit">
                                             ✓ Approve
                                         </button>
                                     </form>
-                                    <form method="POST" action="/reject-user/{{ $user->id }}" style="display: inline;">
+                                    <form method="POST" action="/reject-user/{{ $user->id }}" style="display: inline;" onsubmit="return confirmRejection('{{ $user->name }}', '{{ $user->email }}')">
                                         @csrf
                                         <button class="btn btn-reject" type="submit">
                                             ✗ Reject
+                                        </button>
+                                    </form>
+                                    <form method="POST" action="/resend-admin-notification/{{ $user->id }}" style="display: inline;">
+                                        @csrf
+                                        <button class="btn" type="submit" style="background: #17a2b8; color: white; font-size: 11px; padding: 8px 12px;">
+                                            📧 Resend
                                         </button>
                                     </form>
                                 </div>
@@ -294,4 +336,14 @@
             </table>
         @endif
     </div>
+
+    <script>
+        function confirmApproval(name, email) {
+            return confirm(`Are you sure you want to APPROVE this account?\n\nUser: ${name}\nEmail: ${email}\n\nThis will:\n✅ Grant DIRECT LOGIN access to the IT Inventory System\n✅ Send approval confirmation email to user\n✅ User can login immediately with their Gmail account\n✅ No need to login to infotech-inventory.com first\n\nClick OK to approve or Cancel to abort.`);
+        }
+
+        function confirmRejection(name, email) {
+            return confirm(`Are you sure you want to REJECT this account?\n\nUser: ${name}\nEmail: ${email}\n\nThis will:\n❌ Permanently delete the user account\n❌ Send rejection notification email to user\n❌ User will not be able to register again with this email\n\nClick OK to reject or Cancel to abort.`);
+        }
+    </script>
 @endsection

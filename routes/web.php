@@ -25,6 +25,23 @@ Route::get('/logout', [AuthController::class, 'logout']);
 Route::get('/login/id-image', [AuthController::class, 'idImage'])->name('login.id_image');
 Route::post('/login/scan', [AuthController::class, 'loginByScan'])->name('login.scan');
 
+// Password Reset Routes
+Route::post('/password-reset/send-otp', [AuthController::class, 'sendOTP'])->name('password.reset.send-otp');
+Route::post('/password-reset/verify-otp', [AuthController::class, 'verifyOTP'])->name('password.reset.verify-otp');
+Route::post('/password-reset/update', [AuthController::class, 'updatePassword'])->name('password.reset.update');
+
+// Email Verification Routes for Registration
+Route::post('/email-verification/send-otp', [AuthController::class, 'sendEmailVerificationOTP'])->name('email.verification.send-otp');
+Route::post('/email-verification/verify-otp', [AuthController::class, 'verifyEmailOTP'])->name('email.verification.verify-otp');
+
+// Email Testing Routes (for debugging)
+Route::get('/test-email-system', [AuthController::class, 'testEmailSystem'])->name('test.email.system');
+Route::post('/resend-admin-notification/{id}', [AuthController::class, 'resendAdminNotification'])->name('resend.admin.notification');
+
+// Email-based Approval Routes
+Route::get('/email-approve/{id}/{token}', [AuthController::class, 'emailApproveUser'])->name('email.approve.user');
+Route::get('/email-reject/{id}/{token}', [AuthController::class, 'emailRejectUser'])->name('email.reject.user');
+
 // DASHBOARD (PROTECTED)
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth');
 

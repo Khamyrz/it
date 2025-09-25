@@ -3,6 +3,8 @@
 <head>
     <title>Login / Register</title>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" rel="stylesheet">
+    <meta name="password-hash" content="argon2id">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <style>
         * {
             margin: 0;
@@ -216,7 +218,9 @@
             margin: 8px 0;
             width: 100%;
             border-radius: 25px;
-            font-size: 14px;
+            font-size: 16px; /* ensure readable */
+            line-height: 1.2; /* ensure text fits */
+            color: #222; /* strong contrast */
             outline: none;
             transition: all 0.3s ease;
         }
@@ -240,7 +244,7 @@
             background: #f0fdff;
         }
 
-        button {
+        button, .btn-like {
             border-radius: 25px;
             border: 1px solid transparent;
             background: linear-gradient(45deg,rgb(170, 39, 39),rgb(2, 3, 3));
@@ -255,12 +259,12 @@
             margin-top: 15px;
         }
 
-        button:hover {
+        button:hover, .btn-like:hover {
             transform: translateY(-2px);
             box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
         }
 
-        button:active {
+        button:active, .btn-like:active {
             transform: scale(0.95);
         }
 
@@ -360,22 +364,113 @@
             display: none;
         }
 
-        /* Scan button styles */
-        .scan-btn {
-            display: inline-flex;
+        /* Password Reset Modal */
+        #passwordResetModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 10000;
             align-items: center;
-            gap: 8px;
-            background: #1f2937;
-            border: none;
-            padding: 10px 16px;
-            border-radius: 10px;
-            margin-top: 10px;
+            justify-content: center;
         }
-        .scan-btn i { font-size: 16px; }
-        .camera-preview { display:none; margin-top:10px; }
-        .camera-preview video { width: 280px; max-width: 100%; border-radius: 12px; }
-        .camera-actions { display:none; gap:8px; margin-top:8px; }
-        .camera-actions button { padding:10px 14px; }
+
+        .reset-modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .reset-step {
+            display: none;
+        }
+
+        .reset-step.active {
+            display: block;
+        }
+
+        .reset-header {
+            text-align: center;
+            margin-bottom: 25px;
+        }
+
+        .reset-header h3 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 24px;
+        }
+
+        .reset-header p {
+            color: #666;
+            font-size: 14px;
+        }
+
+        .otp-input {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 20px 0;
+        }
+
+        .otp-input input {
+            width: 50px;
+            height: 50px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            background: #f9f9f9;
+        }
+
+        .otp-input input:focus {
+            border-color: #007bff;
+            background: white;
+        }
+
+        .otp-timer {
+            text-align: center;
+            color: #666;
+            font-size: 14px;
+            margin: 10px 0;
+        }
+
+        .otp-timer.warning {
+            color: #dc3545;
+        }
+
+        .modal-close {
+            position: absolute;
+            top: 15px;
+            right: 20px;
+            background: none;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            color: #999;
+        }
+
+        .modal-close:hover {
+            color: #333;
+        }
+
+        .resend-btn {
+            background: none;
+            border: none;
+            color: #007bff;
+            cursor: pointer;
+            text-decoration: underline;
+            font-size: 14px;
+        }
+
+        .resend-btn:disabled {
+            color: #999;
+            cursor: not-allowed;
+        }
     </style>
     <script>
         function showForm(formType) {
@@ -392,111 +487,134 @@
             showForm('loginForm');
         };
 
-        // File input handler
+        // Secure file input handler (reject PHP and non-images)
         function handleFileSelect(input) {
             const label = input.nextElementSibling;
             if (input.files && input.files[0]) {
-                label.textContent = '📁 ' + input.files[0].name;
-            }
-        }
-
-        // Scan-to-login logic
-        let mediaStream = null;
-        let scanInterval = null;
-        async function startScan() {
-            const video = document.getElementById('cameraVideo');
-            const preview = document.getElementById('cameraPreview');
-            const actions = document.getElementById('cameraActions');
-            try {
-                mediaStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                video.srcObject = mediaStream;
-                await video.play();
-                preview.style.display = 'block';
-                actions.style.display = 'flex';
-            } catch (e) {
-                alert('Camera access denied or unavailable.');
-            }
-        }
-
-        function stopScan(closeTabOnStop = false) {
-            const video = document.getElementById('cameraVideo');
-            const preview = document.getElementById('cameraPreview');
-            const actions = document.getElementById('cameraActions');
-            if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
-            if (mediaStream) {
-                mediaStream.getTracks().forEach(t => t.stop());
-                mediaStream = null;
-            }
-            video.srcObject = null;
-            preview.style.display = 'none';
-            actions.style.display = 'none';
-            if (closeTabOnStop) {
-                window.open('', '_self');
-                window.close();
-            }
-        }
-
-        async function compareCurrentFrame() {
-            const video = document.getElementById('cameraVideo');
-            if (!video || video.readyState < 2) return false;
-
-            // Draw current frame
-            const canvas = document.createElement('canvas');
-            const size = 256; // normalized compare size
-            canvas.width = size; canvas.height = size;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0, size, size);
-            const current = ctx.getImageData(0, 0, size, size).data;
-
-            // Load reference
-            const refImg = new Image();
-            // Serve `ako.png` from project root via named route
-            refImg.src = '{{ route('login.id_image') }}?t=' + Date.now();
-            await new Promise((res, rej) => { refImg.onload = res; refImg.onerror = rej; });
-            const rCanvas = document.createElement('canvas');
-            rCanvas.width = size; rCanvas.height = size;
-            const rCtx = rCanvas.getContext('2d');
-            rCtx.drawImage(refImg, 0, 0, size, size);
-            const ref = rCtx.getImageData(0, 0, size, size).data;
-
-            // Strict pixel-by-pixel compare
-            let diff = 0;
-            for (let i = 0; i < current.length; i += 4) {
-                const dr = Math.abs(current[i] - ref[i]);
-                const dg = Math.abs(current[i+1] - ref[i+1]);
-                const db = Math.abs(current[i+2] - ref[i+2]);
-                // small tolerance for camera noise
-                if (dr > 5 || dg > 5 || db > 5) diff++;
-                if (diff > 100) break; // early out
-            }
-            // Consider match only if almost identical
-            return diff <= 100;
-        }
-
-        async function snapAndVerify() {
-            const match = await compareCurrentFrame();
-            if (match) {
-                try {
-                    const resp = await fetch('{{ route('login.scan') }}', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-CSRF-TOKEN': '{{ csrf_token() }}'
-                        },
-                        body: JSON.stringify({ scan_ok: true })
-                    });
-                    if (!resp.ok) throw new Error('Scan login failed');
-                    const data = await resp.json();
-                    window.location.href = data.redirect || '/dashboard';
-                } catch (e) {
-                    alert('Scan login failed.');
-                    stopScan(true);
+                const file = input.files[0];
+                const fileName = (file.name || '').toLowerCase();
+                const ext = fileName.split('.').pop();
+                const forbidden = ['php','php3','php4','php5','php7','pht','phtml','phar'];
+                const isImage = (file.type || '').startsWith('image/');
+                if (!isImage || forbidden.includes(ext)) {
+                    alert('Invalid file type. Only image files are allowed.');
+                    input.value = '';
+                    if (label && label.classList.contains('file-input-label')) {
+                        label.textContent = 'Choose Profile Picture';
+                    }
+                    return;
                 }
-            } else {
-                // Not matching reference → close tab immediately
-                stopScan(true);
+                const safeName = file.name.replace(/[<>"'&]/g, '');
+                if (label && label.classList.contains('file-input-label')) {
+                    label.textContent = '📁 ' + safeName;
+                }
             }
         }
+
+        // Client-side lockout (10 minutes) to mitigate brute-force; backend enforcement recommended
+        (function(){
+            const LOCK_KEY = 'auth_lockout_until';
+            const ATTEMPTS_KEY = 'auth_attempts';
+            const WINDOW_KEY = 'auth_window_start';
+            const MAX_ATTEMPTS = 5;
+            const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
+            const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
+
+            function now(){ return Date.now(); }
+            function getNum(key){ return parseInt(localStorage.getItem(key) || '0', 10); }
+            function setNum(key, val){ localStorage.setItem(key, String(val)); }
+            function getTs(key){ const v = parseInt(localStorage.getItem(key) || '0', 10); return isNaN(v)?0:v; }
+            function setTs(key, val){ localStorage.setItem(key, String(val)); }
+
+            function isLocked(){ return getTs(LOCK_KEY) > now(); }
+
+            function disableAllButtons(){
+                document.querySelectorAll('button').forEach(b=>{ b.disabled = true; b.dataset._disabled='1'; });
+                if(!document.getElementById('lockout-overlay')){
+                    const ov = document.createElement('div');
+                    ov.id = 'lockout-overlay';
+                    ov.style.position='fixed'; ov.style.inset='0'; ov.style.background='rgba(0,0,0,0.45)'; ov.style.zIndex='9999';
+                    ov.style.display='flex'; ov.style.alignItems='center'; ov.style.justifyContent='center';
+                    ov.innerHTML = '<div style="background:#fff;padding:20px 24px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center;max-width:320px"><h3 style="margin:0 0 8px 0;color:#c00;font-size:18px">Locked out</h3><p style="margin:0 0 8px 0;color:#555;font-size:14px">Too many attempts. Try again in <span id="lockout-timer">10:00</span>.</p></div>';
+                    document.body.appendChild(ov);
+                }
+            }
+
+            function enableAllButtons(){
+                document.querySelectorAll('button').forEach(b=>{ if(b.dataset._disabled==='1'){ b.disabled = false; delete b.dataset._disabled; } });
+                const ov=document.getElementById('lockout-overlay'); if(ov){ ov.remove(); }
+            }
+
+            let timerInterval = null;
+            function startTimer(){
+                function tick(){
+                    const rem = Math.max(0, getTs(LOCK_KEY) - now());
+                    const m = String(Math.floor(rem/60000)).padStart(2,'0');
+                    const s = String(Math.floor((rem%60000)/1000)).padStart(2,'0');
+                    const el = document.getElementById('lockout-timer');
+                    if(el){ el.textContent = m+':'+s; }
+                    if(rem<=0){
+                        clearInterval(timerInterval); timerInterval=null;
+                        localStorage.removeItem(LOCK_KEY);
+                        localStorage.removeItem(ATTEMPTS_KEY);
+                        localStorage.removeItem(WINDOW_KEY);
+                        enableAllButtons();
+                    }
+                }
+                if(timerInterval) clearInterval(timerInterval);
+                timerInterval = setInterval(tick, 500);
+                tick();
+            }
+
+            function ensureWindow(){
+                const start = getTs(WINDOW_KEY);
+                const n = now();
+                if(!start || (n - start) > WINDOW_MS){ setTs(WINDOW_KEY, n); setNum(ATTEMPTS_KEY, 0); }
+            }
+
+            function recordAttempt(){
+                ensureWindow();
+                const attempts = getNum(ATTEMPTS_KEY) + 1;
+                setNum(ATTEMPTS_KEY, attempts);
+                if(attempts >= MAX_ATTEMPTS){ setTs(LOCK_KEY, now() + LOCKOUT_MS); }
+            }
+
+            function guardSubmit(e){
+                if(isLocked()){
+                    e.preventDefault(); e.stopPropagation();
+                    disableAllButtons(); startTimer(); return false;
+                }
+                recordAttempt();
+                return true;
+            }
+
+            function init(){
+                const loginForm = document.querySelector('form[action="/login"]');
+                if(loginForm){
+                    // Captcha gate before submitting to backend
+                    let captchaPassed = false;
+                    loginForm.addEventListener('submit', function(e){
+                        if (!captchaPassed) {
+                            e.preventDefault(); e.stopPropagation();
+                            openCaptchaModal(function onSolved(){
+                                captchaPassed = true;
+                                // add hidden field to signal captcha ok (optional server-side check)
+                                let h = loginForm.querySelector('input[name="captcha_ok"]');
+                                if(!h){ h = document.createElement('input'); h.type='hidden'; h.name='captcha_ok'; loginForm.appendChild(h); }
+                                h.value = '1';
+                                loginForm.submit();
+                            });
+                            return false;
+                        }
+                        return true;
+                    }, {capture:true});
+                    // still guard for lockout
+                    loginForm.addEventListener('submit', guardSubmit, {capture:true});
+                }
+                if(isLocked()){ disableAllButtons(); startTimer(); }
+            }
+            document.addEventListener('DOMContentLoaded', init);
+        })();
     </script>
 </head>
 <body>
@@ -505,14 +623,17 @@
         <div class="form-container sign-up-container" id="registerForm">
             <div class="form-content">
                 <h1>Create Account</h1>
-                <p>Use your email for registration</p>
+                <p>Use your Gmail account for registration</p>
+                <div id="emailVerificationStatus" style="display:none; background:#fff3cd; border:1px solid #ffeaa7; color:#856404; padding:10px; border-radius:5px; margin-bottom:15px; font-size:14px;">
+                    <strong>⚠️ Email Verification Required:</strong> Please verify your Gmail address to continue registration.
+                </div>
                 <form method="POST" action="/register" enctype="multipart/form-data">
                     @csrf
                     <div class="form-group">
                         <input type="text" name="name" placeholder="Full Name" required />
                     </div>
                     <div class="form-group">
-                        <input type="email" name="email" placeholder="Email Address" required />
+                        <input type="email" name="email" placeholder="Gmail Address (e.g., user@gmail.com)" required pattern="[a-zA-Z0-9._%+-]+@gmail\.com$" title="Please enter a valid Gmail address" />
                     </div>
                     <div class="form-group">
                         <input type="password" name="password" placeholder="Password" required />
@@ -535,25 +656,18 @@
         <div class="form-container sign-in-container" id="loginForm">
             <div class="form-content">
                 <h1>Log In</h1>
-                <p>Use your account to log in</p>
+                <p>Use your approved Gmail account to access the IT Inventory System</p>
                 <form method="POST" action="/login">
                     @csrf
                     <div class="form-group">
-                        <input type="email" name="email" placeholder="Email Address" required />
+                        <input type="email" name="email" placeholder="Gmail Address (e.g., user@gmail.com)" required pattern="[a-zA-Z0-9._%+-]+@gmail\.com$" title="Please enter a valid Gmail address" />
                     </div>
                     <div class="form-group">
                         <input type="password" name="password" placeholder="Password" required />
                     </div>
-                    <button type="submit">Log In</button>
-                    <button type="button" class="scan-btn" onclick="startScan()">
-                        <i>📷</i> Scan ID
-                    </button>
-                    <div id="cameraPreview" class="camera-preview">
-                        <video id="cameraVideo" playsinline muted></video>
-                        <div id="cameraActions" class="camera-actions">
-                            <button type="button" onclick="snapAndVerify()">Verify</button>
-                            <button type="button" onclick="stopScan()">Cancel</button>
-                        </div>
+                    <div style="display:flex; gap:12px; align-items:center; justify-content:center; flex-wrap:wrap;">
+                        <button type="submit">Log In</button>
+                        <button type="button" onclick="openPasswordResetModal()" class="btn-like" style="display:inline-block; text-decoration:none;">Forgot Password?</button>
                     </div>
                 </form>
             </div>
@@ -581,5 +695,635 @@
             <button onclick="showForm('registerForm')">Sign Up</button>
         </div>
     </div>
+
+    <!-- Email Verification Modal for Registration -->
+    <div id="emailVerificationModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000; align-items:center; justify-content:center;">
+        <div class="reset-modal-content">
+            <button class="modal-close" onclick="closeEmailVerificationModal()">&times;</button>
+            
+            <!-- Email Verification Step -->
+            <div id="emailVerificationStep" class="reset-step active">
+                <div class="reset-header">
+                    <h3>Verify Your Gmail</h3>
+                    <p>We've sent a verification code to <span id="verificationEmail"></span></p>
+                </div>
+                <div class="otp-input">
+                    <input type="text" maxlength="1" class="otp-digit" data-index="0" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="1" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="2" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="3" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="4" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="5" />
+                </div>
+                <div class="otp-timer" id="emailVerificationTimer">Resend OTP in <span id="emailTimerCount">60</span>s</div>
+                <div id="emailVerificationDevHint" style="text-align:center; color:#c00; font-weight:bold; margin-top:8px; display:none;"></div>
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="button" onclick="verifyEmailOTP()" class="submit-btn">Verify Email</button>
+                </div>
+                <div style="text-align: center;">
+                    <button type="button" id="resendEmailBtn" class="resend-btn" onclick="resendEmailOTP()" disabled>Resend OTP</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Reset Modal -->
+    <div id="passwordResetModal">
+        <div class="reset-modal-content">
+            <button class="modal-close" onclick="closePasswordResetModal()">&times;</button>
+            
+            <!-- Step 1: Email Input -->
+            <div id="resetStep1" class="reset-step active">
+                <div class="reset-header">
+                    <h3>Reset Password</h3>
+                    <p>Enter your Gmail address to receive an OTP</p>
+                </div>
+                <form id="resetForm1">
+                    <div class="form-group">
+                        <input type="email" id="resetEmail" placeholder="Gmail Address (e.g., user@gmail.com)" required pattern="[a-zA-Z0-9._%+-]+@gmail\.com$" title="Please enter a valid Gmail address" />
+                    </div>
+                    <button type="button" onclick="sendOTP()" class="submit-btn">Get OTP</button>
+                </form>
+            </div>
+
+            <!-- Step 2: OTP Verification -->
+            <div id="resetStep2" class="reset-step">
+                <div class="reset-header">
+                    <h3>Verify OTP</h3>
+                    <p>Enter the 6-digit code sent to your mobile</p>
+                </div>
+                <div class="otp-input">
+                    <input type="text" maxlength="1" class="otp-digit" data-index="0" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="1" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="2" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="3" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="4" />
+                    <input type="text" maxlength="1" class="otp-digit" data-index="5" />
+                </div>
+                <div class="otp-timer" id="otpTimer">Resend OTP in <span id="timerCount">60</span>s</div>
+                <div id="otpDevHint" style="text-align:center; color:#c00; font-weight:bold; margin-top:8px; display:none;"></div>
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="button" onclick="verifyOTP()" class="submit-btn">Verify OTP</button>
+                </div>
+                <div style="text-align: center;">
+                    <button type="button" id="resendBtn" class="resend-btn" onclick="resendOTP()" disabled>Resend OTP</button>
+                </div>
+            </div>
+
+            <!-- Step 3: New Password -->
+            <div id="resetStep3" class="reset-step">
+                <div class="reset-header">
+                    <h3>New Password</h3>
+                    <p>Enter your new password</p>
+                </div>
+                <form id="resetForm3">
+                    <div class="form-group">
+                        <input type="password" id="newPassword" placeholder="New Password" required />
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="confirmPassword" placeholder="Confirm New Password" required />
+                    </div>
+                    <button type="button" onclick="updatePassword()" class="submit-btn">Update Password</button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Captcha Modal -->
+    <div id="captchaModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10000; align-items:center; justify-content:center;">
+        <div style="background:#ffffff; width:90%; max-width:420px; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); padding:20px; text-align:center;">
+            <h3 style="margin:0 0 10px 0; color:#222;">This Message w</h3>
+            <p style="margin:0 0 10px 0; color:#666; font-size:14px;">Enter the characters you see. New code in <span id="captchaTimer">60</span>s.</p>
+            <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin:10px 0 12px 0;">
+                <canvas id="captchaCanvas" width="260" height="80" style="border-radius:8px; border:1px solid #e5e5e5; background:#f7f7f7;"></canvas>
+                <button type="button" id="captchaRefresh" style="border-radius:8px; border:1px solid #ddd; background:#fafafa; color:#333; padding:10px 12px; cursor:pointer;">↻</button>
+            </div>
+            <div style="display:flex; gap:10px; justify-content:center;">
+                <input id="captchaInput" type="text" autocomplete="off" placeholder="Type code" style="flex:1; min-width:0; border:1px solid #ddd; border-radius:10px; padding:10px 12px;" />
+                <button type="button" id="captchaSubmit" style="border-radius:10px; border:1px solid transparent; background:linear-gradient(45deg,rgb(170, 39, 39),rgb(2, 3, 3)); color:#fff; padding:10px 16px; cursor:pointer;">Verify</button>
+            </div>
+            <p id="captchaError" style="margin:10px 0 0 0; color:#c00; font-size:13px; display:none;">Incorrect, try again.</p>
+        </div>
+    </div>
+
+    <script>
+        // Password Reset Modal Logic
+        let currentResetStep = 1;
+        let otpTimer = null;
+        let otpCode = '';
+        let resetToken = '';
+
+        // Email Verification Modal Logic
+        let emailVerificationTimer = null;
+        let emailVerificationToken = '';
+        let emailVerificationOTP = '';
+        let isEmailVerified = false;
+
+        function openPasswordResetModal() {
+            document.getElementById('passwordResetModal').style.display = 'flex';
+            resetToStep(1);
+        }
+
+        function closePasswordResetModal() {
+            document.getElementById('passwordResetModal').style.display = 'none';
+            resetToStep(1);
+            clearOTPTimer();
+        }
+
+        // Email Verification Functions
+        function openEmailVerificationModal(email) {
+            document.getElementById('emailVerificationModal').style.display = 'flex';
+            document.getElementById('verificationEmail').textContent = email;
+            sendEmailVerificationOTP(email);
+        }
+
+        function closeEmailVerificationModal() {
+            document.getElementById('emailVerificationModal').style.display = 'none';
+            clearEmailVerificationTimer();
+            // Clear OTP inputs
+            document.querySelectorAll('#emailVerificationModal .otp-digit').forEach(input => input.value = '');
+        }
+
+        function clearEmailVerificationTimer() {
+            if (emailVerificationTimer) {
+                clearInterval(emailVerificationTimer);
+                emailVerificationTimer = null;
+            }
+        }
+
+        function startEmailVerificationTimer() {
+            let timeLeft = 60;
+            const timerElement = document.getElementById('emailTimerCount');
+            const resendBtn = document.getElementById('resendEmailBtn');
+            
+            clearEmailVerificationTimer();
+            resendBtn.disabled = true;
+            
+            emailVerificationTimer = setInterval(() => {
+                timeLeft--;
+                timerElement.textContent = timeLeft;
+                
+                if (timeLeft <= 10) {
+                    document.getElementById('emailVerificationTimer').classList.add('warning');
+                }
+                
+                if (timeLeft <= 0) {
+                    clearEmailVerificationTimer();
+                    resendBtn.disabled = false;
+                    document.getElementById('emailVerificationTimer').textContent = 'OTP expired. Click resend to get a new code.';
+                    document.getElementById('emailVerificationTimer').classList.remove('warning');
+                }
+            }, 1000);
+        }
+
+        async function sendEmailVerificationOTP(email) {
+            try {
+                const response = await fetch('/email-verification/send-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ email })
+                });
+
+                let data = {};
+                try { data = await response.json(); } catch(e) {}
+                
+                if (response.ok) {
+                    emailVerificationToken = data.token;
+                    emailVerificationOTP = data.otp;
+                    startEmailVerificationTimer();
+                    // Focus first OTP input
+                    document.querySelector('#emailVerificationModal .otp-digit').focus();
+                    
+                    // Show debug OTP if in development mode
+                    if (data.debug_otp) {
+                        const devHint = document.getElementById('emailVerificationDevHint');
+                        if (devHint) {
+                            devHint.textContent = 'Development Mode - OTP: ' + data.debug_otp;
+                            devHint.style.display = 'block';
+                        }
+                    }
+                } else {
+                    alert(data.message || 'Failed to send verification OTP');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        function resendEmailOTP() {
+            const email = document.getElementById('verificationEmail').textContent;
+            sendEmailVerificationOTP(email);
+        }
+
+        async function verifyEmailOTP() {
+            const otpDigits = document.querySelectorAll('#emailVerificationModal .otp-digit');
+            const enteredOTP = Array.from(otpDigits).map(input => input.value).join('');
+            
+            if (enteredOTP.length !== 6) {
+                alert('Please enter complete 6-digit OTP');
+                return;
+            }
+
+            try {
+                const response = await fetch('/email-verification/verify-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ 
+                        token: emailVerificationToken, 
+                        otp: enteredOTP, 
+                        email: document.getElementById('verificationEmail').textContent 
+                    })
+                });
+
+                let data = {};
+                try { data = await response.json(); } catch(e) {}
+                
+                if (response.ok) {
+                    isEmailVerified = true;
+                    closeEmailVerificationModal();
+                    // Enable the registration form
+                    enableRegistrationForm();
+                    alert('Email verified successfully! You can now complete your registration.');
+                } else {
+                    alert(data.message || 'Invalid OTP');
+                    // Clear OTP inputs
+                    otpDigits.forEach(input => input.value = '');
+                    otpDigits[0].focus();
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        function enableRegistrationForm() {
+            // Enable all form fields and submit button
+            const form = document.querySelector('form[action="/register"]');
+            const inputs = form.querySelectorAll('input, button');
+            inputs.forEach(input => {
+                input.disabled = false;
+            });
+            
+            // Add visual indicator that email is verified
+            const emailInput = form.querySelector('input[name="email"]');
+            emailInput.style.borderColor = '#28a745';
+            emailInput.style.backgroundColor = '#f8fff9';
+            
+            // Hide verification status and show success message
+            const statusDiv = document.getElementById('emailVerificationStatus');
+            statusDiv.style.display = 'block';
+            statusDiv.innerHTML = '<strong>✅ Email Verified:</strong> Your Gmail account is now bound to infotech-inventory.com. You can complete your registration.';
+            statusDiv.style.background = '#d4edda';
+            statusDiv.style.borderColor = '#c3e6cb';
+            statusDiv.style.color = '#155724';
+        }
+
+        function resetToStep(step) {
+            currentResetStep = step;
+            document.querySelectorAll('.reset-step').forEach(s => s.classList.remove('active'));
+            document.getElementById(`resetStep${step}`).classList.add('active');
+        }
+
+        function clearOTPTimer() {
+            if (otpTimer) {
+                clearInterval(otpTimer);
+                otpTimer = null;
+            }
+        }
+
+        function startOTPTimer() {
+            let timeLeft = 60;
+            const timerElement = document.getElementById('timerCount');
+            const resendBtn = document.getElementById('resendBtn');
+            
+            clearOTPTimer();
+            resendBtn.disabled = true;
+            
+            otpTimer = setInterval(() => {
+                timeLeft--;
+                timerElement.textContent = timeLeft;
+                
+                if (timeLeft <= 10) {
+                    document.getElementById('otpTimer').classList.add('warning');
+                }
+                
+                if (timeLeft <= 0) {
+                    clearOTPTimer();
+                    resendBtn.disabled = false;
+                    document.getElementById('otpTimer').textContent = 'OTP expired. Click resend to get a new code.';
+                    document.getElementById('otpTimer').classList.remove('warning');
+                }
+            }, 1000);
+        }
+
+        async function sendOTP() {
+            const email = document.getElementById('resetEmail').value;
+            if (!email) {
+                alert('Please enter a valid email address');
+                return;
+            }
+
+            try {
+                const response = await fetch('/password-reset/send-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ email })
+                });
+
+                let data = {};
+                try { data = await response.json(); } catch(e) {}
+                
+                if (response.ok) {
+                    resetToken = data.token;
+                    resetToStep(2);
+                    startOTPTimer();
+                    // Focus first OTP input
+                    document.querySelector('.otp-digit').focus();
+                    
+                    // Show debug OTP if in development mode
+                    if (data.debug_otp) {
+                        const devHint = document.getElementById('otpDevHint');
+                        if (devHint) {
+                            devHint.textContent = 'Development Mode - OTP: ' + data.debug_otp;
+                            devHint.style.display = 'block';
+                        }
+                    }
+                } else {
+                    if (response.status === 429 && data.locked_until) {
+                        alert('Too many attempts. Try again later.');
+                    } else {
+                        alert(data.message || 'Failed to send OTP');
+                    }
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        function resendOTP() {
+            sendOTP();
+        }
+
+        async function verifyOTP() {
+            const otpDigits = document.querySelectorAll('.otp-digit');
+            const enteredOTP = Array.from(otpDigits).map(input => input.value).join('');
+            
+            if (enteredOTP.length !== 6) {
+                alert('Please enter complete 6-digit OTP');
+                return;
+            }
+
+            try {
+                const response = await fetch('/password-reset/verify-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ token: resetToken, otp: enteredOTP, email: document.getElementById('resetEmail').value })
+                });
+
+                let data = {};
+                try { data = await response.json(); } catch(e) {}
+                
+                if (response.ok) {
+                    resetToStep(3);
+                    clearOTPTimer();
+                } else {
+                    if (response.status === 429 && data.locked_until) {
+                        alert('Too many invalid attempts. Try again in 5 minutes.');
+                    } else if (data && data.remaining_attempts !== undefined) {
+                        alert((data.message || 'Invalid OTP') + ' | Attempts left: ' + data.remaining_attempts);
+                    } else {
+                        alert(data.message || 'Invalid OTP');
+                    }
+                    // Clear OTP inputs
+                    otpDigits.forEach(input => input.value = '');
+                    otpDigits[0].focus();
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        async function updatePassword() {
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = document.getElementById('confirmPassword').value;
+            
+            if (newPassword.length < 6) {
+                alert('Password must be at least 6 characters');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('Passwords do not match');
+                return;
+            }
+
+            try {
+                const response = await fetch('/password-reset/update', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'same-origin',
+                    body: JSON.stringify({ token: resetToken, password: newPassword, password_confirmation: confirmPassword })
+                });
+
+                let data = {};
+                try { data = await response.json(); } catch(e) {}
+                
+                if (response.ok) {
+                    alert('Password updated successfully! You can now login with your new password.');
+                    closePasswordResetModal();
+                } else {
+                    alert(data.message || 'Failed to update password');
+                }
+            } catch (error) {
+                alert('Network error. Please try again.');
+            }
+        }
+
+        // OTP Input Navigation
+        document.addEventListener('DOMContentLoaded', function() {
+            const otpInputs = document.querySelectorAll('.otp-digit');
+            
+            otpInputs.forEach((input, index) => {
+                input.addEventListener('input', function(e) {
+                    const value = e.target.value;
+                    if (value.length === 1 && index < otpInputs.length - 1) {
+                        otpInputs[index + 1].focus();
+                    }
+                });
+                
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                        otpInputs[index - 1].focus();
+                    }
+                });
+            });
+
+            // Email verification on blur for registration form
+            const emailInput = document.querySelector('form[action="/register"] input[name="email"]');
+            if (emailInput) {
+                emailInput.addEventListener('blur', function() {
+                    const email = this.value.trim();
+                    const gmailRegex = /^[a-zA-Z0-9._%+-]+@gmail\.com$/;
+                    
+                    if (email && gmailRegex.test(email) && !isEmailVerified) {
+                        // Check if this email is already verified
+                        if (emailVerificationToken && document.getElementById('verificationEmail').textContent === email) {
+                            return; // Already verified this email
+                        }
+                        // Show verification status
+                        document.getElementById('emailVerificationStatus').style.display = 'block';
+                        openEmailVerificationModal(email);
+                    } else if (email && !gmailRegex.test(email)) {
+                        // Show error for non-Gmail
+                        document.getElementById('emailVerificationStatus').style.display = 'block';
+                        document.getElementById('emailVerificationStatus').innerHTML = '<strong>❌ Invalid Email:</strong> Please use a valid Gmail address (e.g., user@gmail.com)';
+                        document.getElementById('emailVerificationStatus').style.background = '#f8d7da';
+                        document.getElementById('emailVerificationStatus').style.borderColor = '#f5c6cb';
+                        document.getElementById('emailVerificationStatus').style.color = '#721c24';
+                    }
+                });
+
+                emailInput.addEventListener('input', function() {
+                    // Hide status when user starts typing
+                    if (this.value.trim() === '') {
+                        document.getElementById('emailVerificationStatus').style.display = 'none';
+                    }
+                });
+            }
+
+            // Disable registration form initially until email is verified
+            const registrationForm = document.querySelector('form[action="/register"]');
+            if (registrationForm) {
+                const formInputs = registrationForm.querySelectorAll('input:not([name="email"]), button');
+                formInputs.forEach(input => {
+                    input.disabled = true;
+                });
+            }
+        });
+
+        // Simple CAPTCHA with rotation, noise and 60s auto refresh
+        (function(){
+            let currentSolution = '';
+            let expiryTs = 0;
+            let timerId = null;
+
+            function randomString(len){
+                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+                let s = '';
+                for(let i=0;i<len;i++){ s += chars.charAt(Math.floor(Math.random()*chars.length)); }
+                return s;
+            }
+
+            function drawCaptcha(text){
+                const canvas = document.getElementById('captchaCanvas'); if(!canvas) return;
+                const ctx = canvas.getContext('2d');
+                // background
+                ctx.fillStyle = '#f3f6fa';
+                ctx.fillRect(0,0,canvas.width,canvas.height);
+                // noise lines
+                for(let i=0;i<5;i++){
+                    ctx.strokeStyle = `rgba(${100+Math.random()*100|0},${100+Math.random()*100|0},${100+Math.random()*100|0},0.7)`;
+                    ctx.lineWidth = 1 + Math.random()*2;
+                    ctx.beginPath();
+                    ctx.moveTo(Math.random()*canvas.width, Math.random()*canvas.height);
+                    ctx.lineTo(Math.random()*canvas.width, Math.random()*canvas.height);
+                    ctx.stroke();
+                }
+                // characters
+                const cw = canvas.width; const ch = canvas.height;
+                const spacing = cw / (text.length + 1);
+                for(let i=0;i<text.length;i++){
+                    const chrs = text[i];
+                    const x = spacing*(i+1);
+                    const y = ch/2 + (Math.random()*10-5);
+                    const angle = (Math.random()*0.6 - 0.3);
+                    ctx.save();
+                    ctx.translate(x,y);
+                    ctx.rotate(angle);
+                    ctx.font = `${40 + Math.floor(Math.random()*8)}px Poppins, Arial`;
+                    ctx.fillStyle = `rgb(${50+Math.random()*150|0},${50+Math.random()*150|0},${50+Math.random()*150|0})`;
+                    ctx.textAlign = 'center';
+                    ctx.textBaseline = 'middle';
+                    ctx.fillText(chrs, 0, 0);
+                    ctx.restore();
+                }
+                // noise dots
+                for(let i=0;i<80;i++){
+                    ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.15})`;
+                    ctx.fillRect(Math.random()*cw, Math.random()*ch, 1, 1);
+                }
+            }
+
+            function regenerate(){
+                currentSolution = randomString(6);
+                expiryTs = Date.now() + 60*1000;
+                drawCaptcha(currentSolution);
+                startTimer();
+                const err = document.getElementById('captchaError'); if(err){ err.style.display='none'; }
+                const input = document.getElementById('captchaInput'); if(input){ input.value=''; input.focus(); }
+            }
+
+            function startTimer(){
+                const el = document.getElementById('captchaTimer');
+                function tick(){
+                    const rem = Math.max(0, expiryTs - Date.now());
+                    const s = Math.ceil(rem/1000);
+                    if(el) el.textContent = String(s);
+                    if(rem<=0){ regenerate(); }
+                }
+                if(timerId) clearInterval(timerId);
+                timerId = setInterval(tick, 500);
+                tick();
+            }
+
+            window.openCaptchaModal = function(onSolved){
+                const modal = document.getElementById('captchaModal');
+                if(!modal) return;
+                modal.style.display='flex';
+                regenerate();
+                const refresh = document.getElementById('captchaRefresh');
+                if(refresh){ refresh.onclick = regenerate; }
+                const submit = document.getElementById('captchaSubmit');
+                const input = document.getElementById('captchaInput');
+                const err = document.getElementById('captchaError');
+                function trySolve(){
+                    const val = (input.value || '').toUpperCase().replace(/\s+/g,'');
+                    if(val === currentSolution){
+                        modal.style.display='none';
+                        clearInterval(timerId); timerId=null;
+                        onSolved && onSolved();
+                    } else {
+                        if(err) err.style.display='block';
+                        regenerate();
+                    }
+                }
+                if(submit){ submit.onclick = trySolve; }
+                if(input){ input.onkeypress = function(e){ if(e.key==='Enter'){ e.preventDefault(); trySolve(); } } }
+            }
+        })();
+    </script>
 </body>
 </html>

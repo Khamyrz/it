@@ -1016,13 +1016,15 @@
 }
 
 .modal-content {
-    background-color: #fff;
-    border-radius: 8px;
+    background-color: #111827; /* Dark background for better contrast */
+    color: #fff;
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 12px;
     width: 90%;
     max-width: 600px;
     max-height: 90vh;
     overflow-y: auto;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
     transform: scale(0.9);
     transition: transform 0.3s ease;
 }
@@ -1033,7 +1035,7 @@
 
 .modal-header {
     padding: 20px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -1041,25 +1043,26 @@
 
 .modal-header h3 {
     margin: 0;
-    color: #333;
+    color: #fff;
 }
 
 .close-btn {
-    background: none;
+    background: rgba(255,255,255,0.08);
     border: none;
     font-size: 24px;
     cursor: pointer;
-    color: #999;
+    color: #fff;
     padding: 0;
-    width: 30px;
-    height: 30px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
     display: flex;
     align-items: center;
     justify-content: center;
 }
 
 .close-btn:hover {
-    color: #333;
+    background: rgba(255,255,255,0.16);
 }
 
 /* Form Styles */
@@ -1071,18 +1074,34 @@
     display: block;
     margin-bottom: 5px;
     font-weight: 500;
-    color: #333;
+    color: #fff;
 }
 
 .form-group input,
 .form-group select,
 .form-group textarea {
     width: 100%;
-    padding: 10px;
-    border: 1px solid #ddd;
-    border-radius: 4px;
+    padding: 12px;
+    background: rgba(255,255,255,0.08);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 8px;
+    color: #fff;
     font-size: 14px;
     box-sizing: border-box;
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+    color: rgba(255,255,255,0.7);
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+    outline: none;
+    border-color: rgba(14,165,233,0.6);
+    box-shadow: 0 0 0 3px rgba(14,165,233,0.25);
+    background: rgba(255,255,255,0.12);
 }
 
 .form-group textarea {
@@ -1095,15 +1114,16 @@
     display: flex;
     justify-content: center;
     padding: 20px;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid rgba(255,255,255,0.15);
 }
 
 .step-indicator {
     width: 40px;
     height: 40px;
     border-radius: 50%;
-    background-color: #ddd;
-    color: white;
+    background-color: rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.25);
+    color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1113,7 +1133,7 @@
 }
 
 .step-indicator.active {
-    background-color: #007bff;
+    background-color: #0ea5e9;
 }
 
 .step-indicator.completed {
@@ -1337,75 +1357,87 @@
 
                                 <div class="fullset-content">
                                     <div class="table-container">
-                                        <table>
+                                        <table class="maintenance-table">
                                             <thead>
                                                 <tr>
                                                     <th>Photo</th>
-                                                    <th>Component</th>
-                                                    <th>Brand</th>
-                                                    <th>Model</th>
-                                                    <th>Serial #</th>
-                                                    <th>Description</th>
                                                     <th>Barcode</th>
+                                                    <th>Category</th>
+                                                    <th>Brand/Model</th>
+                                                    <th>Serial Number</th>
+                                                    <th>Description</th>
                                                     <th>Status</th>
                                                     <th>Date Added</th>
                                                     <th>Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                @foreach($setItems as $item)
+                                                @php
+                                                    $collection = collect($setItems);
+                                                @endphp
+                                                @foreach($collection->groupBy('device_category') as $category => $items)
                                                 <tr>
-                                                    <td>
-                                                        @if($item->photo)
-                                                            <img src="{{ route('room-item.photo', $item->id) }}"
-                                                                alt="Item Photo"
-                                                                class="img-thumbnail"
-                                                                style="max-width: 40px;">
-                                                        @else
-                                                            <img src="{{ asset('path/to/your/placeholder.jpg') }}"
-                                                                alt="Item Photo"
-                                                                class="img-thumbnail"
-                                                                style="max-width: 40px;">
-                                                        @endif
-                                                    </td>
-                                                    <td>
-                                                        <strong>{{ $item->device_type ?? 'Component' }}</strong>
-                                                    </td>
-                                                    <td>{{ $item->brand ?? 'N/A' }}</td>
-                                                    <td>{{ $item->model ?? 'N/A' }}</td>
-                                                    <td><span class="serial-code">{{ $item->serial_number }}</span></td>
-                                                    <td>{{ Str::limit($item->description, 30) }}</td>
-                                                    <td>
-                                                        <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
-                                                            <div class="barcode-text">{{ $item->barcode }}</div>
-                                                            <div class="bwippbarcode">
-                                                                <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.5, 30) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; max-width:100%; height:auto;">
-                                                            </div>
-                                                        </div>
-                                                    </td>
-                                                    <td>
-                                                        <span class="badge {{ $item->status === 'Unusable' ? 'badge-unusable' : 'badge-usable' }}">
-                                                            {{ $item->status }}
-                                                        </span>
-                                                    </td>
-                                                    <td>{{ $item->created_at->format('M d, Y') }}</td>
-                                                    <td>
-                                                        <div class="action-buttons">
-                                                            <button onclick="openEditModal({{ $item->id }}, '{{ htmlspecialchars($item->room_title, ENT_QUOTES) }}', '{{ htmlspecialchars($item->device_category, ENT_QUOTES) }}', '{{ htmlspecialchars($item->brand ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->model ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->description ?? '', ENT_QUOTES) }}')" class="icon-btn edit">
-                                                                <i class="fas fa-edit"></i>
-                                                            </button>
-                                                            <form method="POST" action="/manage-room/item/{{ $item->id }}" style="display:inline;">
-                                                                @csrf @method('DELETE')
-                                                                <button class="icon-btn delete" onclick="return confirm('Delete this item?')">
-                                                                    <i class="fas fa-trash"></i>
-                                                                </button>
-                                                            </form>
-                                                            <button onclick="printBarcode({{ $item->id }})" class="icon-btn print">
-                                                                <i class="fas fa-print"></i>
-                                                            </button>
-                                                        </div>
+                                                    <td colspan="9" style="background:#f0f2f5; font-weight:bold;">
+                                                        {{ $category ?: 'Uncategorized' }}
                                                     </td>
                                                 </tr>
+                                                    @foreach($items as $item)
+                                                    <tr>
+                                                        <td>
+                                                            @if($item->photo)
+                                                                <img src="{{ route('room-item.photo', $item->id) }}"
+                                                                    alt="Item Photo"
+                                                                    class="img-thumbnail"
+                                                                    style="max-width: 40px;">
+                                                            @else
+                                                                <img src="{{ asset('path/to/your/placeholder.jpg') }}"
+                                                                    alt="Item Photo"
+                                                                    class="img-thumbnail"
+                                                                    style="max-width: 40px;">
+                                                            @endif
+                                                        </td>
+                                                        <td>
+                                                            <div class="barcode-text">{{ $item->barcode }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="device-category">{{ $item->device_category }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <div class="device-brand-model">
+                                                                <strong>{{ $item->brand }}</strong>
+                                                                @if($item->model)
+                                                                    <br><small>{{ $item->model }}</small>
+                                                                @endif
+                                                            </div>
+                                                        </td>
+                                                        <td>
+                                                            <code class="serial-number">{{ $item->serial_number }}</code>
+                                                        </td>
+                                                        <td>
+                                                            <div class="device-description">{{ $item->description }}</div>
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge {{ $item->status === 'Unusable' ? 'badge-unusable' : 'badge-usable' }}">{{ $item->status ?? 'Not Set' }}</span>
+                                                        </td>
+                                                        <td>{{ $item->created_at->format('M d, Y') }}</td>
+                                                        <td>
+                                                            <div class="action-buttons">
+                                                                <button onclick="openEditModal({{ $item->id }}, '{{ htmlspecialchars($item->room_title, ENT_QUOTES) }}', '{{ htmlspecialchars($item->device_category, ENT_QUOTES) }}', '{{ htmlspecialchars($item->brand ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->model ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->description ?? '', ENT_QUOTES) }}')" class="icon-btn edit">
+                                                                    <i class="fas fa-edit"></i>
+                                                                </button>
+                                                                <form method="POST" action="/manage-room/item/{{ $item->id }}" style="display:inline;">
+                                                                    @csrf @method('DELETE')
+                                                                    <button class="icon-btn delete" onclick="return confirm('Delete this item?')">
+                                                                        <i class="fas fa-trash"></i>
+                                                                    </button>
+                                                                </form>
+                                                                <button onclick="printBarcode({{ $item->id }})" class="icon-btn print">
+                                                                    <i class="fas fa-print"></i>
+                                                                </button>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                    @endforeach
                                                 @endforeach
                                             </tbody>
                                         </table>

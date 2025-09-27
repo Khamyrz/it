@@ -1,10 +1,16 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Redirect all requests to the public folder
-    RewriteRule ^(.*)$ public/$1 [L]
-</IfModule>
-<FilesMatch "^(\.env|\.git|composer\.json|artisan|server\.php|storage|vendor)">
+
+# Redirect all requests to the public folder
+RewriteCond %{REQUEST_URI} !^/public/
+RewriteRule ^(.*)$ public/$1 [L]
+
+# Security: block sensitive files
+<FilesMatch "^(artisan|\.env|composer\.(json|lock)|package\.json|webpack\.mix\.js|server\.php|phpunit\.xml|storage|vendor)">
     Order allow,deny
     Deny from all
 </FilesMatch>
+
+
+</IfModule>

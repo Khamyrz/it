@@ -1,3 +1,4 @@
+@"
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
@@ -8,3 +9,4 @@
     Order allow,deny
     Deny from all
 </FilesMatch>
+"@ | Out-File -Encoding UTF8 ".htaccess"

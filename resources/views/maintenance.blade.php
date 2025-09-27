@@ -797,38 +797,90 @@
                     $totalUsable = 0;
                     $totalUnusable = 0;
                     
-                    // Group items by computer lab first
-                    $comlabGroups = collect();
+                    // Group items by Room → PC# → PC data
+                    $roomGroups = collect();
                     
                     if(isset($fullsets) && $fullsets->isNotEmpty()) {
                         foreach($fullsets as $fullsetId => $fullset) {
-                            // Extract computer lab name from room
-                            $room = $fullset['room'] ?? '';
-                            if (preg_match('/Computer Lab (\d+)/i', $room, $matches)) {
-                                $comlabName = 'Computer Lab ' . $matches[1];
-                            } else {
-                                $comlabName = $room ?: 'Other';
-                            }
+                            $room = $fullset['room'] ?? 'Other';
                             
-                            if (!$comlabGroups->has($comlabName)) {
-                                $comlabGroups->put($comlabName, [
-                                    'fullsets' => collect(),
+                            // Initialize room group if it doesn't exist
+                            if (!$roomGroups->has($room)) {
+                                $roomGroups->put($room, [
+                                    'pcGroups' => collect(),
                                     'total_usable' => 0,
                                     'total_unusable' => 0,
                                     'total_items' => 0
                                 ]);
                             }
                             
-                            $comlabData = $comlabGroups->get($comlabName);
-                            $comlabData['fullsets']->put($fullsetId, $fullset);
-                            $comlabData['total_usable'] += $fullset['usable_count'] ?? 0;
-                            $comlabData['total_unusable'] += $fullset['unusable_count'] ?? 0;
-                            $comlabData['total_items'] += $fullset['total_count'] ?? 0;
+                            $roomData = $roomGroups->get($room);
                             
-                            $comlabGroups->put($comlabName, $comlabData);
+                            // Extract PC number from items in this fullset
+                            $pcNumber = null;
+                            $items = $fullset['items'] ?? collect();
                             
-                            $totalUsable += $fullset['usable_count'] ?? 0;
-                            $totalUnusable += $fullset['unusable_count'] ?? 0;
+                            // Try to extract PC number from barcode/serial numbers
+                            foreach($items as $item) {
+                                // Look for 3-digit number suffix (001, 002, etc.)
+                                if (preg_match('/(\d{3})$/', $item->barcode, $matches)) {
+                                    $pcNumber = intval($matches[1]);
+                                    break;
+                                }
+                                elseif (preg_match('/(\d{3})$/', $item->serial_number, $matches)) {
+                                    $pcNumber = intval($matches[1]);
+                                    break;
+                                }
+                            }
+                            
+                            // If no PC number found, try to extract from fullset ID
+                            if ($pcNumber === null && preg_match('/(\d{3})$/', $fullsetId, $matches)) {
+                                $pcNumber = intval($matches[1]);
+                            }
+                            
+                            // Fallback: use a default PC number
+                            if ($pcNumber === null) {
+                                $pcNumber = 1;
+                            }
+                            
+                            $pcKey = 'PC' . str_pad($pcNumber, 3, '0', STR_PAD_LEFT);
+                            
+                            // Initialize PC group if it doesn't exist
+                            if (!$roomData['pcGroups']->has($pcKey)) {
+                                $roomData['pcGroups']->put($pcKey, [
+                                    'items' => collect(),
+                                    'usable_count' => 0,
+                                    'unusable_count' => 0,
+                                    'total_count' => 0,
+                                    'pc_number' => $pcNumber
+                                ]);
+                            }
+                            
+                            $pcData = $roomData['pcGroups']->get($pcKey);
+                            
+                            // Add items to PC group
+                            foreach($items as $item) {
+                                $pcData['items']->push($item);
+                                $pcData['total_count']++;
+                                
+                                if ($item->status === 'Usable') {
+                                    $pcData['usable_count']++;
+                                } elseif ($item->status === 'Unusable') {
+                                    $pcData['unusable_count']++;
+                                }
+                            }
+                            
+                            $roomData['pcGroups']->put($pcKey, $pcData);
+                            
+                            // Update room totals
+                            $roomData['total_usable'] += $pcData['usable_count'];
+                            $roomData['total_unusable'] += $pcData['unusable_count'];
+                            $roomData['total_items'] += $pcData['total_count'];
+                            
+                            $roomGroups->put($room, $roomData);
+                            
+                            $totalUsable += $pcData['usable_count'];
+                            $totalUnusable += $pcData['unusable_count'];
                         }
                     }
                 @endphp
@@ -847,28 +899,28 @@
             </div>
         @endif
 
-        @if($comlabGroups->isEmpty())
+        @if($roomGroups->isEmpty())
             <div class="empty-state">
                 <div class="empty-state-icon">🔧</div>
                 <p class="empty-state-text">No maintenance items found</p>
             </div>
         @else
             <div class="comlab-container">
-                @foreach($comlabGroups as $comlabName => $comlabData)
-                    <div class="comlab-card" id="comlab-{{ str_replace(' ', '-', strtolower($comlabName)) }}">
-                        <div class="comlab-header" onclick="toggleComlab('{{ str_replace(' ', '-', strtolower($comlabName)) }}')">
+                @foreach($roomGroups as $roomName => $roomData)
+                    <div class="comlab-card" id="room-{{ str_replace(' ', '-', strtolower($roomName)) }}">
+                        <div class="comlab-header" onclick="toggleRoom('{{ str_replace(' ', '-', strtolower($roomName)) }}')">
                             <div class="comlab-info">
-                                <h2 class="comlab-title">{{ $comlabName }}</h2>
+                                <h2 class="comlab-title">{{ $roomName }}</h2>
                                 <div class="comlab-subtitle">
-                                    {{ $comlabData['fullsets']->count() }} PC Sets • {{ $comlabData['total_items'] }} Total Items
+                                    {{ $roomData['pcGroups']->count() }} PC Groups • {{ $roomData['total_items'] }} Total Items
                                 </div>
                             </div>
                             <div class="comlab-stats">
                                 <div class="comlab-stat" style="background: rgba(40, 167, 69, 0.3);">
-                                    <span>✅ {{ $comlabData['total_usable'] }}</span>
+                                    <span>✅ {{ $roomData['total_usable'] }}</span>
                                 </div>
                                 <div class="comlab-stat" style="background: rgba(220, 53, 69, 0.3);">
-                                    <span>❌ {{ $comlabData['total_unusable'] }}</span>
+                                    <span>❌ {{ $roomData['total_unusable'] }}</span>
                                 </div>
                                 <span class="toggle-icon">▶</span>
                             </div>
@@ -876,30 +928,24 @@
 
                         <div class="comlab-content">
                             <div class="fullsets-container">
-                                @foreach($comlabData['fullsets'] as $fullsetId => $fullset)
-                                    <div class="fullset-card" id="fullset-{{ $fullsetId }}">
-                                        <div class="fullset-header" onclick="toggleFullset('{{ $fullsetId }}')">
+                                @foreach($roomData['pcGroups']->sortBy('pc_number') as $pcKey => $pcData)
+                                    <div class="fullset-card" id="pc-{{ str_replace(' ', '-', strtolower($roomName)) }}-{{ $pcData['pc_number'] }}">
+                                        <div class="fullset-header" onclick="togglePC('{{ str_replace(' ', '-', strtolower($roomName)) }}-{{ $pcData['pc_number'] }}')">
                                             <div class="fullset-info">
                                                 <h3 class="fullset-title">
-                                                    @php
-                                                        // Extract just the PC number (e.g., PC001 from "Computer Lab 2 - PC001")
-                                                        $displayName = $fullset['display_name'] ?? $fullsetId;
-                                                        preg_match('/PC\d+/i', $displayName, $matches);
-                                                        $pcNumber = $matches[0] ?? $displayName;
-                                                    @endphp
-                                                    <div class="barcode-text">{{ $pcNumber }}</div>
+                                                    <div class="barcode-text">{{ $pcKey }}</div>
                                                 </h3>
-                                                <div class="fullset-room">{{ $fullset['room'] }}</div>
+                                                <div class="fullset-room">{{ $roomName }}</div>
                                             </div>
                                             <div class="fullset-stats">
                                                 <div class="fullset-stat" style="background: rgba(40, 167, 69, 0.2);">
-                                                    <span>✅ {{ $fullset['usable_count'] }}</span>
+                                                    <span>✅ {{ $pcData['usable_count'] }}</span>
                                                 </div>
                                                 <div class="fullset-stat" style="background: rgba(220, 53, 69, 0.2);">
-                                                    <span>❌ {{ $fullset['unusable_count'] }}</span>
+                                                    <span>❌ {{ $pcData['unusable_count'] }}</span>
                                                 </div>
                                                 <div class="fullset-stat">
-                                                    <span>📊 {{ $fullset['total_count'] }}</span>
+                                                    <span>📊 {{ $pcData['total_count'] }}</span>
                                                 </div>
                                                 <span class="fullset-toggle-icon">▶</span>
                                             </div>
@@ -922,7 +968,7 @@
                                                         </tr>
                                                     </thead>
                                                     <tbody>
-                                                        @foreach($fullset['items']->groupBy('device_category') as $category => $categoryItems)
+                                                        @foreach($pcData['items']->groupBy('device_category') as $category => $categoryItems)
                                                             @foreach($categoryItems as $item)
                                                                 <tr class="category-{{ str_replace(' ', '-', strtolower($category)) }}" id="item-row-{{ $item->id }}">
                                                                     <td>
@@ -1031,13 +1077,13 @@
     </div>
 
     <script>
-        function toggleComlab(comlabId) {
-            const card = document.getElementById('comlab-' + comlabId);
+        function toggleRoom(roomId) {
+            const card = document.getElementById('room-' + roomId);
             card.classList.toggle('expanded');
         }
 
-        function toggleFullset(fullsetId) {
-            const card = document.getElementById('fullset-' + fullsetId);
+        function togglePC(pcId) {
+            const card = document.getElementById('pc-' + pcId);
             card.classList.toggle('expanded');
         }
 
@@ -1083,16 +1129,16 @@
             }
         });
 
-        // Auto-expand first computer lab for better UX
+        // Auto-expand first room for better UX
         document.addEventListener('DOMContentLoaded', function() {
-            const firstComlab = document.querySelector('.comlab-card');
-            if (firstComlab) {
-                firstComlab.classList.add('expanded');
+            const firstRoom = document.querySelector('.comlab-card');
+            if (firstRoom) {
+                firstRoom.classList.add('expanded');
                 
-                // Also expand the first fullset within the first comlab
-                const firstFullset = firstComlab.querySelector('.fullset-card');
-                if (firstFullset) {
-                    firstFullset.classList.add('expanded');
+                // Also expand the first PC within the first room
+                const firstPC = firstRoom.querySelector('.fullset-card');
+                if (firstPC) {
+                    firstPC.classList.add('expanded');
                 }
             }
         });

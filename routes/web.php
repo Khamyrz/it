@@ -30,18 +30,6 @@ Route::post('/password-reset/send-otp', [AuthController::class, 'sendOTP'])->nam
 Route::post('/password-reset/verify-otp', [AuthController::class, 'verifyOTP'])->name('password.reset.verify-otp');
 Route::post('/password-reset/update', [AuthController::class, 'updatePassword'])->name('password.reset.update');
 
-// Email Verification Routes for Registration
-Route::post('/email-verification/send-otp', [AuthController::class, 'sendEmailVerificationOTP'])->name('email.verification.send-otp');
-Route::post('/email-verification/verify-otp', [AuthController::class, 'verifyEmailOTP'])->name('email.verification.verify-otp');
-
-// Email Testing Routes (for debugging)
-Route::get('/test-email-system', [AuthController::class, 'testEmailSystem'])->name('test.email.system');
-Route::post('/resend-admin-notification/{id}', [AuthController::class, 'resendAdminNotification'])->name('resend.admin.notification');
-
-// Email-based Approval Routes
-Route::get('/email-approve/{id}/{token}', [AuthController::class, 'emailApproveUser'])->name('email.approve.user');
-Route::get('/email-reject/{id}/{token}', [AuthController::class, 'emailRejectUser'])->name('email.reject.user');
-
 // DASHBOARD (PROTECTED)
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth');
 
@@ -57,6 +45,7 @@ Route::middleware('auth')->group(function () {
     Route::post('/manage-room/item', [RoomManagementController::class, 'store'])->name('room-manage.store');
     Route::put('/manage-room/item/{item}', [RoomManagementController::class, 'update'])->name('room-manage.update');
     Route::delete('/manage-room/item/{item}', [RoomManagementController::class, 'destroy'])->name('room-manage.destroy');
+    Route::delete('/manage-room/bulk-delete', [RoomManagementController::class, 'bulkDestroy'])->name('room-manage.bulk-destroy');
     
     
     // PHOTO DISPLAY ROUTES
@@ -105,4 +94,10 @@ Route::post('/maintenance/bulk-update/{fullsetId}', [MaintenanceController::clas
     Route::post('/scan-barcode/search', [RoomItemScanController::class, 'search'])->name('roomitem.scan.search');
     // Add this line in your middleware('auth')->group(function () { section:
 Route::post('/scan-barcode/api-search', [RoomItemScanController::class, 'apiSearch'])->name('roomitem.scan.api-search');
+
+    // DEBUG ROUTE
+    Route::get('/debug-items', function() {
+        $items = App\Models\RoomItem::take(10)->get(['id', 'barcode', 'is_full_set_item', 'device_category', 'room_title']);
+        return response()->json($items);
+    });
 });

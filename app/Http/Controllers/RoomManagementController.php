@@ -48,6 +48,7 @@ class RoomManagementController extends Controller
             'brand' => 'nullable|string',
             'model' => 'nullable|string',
             'description' => 'nullable|string',
+            'quantity' => 'required|integer|min:1|max:100',
             'room_title' => 'required_without:custom_room_title|string|nullable',
             'custom_room_title' => 'required_without:room_title|string|nullable|max:255',
         ];
@@ -98,6 +99,7 @@ class RoomManagementController extends Controller
             'barcode' => $barcode,
             'photo' => $photoPath,
             'description' => $validatedData['description'],
+            'quantity' => $validatedData['quantity'],
             'status' => $oldStatus ?? $request->status,
             'full_set_id' => $oldFullSetId,
             'is_full_set_item' => $oldIsFullSetItem,
@@ -123,6 +125,7 @@ class RoomManagementController extends Controller
             'fullset_brand' => 'nullable|string',
             'fullset_model' => 'nullable|string',
             'fullset_categories' => 'required|array',
+            'quantity' => 'required|integer|min:1|max:50',
             'photo' => 'nullable|image|max:2048',
             'room_title' => 'required_without:custom_room_title|string|nullable',
             'custom_room_title' => 'required_without:room_title|string|nullable|max:255',
@@ -167,28 +170,36 @@ class RoomManagementController extends Controller
             RoomItem::where('full_set_id', $fullSetId)->delete();
         }
 
-        // Get the next PC number for this room - this ensures all components in the set get the same PC number
-        $pcNumber = $this->getNextPcNumber($roomTitle);
-
-        foreach ($validatedData['fullset_categories'] as $index => $componentCategory) {
-            // Generate barcode for each component using the same PC number
-            $barcode = $this->generateBarcodeForFullSet($roomTitle, $componentCategory, $pcNumber);
-            // Generate unique serial number for each component
-            $serialNumber = $this->generateSerialNumber();
-            RoomItem::create([
-                'room_title' => $roomTitle,
-                'device_category' => $componentCategory, // Changed from 'Full Set' to actual component category
-                'device_type' => $this->getDeviceType($componentCategory),
-                'brand' => $validatedData['fullset_brand'],
-                'model' => $validatedData['fullset_model'],
-                'serial_number' => $serialNumber,
-                'barcode' => $barcode,
-                'photo' => $photoPath, // Same photo for all components in the full set
-                'description' => $request->description,
-                'status' => $request->status,
-                'full_set_id' => $fullSetId,
-                'is_full_set_item' => true,
-            ]);
+        // Get the starting PC number for this room
+        $quantity = $validatedData['quantity'];
+        $startingPcNumber = $this->getNextPcNumber($roomTitle);
+        
+        // Create multiple full sets based on quantity
+        for ($setIndex = 0; $setIndex < $quantity; $setIndex++) {
+            // Calculate PC number for this set (starting number + set index)
+            $pcNumber = str_pad(intval($startingPcNumber) + $setIndex, 3, '0', STR_PAD_LEFT);
+            
+            foreach ($validatedData['fullset_categories'] as $index => $componentCategory) {
+                // Generate barcode for each component using the same PC number
+                $barcode = $this->generateBarcodeForFullSet($roomTitle, $componentCategory, $pcNumber);
+                // Generate unique serial number for each component
+                $serialNumber = $this->generateSerialNumber();
+                RoomItem::create([
+                    'room_title' => $roomTitle,
+                    'device_category' => $componentCategory, // Changed from 'Full Set' to actual component category
+                    'device_type' => $this->getDeviceType($componentCategory),
+                    'brand' => $validatedData['fullset_brand'],
+                    'model' => $validatedData['fullset_model'],
+                    'serial_number' => $serialNumber,
+                    'barcode' => $barcode,
+                    'photo' => $photoPath, // Same photo for all components in the full set
+                    'description' => $request->description,
+                    'quantity' => 1, // Each component in a full set has quantity 1
+                    'status' => $request->status,
+                    'full_set_id' => $fullSetId . '-' . ($setIndex + 1), // Unique full set ID for each set
+                    'is_full_set_item' => true,
+                ]);
+            }
         }
 
         return redirect()->route('room-manage')->with('success', 'Full set has been saved!');
@@ -355,6 +366,57 @@ class RoomManagementController extends Controller
         }
 
         return redirect()->route('room-manage')->with('success', 'Item(s) deleted successfully!');
+    }
+
+    /**
+     * Bulk delete multiple items
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $request->validate([
+            'item_ids' => 'required|array|min:1',
+            'item_ids.*' => 'integer|exists:room_items,id'
+        ]);
+
+        $itemIds = $request->input('item_ids');
+        $deletedCount = 0;
+        $processedFullSets = [];
+
+        // Use database transaction for better performance and consistency
+        \DB::transaction(function () use ($itemIds, &$deletedCount, &$processedFullSets) {
+            foreach ($itemIds as $itemId) {
+                $item = RoomItem::findOrFail($itemId);
+                
+                if ($item->is_full_set_item) {
+                    $fullSetId = $item->full_set_id;
+                    
+                    // Skip if we've already processed this full set
+                    if (in_array($fullSetId, $processedFullSets)) {
+                        continue;
+                    }
+                    
+                    $processedFullSets[] = $fullSetId;
+                    $fullSetItems = RoomItem::where('full_set_id', $fullSetId)->get();
+                    
+                    // Delete the shared photo only once
+                    if ($fullSetItems->isNotEmpty() && $fullSetItems->first()->photo && Storage::exists($fullSetItems->first()->photo)) {
+                        Storage::delete($fullSetItems->first()->photo);
+                    }
+
+                    // Delete all items in the full set
+                    $deletedCount += RoomItem::where('full_set_id', $fullSetId)->count();
+                    RoomItem::where('full_set_id', $fullSetId)->delete();
+                } else {
+                    if ($item->photo && Storage::exists($item->photo)) {
+                        Storage::delete($item->photo);
+                    }
+                    $item->delete();
+                    $deletedCount++;
+                }
+            }
+        });
+
+        return redirect()->route('room-manage')->with('success', "Successfully deleted {$deletedCount} item(s)!");
     }
 
     public function getRoomsList()
@@ -550,29 +612,49 @@ class RoomManagementController extends Controller
      */
     private function getNextPcNumber($roomTitle)
     {
-        // Get room code
+        // Get room code - comprehensive mapping for all room types
         $roomCodes = [
             'Server' => 'SRV',
             'ComLab 1' => 'CL1',
             'ComLab 2' => 'CL2',
             'ComLab 3' => 'CL3',
             'ComLab 4' => 'CL4',
-            'ComLab 5' => 'CL5'
+            'ComLab 5' => 'CL5',
+            'Computer Lab 1' => 'CL1',
+            'Computer Lab 2' => 'CL2',
+            'Computer Lab 3' => 'CL3',
+            'Computer Lab 4' => 'CL4',
+            'Computer Lab 5' => 'CL5',
+            'Lab 1' => 'L1',
+            'Lab 2' => 'L2',
+            'Lab 3' => 'L3',
+            'Lab 4' => 'L4',
+            'Lab 5' => 'L5',
+            'Office' => 'OFF',
+            'Library' => 'LIB',
+            'Classroom' => 'CLS',
+            'Conference Room' => 'CFR',
+            'Storage' => 'STG',
+            'Maintenance' => 'MNT',
+            'IT Room' => 'ITR',
+            'Network Room' => 'NET',
+            'Data Center' => 'DC',
         ];
         
         $roomCode = $roomCodes[$roomTitle] ??
-        strtoupper(substr(str_replace(' ', '', $roomTitle), 0, 2));
+            strtoupper(substr(str_replace([' ', '-', '_'], '', $roomTitle), 0, 3));
 
-        // Find the highest PC number in this room
-        $pattern = $roomCode . '-PC%';
-        $existingItems = RoomItem::where('barcode', 'LIKE', $pattern)
+        // Find the highest PC number by looking at existing barcodes with the room code
+        $existingItems = RoomItem::where('room_title', $roomTitle)
+            ->where('is_full_set_item', true)
+            ->where('barcode', 'LIKE', $roomCode . '-%')
             ->orderBy('barcode', 'desc')
             ->first();
         
         $nextPcNumber = 1;
         if ($existingItems) {
-            // Extract PC number from barcode like "CL1-PC001-M-001"
-            if (preg_match('/' . $roomCode . '-PC(\d+)/', $existingItems->barcode, $matches)) {
+            // Extract PC number from barcode like "CL1-SU001" -> 001
+            if (preg_match('/' . $roomCode . '-\w+(\d+)$/', $existingItems->barcode, $matches)) {
                 $lastPcNumber = intval($matches[1]);
                 $nextPcNumber = $lastPcNumber + 1;
             }
@@ -586,18 +668,37 @@ class RoomManagementController extends Controller
      */
     private function generateBarcodeForFullSet($roomTitle, $deviceCategory, $pcNumber)
     {
-        // Get room code
+        // Get room code - comprehensive mapping for all room types
         $roomCodes = [
             'Server' => 'SRV',
             'ComLab 1' => 'CL1',
             'ComLab 2' => 'CL2',
             'ComLab 3' => 'CL3',
             'ComLab 4' => 'CL4',
-            'ComLab 5' => 'CL5'
+            'ComLab 5' => 'CL5',
+            'Computer Lab 1' => 'CL1',
+            'Computer Lab 2' => 'CL2',
+            'Computer Lab 3' => 'CL3',
+            'Computer Lab 4' => 'CL4',
+            'Computer Lab 5' => 'CL5',
+            'Lab 1' => 'L1',
+            'Lab 2' => 'L2',
+            'Lab 3' => 'L3',
+            'Lab 4' => 'L4',
+            'Lab 5' => 'L5',
+            'Office' => 'OFF',
+            'Library' => 'LIB',
+            'Classroom' => 'CLS',
+            'Conference Room' => 'CFR',
+            'Storage' => 'STG',
+            'Maintenance' => 'MNT',
+            'IT Room' => 'ITR',
+            'Network Room' => 'NET',
+            'Data Center' => 'DC',
         ];
         
         $roomCode = $roomCodes[$roomTitle] ??
-        strtoupper(substr(str_replace(' ', '', $roomTitle), 0, 2));
+            strtoupper(substr(str_replace([' ', '-', '_'], '', $roomTitle), 0, 3));
 
         // Device category code mapping for full set components
         $deviceCodes = [
@@ -618,23 +719,11 @@ class RoomManagementController extends Controller
         $deviceCode = $deviceCodes[$deviceCategory] ??
         strtoupper(substr(str_replace(' ', '', $deviceCategory), 0, 2));
 
-        // Generate sequential number for this specific component type within the same PC
-        $basePrefix = $roomCode . '-PC' . $pcNumber . '-' . $deviceCode;
+        // Generate barcode in format: CL1-SU001 (PC001 = CL1-SU001)
+        // The component number should match the PC number
+        $formattedNumber = str_pad($pcNumber, 3, '0', STR_PAD_LEFT);
         
-        $existingItems = RoomItem::where('barcode', 'LIKE', $basePrefix . '%')
-            ->orderBy('barcode', 'desc')
-            ->first();
-        
-        $nextNumber = 1;
-        if ($existingItems) {
-            // Extract the component number from the existing barcode
-            $lastBarcode = $existingItems->barcode;
-            $lastNumber = intval(substr($lastBarcode, strrpos($lastBarcode, '-') + 1));
-            $nextNumber = $lastNumber + 1;
-        }
-
-        $formattedNumber = str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
-        return $basePrefix . '-' . $formattedNumber;
+        return $roomCode . '-' . $deviceCode . $formattedNumber;
     }
 
     /**
@@ -642,15 +731,35 @@ class RoomManagementController extends Controller
      */
     private function generateBarcode($roomTitle, $deviceCategory)
     {
-        // Room code mapping
+        // Room code mapping - comprehensive mapping for all room types
         $roomCodes = [
             'Server' => 'SRV',
             'ComLab 1' => 'CL1',
             'ComLab 2' => 'CL2',
             'ComLab 3' => 'CL3',
             'ComLab 4' => 'CL4',
-            'ComLab 5' => 'CL5'
+            'ComLab 5' => 'CL5',
+            'Computer Lab 1' => 'CL1',
+            'Computer Lab 2' => 'CL2',
+            'Computer Lab 3' => 'CL3',
+            'Computer Lab 4' => 'CL4',
+            'Computer Lab 5' => 'CL5',
+            'Lab 1' => 'L1',
+            'Lab 2' => 'L2',
+            'Lab 3' => 'L3',
+            'Lab 4' => 'L4',
+            'Lab 5' => 'L5',
+            'Office' => 'OFF',
+            'Library' => 'LIB',
+            'Classroom' => 'CLS',
+            'Conference Room' => 'CFR',
+            'Storage' => 'STG',
+            'Maintenance' => 'MNT',
+            'IT Room' => 'ITR',
+            'Network Room' => 'NET',
+            'Data Center' => 'DC',
         ];
+        
         // Device category code mapping
         $deviceCodes = [
             'Printer' => 'P',
@@ -673,34 +782,36 @@ class RoomManagementController extends Controller
             'Headset' => 'HS',
             'Full Set' => 'FS',
         ];
+        
         // Get room code
-        $roomCode = $roomCodes[$roomTitle] ??
-        strtoupper(substr(str_replace(' ', '', $roomTitle), 0, 2));
+        $roomCode = $roomCodes[$roomTitle] ?? 
+            strtoupper(substr(str_replace([' ', '-', '_'], '', $roomTitle), 0, 3));
 
         // Get device code
         $deviceCode = $deviceCodes[$deviceCategory] ??
         strtoupper(substr(str_replace(' ', '', $deviceCategory), 0, 2));
 
-        // Generate sequential number
-        $prefix = $roomCode . '-' . $deviceCode;
+        // Generate barcode in format: CL1-SU001
+        $basePrefix = $roomCode . '-' . $deviceCode;
 
-        // Find the highest existing number for this prefix
-        $existingItems = RoomItem::where('barcode', 'LIKE', $prefix . '%')
+        // Find the highest existing number for this prefix in the same room
+        $existingItems = RoomItem::where('barcode', 'LIKE', $basePrefix . '%')
+            ->where('room_title', $roomTitle)
             ->where('is_full_set_item', false) // Exclude full set items from single item counting
             ->orderBy('barcode', 'desc')
             ->first();
             
         $nextNumber = 1;
         if ($existingItems) {
-            // Extract the number from the existing barcode
-            $lastBarcode = $existingItems->barcode;
-            $lastNumber = intval(substr($lastBarcode, strrpos($lastBarcode, '-') + 1));
-            $nextNumber = $lastNumber + 1;
+            // Extract the number from the existing barcode (format: "CL1-SU001")
+            if (preg_match('/-(\d+)$/', $existingItems->barcode, $matches)) {
+                $nextNumber = intval($matches[1]) + 1;
+            }
         }
 
         // Format the number with leading zeros (3 digits)
         $formattedNumber = str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
-        return $prefix . '-' . $formattedNumber;
+        return $basePrefix . $formattedNumber;
     }
 
     /**

@@ -50,3 +50,4 @@ After setting up the .env file, test the email functionality by:
 - Never commit the .env file to version control
 - Use app passwords instead of the main Gmail password
 - Consider using environment-specific configurations for production
+

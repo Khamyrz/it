@@ -13,3 +13,4 @@
     <p>If you did not request this verification, please ignore this email.</p>
     <p>Thanks,<br/>IT Inventory System Team<br/>iitech.inventory@gmail.com</p>
 </div>
+

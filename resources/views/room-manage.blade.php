@@ -6,13 +6,19 @@
 
 @push('styles')
 <style>
-/* Room Group Styles */
+/* Room Group Styles - Updated to match maintenance.blade.php */
 .room-group {
-    margin-bottom: 30px;
-    border: 1px solid #e0e0e0;
-    border-radius: 8px;
-    background: #fff;
-    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 25px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.room-group:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.1);
 }
  * {
             margin: 0;
@@ -36,29 +42,86 @@
             box-shadow: 0 1px 3px rgba(0,0,0,0.1);
         }
 
-        /* Updated styling for success and error messages */
+        /* Updated styling for success and error messages with blur effects */
         .alert-message {
-            padding: 10px;
-            margin: 15px auto; /* Centering the alert message */
-            border-radius: 4px;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            padding: 25px 35px;
+            border-radius: 12px;
             text-align: center;
             display: flex;
             flex-direction: column;
             align-items: center;
-            max-width: 500px; /* Limit width for better appearance */
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            max-width: 450px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 9999;
+            animation: alertSlideIn 0.3s ease-out;
+        }
+
+        .alert-message .alert-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .alert-message .alert-text {
+            margin: 0;
+            font-weight: 600;
+        }
+
+        .alert-message .alert-okay-btn {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            color: #fff;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            backdrop-filter: blur(5px);
+            -webkit-backdrop-filter: blur(5px);
+        }
+
+        .alert-message .alert-okay-btn:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: translateY(-1px);
+        }
+
+        @keyframes alertSlideIn {
+            0% { 
+                opacity: 0; 
+                transform: translate(-50%, -50%) scale(0.8) translateY(-20px); 
+            }
+            100% { 
+                opacity: 1; 
+                transform: translate(-50%, -50%) scale(1) translateY(0); 
+            }
         }
 
         .alert-message.success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
+            background: rgba(40, 167, 69, 0.9);
+            color: #fff;
         }
 
         .alert-message.error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
+            background: rgba(220, 53, 69, 0.9);
+            color: #fff;
+        }
+
+        .alert-message.warning {
+            background: rgba(255, 193, 7, 0.9);
+            color: #000;
+        }
+
+        .alert-message.info {
+            background: rgba(23, 162, 184, 0.9);
+            color: #fff;
         }
 
         .alert-message i {
@@ -571,6 +634,12 @@
             color: #c62828;
         }
 
+        .badge-quantity {
+            background: #e3f2fd;
+            color: #1976d2;
+            font-weight: 600;
+        }
+
         .serial-code {
             background: #f8f9fa;
             padding: 2px 4px;
@@ -749,23 +818,102 @@
             }
         }
 .room-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 25px 30px;
+    background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;
-    padding: 15px 20px;
-    border-radius: 8px 8px 0 0;
     cursor: pointer;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    transition: all 0.3s ease;
+    transition: background 0.3s ease;
     user-select: none;
 }
 
 .room-header:hover {
-    background: linear-gradient(135deg, #5a6fd8 0%, #6a4190 100%);
+    background: linear-gradient(135deg, #5a6fd8, #6a4190);
 }
 
 .room-title {
+    font-size: 24px;
+    font-weight: 700;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.room-title::before {
+    content: "🖥️";
+    font-size: 22px;
+}
+
+.room-stats {
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+.stat-item {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 10px 15px;
+    border-radius: 25px;
+    font-size: 14px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.toggle-icon {
+    font-size: 20px;
+    transition: transform 0.3s ease;
+}
+
+.room-group.expanded .toggle-icon {
+    transform: rotate(90deg);
+}
+
+.room-content {
+    display: none;
+    padding: 0;
+}
+
+.room-group.expanded .room-content {
+    display: block;
+}
+
+/* PC Group Styles - Updated to match maintenance.blade.php */
+.pc-group {
+    margin: 20px;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.pc-group:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
+}
+
+.pc-header {
+    padding: 18px 22px;
+    background: linear-gradient(135deg, #34495e, #2c3e50);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background 0.3s ease;
+    user-select: none;
+}
+
+.pc-header:hover {
+    background: linear-gradient(135deg, #2c3e50, #1a252f);
+}
+
+.pc-title {
     font-size: 18px;
     font-weight: 600;
     margin: 0;
@@ -774,41 +922,112 @@
     gap: 10px;
 }
 
-.room-stats {
-    display: flex;
-    gap: 15px;
-    font-size: 14px;
+.pc-title::before {
+    content: "💻";
+    font-size: 16px;
 }
 
-.stat-item {
+.pc-title small {
+    font-size: 12px;
+    opacity: 0.8;
+    margin-left: 8px;
+    font-weight: 400;
     background: rgba(255,255,255,0.2);
-    padding: 4px 12px;
+    padding: 2px 6px;
+    border-radius: 10px;
+    border: 1px solid rgba(255,255,255,0.3);
+}
+
+.pc-stats {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.pc-stats .stat-item {
+    background: rgba(255, 255, 255, 0.2);
+    padding: 6px 10px;
     border-radius: 15px;
+    font-size: 12px;
+    font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 5px;
+    gap: 4px;
 }
 
-.toggle-icon {
-    transition: transform 0.3s ease;
-    font-size: 20px;
+.pc-content {
+    display: none;
+    padding: 0;
 }
 
-.room-group.collapsed .toggle-icon {
-    transform: rotate(-90deg);
+.pc-group.expanded .pc-content {
+    display: block;
 }
 
-.room-content {
-    max-height: 1000px;
-    overflow: hidden;
-    transition: max-height 0.3s ease;
+.pc-group.expanded .toggle-icon {
+    transform: rotate(90deg);
 }
 
-.room-group.collapsed .room-content {
-    max-height: 0;
-}
+        /* Component-specific styling within PC groups */
+        .pc-content .device-category {
+            font-weight: 600;
+            color: #1976d2;
+            text-transform: uppercase;
+            font-size: 12px;
+            letter-spacing: 0.5px;
+        }
 
-/* Full Set Group Styles */
+        .pc-content .serial-number {
+            font-family: 'Courier New', monospace;
+            background: #f5f5f5;
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 11px;
+            color: #666;
+        }
+
+        .pc-content .barcode-text {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        /* PC Group Header Icons */
+        .pc-title i {
+            font-size: 20px;
+            opacity: 0.9;
+        }
+
+        /* Enhanced hover effects for PC groups */
+        .pc-group:hover {
+            box-shadow: 0 6px 20px rgba(0,0,0,0.15);
+            transform: translateY(-2px);
+        }
+
+        .pc-group {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .pc-group::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #2196F3, #1976D2);
+            border-radius: 8px 8px 0 0;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .pc-group:not(.collapsed)::before {
+            opacity: 1;
+        }
+
+/* Full Set Group Styles (Legacy - keeping for compatibility) */
 .fullset-group {
     margin: 15px;
     border: 1px solid #f0f0f0;
@@ -1236,6 +1455,202 @@
     font-weight: 500;
     color: #555;
 }
+
+        /* Bulk Delete Styles */
+        .bulk-actions {
+            background: #f8f9fa;
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 15px;
+            display: none;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+
+        .bulk-actions.show {
+            display: flex;
+        }
+
+        .bulk-actions-left {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+
+        .bulk-actions-right {
+            display: flex;
+            gap: 10px;
+        }
+
+        .selected-count {
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .bulk-delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+        }
+
+        .bulk-delete-btn:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+
+        .bulk-delete-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .select-all-checkbox {
+            margin-right: 10px;
+        }
+
+        .item-checkbox {
+            margin-right: 10px;
+        }
+
+        .room-select-all {
+            background: #e9ecef;
+            padding: 10px 15px;
+            border-radius: 6px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .room-select-all input[type="checkbox"] {
+            transform: scale(1.2);
+        }
+
+        .room-select-all label {
+            margin: 0;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .room-bulk-actions {
+            display: flex;
+            gap: 10px;
+        }
+
+        .room-bulk-delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+        }
+
+        .room-bulk-delete-btn:hover {
+            background: #c82333;
+        }
+
+        .room-bulk-delete-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+        }
+
+        .room-delete-selected {
+            display: flex;
+            align-items: center;
+        }
+
+        .room-delete-btn {
+            background: #dc3545;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            transition: all 0.2s ease;
+        }
+
+        .room-delete-btn:hover {
+            background: #c82333;
+            transform: translateY(-1px);
+        }
+
+        .room-delete-btn:disabled {
+            background: #6c757d;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .selected-count {
+            background: rgba(255, 255, 255, 0.2);
+            color: #fff;
+            font-weight: 600;
+        }
+
+        .selected-count .selected-number {
+            font-weight: bold;
+            color: #ffeb3b;
+        }
+
+        .table-container th:first-child,
+        .table-container td:first-child {
+            width: 40px;
+            text-align: center;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 5px;
+        }
+
+        .icon-btn {
+            padding: 6px 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-size: 14px;
+        }
+
+        .icon-btn.edit {
+            background-color: #fff3cd;
+            color: #856404;
+        }
+
+        .icon-btn.delete {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+
+        .icon-btn.print {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+
+        .icon-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
 </style>
 @endpush
 
@@ -1252,27 +1667,35 @@
 
         @if(session('success'))
             <div class="alert-message success">
-                <i class="fas fa-check-circle"></i> {{ session('success') }}
-                <button onclick="this.parentNode.style.display='none'">Okay</button>
+                <div class="alert-content">
+                    <i class="fas fa-check-circle"></i>
+                    <div class="alert-text">{{ session('success') }}</div>
+                    <button class="alert-okay-btn" onclick="dismissAlert(this)">Okay</button>
+                </div>
             </div>
         @endif
 
         @if ($errors->any() || session('error'))
             <div class="alert-message error">
-                <i class="fas fa-times-circle"></i>
-                @if (session('error'))
-                    <p>{{ session('error') }}</p>
-                @endif
-                @if ($errors->any())
-                    <ul>
-                        @foreach ($errors->all() as $error)
-                            <li>{{ $error }}</li>
-                        @endforeach
-                    </ul>
-                @endif
-                <button onclick="this.parentNode.style.display='none'">Okay</button>
+                <div class="alert-content">
+                    <i class="fas fa-times-circle"></i>
+                    <div class="alert-text">
+                        @if (session('error'))
+                            {{ session('error') }}
+                        @endif
+                        @if ($errors->any())
+                            <ul>
+                                @foreach ($errors->all() as $error)
+                                    <li>{{ $error }}</li>
+                                @endforeach
+                            </ul>
+                        @endif
+                    </div>
+                    <button class="alert-okay-btn" onclick="dismissAlert(this)">Okay</button>
+                </div>
             </div>
         @endif
+
 
         <div class="container">
             @php
@@ -1286,32 +1709,62 @@
                     $usableItems = $roomItems->where('status', 'Usable')->count();
                     $unusableItems = $roomItems->where('status', 'Unusable')->count();
                     
-                    // Group by full sets within this room
-                    $fullSets = [];
+                    // Group by PC numbers within this room
+                    $pcGroups = [];
                     $individualItems = [];
                     
                     foreach($roomItems as $item) {
-                        if($item->device_category === 'Full Set') {
-                            // Extract set number from serial_number (assuming format like PC001, MON001, etc.)
-                            preg_match('/\d+$/', $item->serial_number, $matches);
-                            $setNumber = $matches[0] ?? '001';
-                            $fullSets[$setNumber][] = $item;
+                        // Extract PC number from various sources - look for 3-digit number suffix
+                        $pcNumber = null;
+                        
+                        // Try to extract from barcode (SU001, M001, KB001, PC001, etc.)
+                        if (preg_match('/(\d{3})$/', $item->barcode, $matches)) {
+                            $pcNumber = intval($matches[1]);
+                        }
+                        // Try to extract from serial number (SU001, M001, KB001, PC001, etc.)
+                        elseif (preg_match('/(\d{3})$/', $item->serial_number, $matches)) {
+                            $pcNumber = intval($matches[1]);
+                        }
+                        // Try to extract from full_set_id format: FS-RANDOMID-001 or similar
+                        elseif ($item->full_set_id && preg_match('/(\d{3})$/', $item->full_set_id, $matches)) {
+                            $pcNumber = intval($matches[1]);
+                        }
+                        // Try to extract any 3-digit number from barcode/serial
+                        elseif (preg_match('/(\d{3})/', $item->barcode . ' ' . $item->serial_number, $matches)) {
+                            $pcNumber = intval($matches[1]);
+                        }
+                        
+                        if ($pcNumber !== null) {
+                            $pcGroups[$pcNumber][] = $item;
                         } else {
+                            // If we can't determine PC number, treat as individual item
                             $individualItems[] = $item;
                         }
                     }
+                    
+                    // Sort PC groups by number
+                    ksort($pcGroups, SORT_NUMERIC);
+                    
+                    // Debug: Show grouping results
+                    // dd($pcGroups, $individualItems);
+                    
+                    // Debug: Show sample barcodes
+                    $sampleBarcodes = $roomItems->take(3)->pluck('barcode', 'device_category')->toArray();
                 @endphp
 
                 <div class="room-group" id="room-{{ Str::slug($roomTitle) }}">
                     <div class="room-header" onclick="toggleRoom('{{ Str::slug($roomTitle) }}')">
                         <div class="room-title">
-                            <i class="fas fa-door-open"></i>
                             {{ $roomTitle }}
                         </div>
                         <div class="room-stats">
                             <div class="stat-item">
                                 <i class="fas fa-box"></i>
                                 {{ $totalItems }} items
+                            </div>
+                            <div class="stat-item">
+                                <i class="fas fa-hashtag"></i>
+                                Qty: 1-{{ $totalItems }}
                             </div>
                             <div class="stat-item">
                                 <i class="fas fa-check-circle"></i>
@@ -1323,72 +1776,100 @@
                                 {{ $unusableItems }} unusable
                             </div>
                             @endif
-                            <div class="toggle-icon">
-                                <i class="fas fa-chevron-down"></i>
+                            <div class="stat-item selected-count" id="selectedCount-{{ Str::slug($roomTitle) }}" style="display: none;">
+                                <i class="fas fa-check-square"></i>
+                                <span class="selected-number">0</span> selected
                             </div>
+                            <div class="room-delete-selected" style="display: none;">
+                                <button class="room-delete-btn" onclick="confirmRoomDelete('{{ Str::slug($roomTitle) }}')" disabled>
+                                    <i class="fas fa-trash"></i>
+                                    Delete
+                                </button>
+                            </div>
+                            <div class="toggle-icon">▶</div>
                         </div>
                     </div>
 
                     <div class="room-content">
-                        {{-- Full Sets --}}
-                        @foreach($fullSets as $setNumber => $setItems)
+
+                       
+
+                        {{-- PC Groups --}}
+                        @php
+                            $globalQuantityCounter = 1; // Start continuous numbering
+                        @endphp
+                        @foreach($pcGroups as $pcNumber => $pcItems)
                             @php
-                                $setUsableCount = collect($setItems)->where('status', 'Usable')->count();
-                                $setTotalCount = count($setItems);
+                                $pcUsableCount = collect($pcItems)->where('status', 'Usable')->count();
+                                $pcTotalCount = count($pcItems);
+                                $displayPcNumber = str_pad($pcNumber, 3, '0', STR_PAD_LEFT);
+                                $pcStartQuantity = $globalQuantityCounter; // Track starting quantity for this PC
+                                $globalQuantityCounter += $pcTotalCount; // Update global counter
+                                
+                                // Get unique component types for this PC
+                                $componentTypes = collect($pcItems)->pluck('device_category')->unique()->values()->toArray();
+                                $componentTypesStr = implode(', ', $componentTypes);
                             @endphp
-                            <div class="fullset-group" id="fullset-{{ Str::slug($roomTitle) }}-{{ $setNumber }}">
-                                <div class="fullset-header" onclick="toggleFullSet('{{ Str::slug($roomTitle) }}-{{ $setNumber }}')">
-                                    <div class="fullset-title">
-                                        <i class="fas fa-desktop"></i>
-                                        Full Set {{ $setNumber }}
+                            <div class="pc-group" id="pc-{{ Str::slug($roomTitle) }}-{{ $pcNumber }}" data-container="{{ Str::slug($roomTitle) }}-{{ $pcNumber }}">
+                                <div class="pc-header" onclick="togglePCGroup('{{ Str::slug($roomTitle) }}-{{ $pcNumber }}')">
+                                    <div class="pc-title">
+                                        PC{{ $displayPcNumber }}
+                                        <small>
+                                            ({{ $componentTypesStr }})
+                                        </small>
                                     </div>
-                                    <div class="fullset-stats">
+                                    <div class="pc-stats">
                                         <div class="stat-item">
-                                            {{ $setTotalCount }} components
+                                            {{ $pcTotalCount }} components
                                         </div>
                                         <div class="stat-item">
-                                            {{ $setUsableCount }}/{{ $setTotalCount }} usable
+                                            {{ $pcUsableCount }}/{{ $pcTotalCount }} usable
                                         </div>
-                                        <div class="toggle-icon">
-                                            <i class="fas fa-chevron-down"></i>
+                                        <div class="stat-item">
+                                            <i class="fas fa-hashtag"></i>
+                                            Qty: {{ $pcStartQuantity }}-{{ $pcStartQuantity + $pcTotalCount - 1 }}
                                         </div>
+                                        <div class="toggle-icon">▶</div>
                                     </div>
                                 </div>
 
-                                <div class="fullset-content">
+                                <div class="pc-content">
                                     <div class="table-container">
                                         <table class="maintenance-table">
                                             <thead>
                                                 <tr>
+                                                    <th>
+                                                        <input type="checkbox" class="select-all-checkbox" onchange="toggleSelectAll('{{ Str::slug($roomTitle) }}-{{ $pcNumber }}')">
+                                                    </th>
                                                     <th>Photo</th>
                                                     <th>Barcode</th>
                                                     <th>Category</th>
                                                     <th>Brand/Model</th>
                                                     <th>Serial Number</th>
                                                     <th>Description</th>
+                                                    <th>Quantity</th>
                                                     <th>Status</th>
                                                     <th>Date Added</th>
                                                     <th>Actions</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
+                                                @foreach($pcItems as $index => $item)
                                                 @php
-                                                    $collection = collect($setItems);
+                                                    $continuousQuantity = $pcStartQuantity + $index;
                                                 @endphp
-                                                @foreach($collection->groupBy('device_category') as $category => $items)
                                                 <tr>
-                                                    <td colspan="9" style="background:#f0f2f5; font-weight:bold;">
-                                                        {{ $category ?: 'Uncategorized' }}
+                                                    <td>
+                                                        <input type="checkbox" class="item-checkbox" data-room="{{ Str::slug($roomTitle) }}" data-item-id="{{ $item->id }}" onchange="updateBulkActions()">
                                                     </td>
-                                                </tr>
-                                                    @foreach($items as $item)
-                                                    <tr>
                                                         <td>
                                                             @if($item->photo)
-                                                                <img src="{{ route('room-item.photo', $item->id) }}"
+                                                                <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+                                                                    data-src="{{ route('room-item.photo', $item->id) }}"
                                                                     alt="Item Photo"
-                                                                    class="img-thumbnail"
-                                                                    style="max-width: 40px;">
+                                                                    class="img-thumbnail lazy-img"
+                                                                    style="max-width: 40px;"
+                                                                    loading="lazy" decoding="async" fetchpriority="low">
                                                             @else
                                                                 <img src="{{ asset('path/to/your/placeholder.jpg') }}"
                                                                     alt="Item Photo"
@@ -1416,6 +1897,9 @@
                                                         <td>
                                                             <div class="device-description">{{ $item->description }}</div>
                                                         </td>
+                                                    <td>
+                                                        <span class="badge badge-quantity">{{ $continuousQuantity }}</span>
+                                                    </td>
                                                         <td>
                                                             <span class="badge {{ $item->status === 'Unusable' ? 'badge-unusable' : 'badge-usable' }}">{{ $item->status ?? 'Not Set' }}</span>
                                                         </td>
@@ -1437,7 +1921,6 @@
                                                             </div>
                                                         </td>
                                                     </tr>
-                                                    @endforeach
                                                 @endforeach
                                             </tbody>
                                         </table>
@@ -1446,12 +1929,20 @@
                             </div>
                         @endforeach
 
+                        
+
                         {{-- Individual Items --}}
                         @if(!empty($individualItems))
-                            <div class="table-container">
+                            @php
+                                $individualStartQuantity = $globalQuantityCounter; // Continue from PC groups
+                            @endphp
+                            <div class="table-container" data-container="{{ Str::slug($roomTitle) }}-individual">
                                 <table>
                                     <thead>
                                         <tr>
+                                            <th>
+                                                <input type="checkbox" class="select-all-checkbox" onchange="toggleSelectAll('{{ Str::slug($roomTitle) }}-individual')">
+                                            </th>
                                             <th>Photo</th>
                                             <th>Category</th>
                                             <th>Brand</th>
@@ -1460,20 +1951,29 @@
                                             <th>Serial #</th>
                                             <th>Description</th>
                                             <th>Barcode</th>
+                                            <th>Quantity</th>
                                             <th>Status</th>
                                             <th>Date Added</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($individualItems as $item)
+                                        @foreach($individualItems as $index => $item)
+                                        @php
+                                            $continuousQuantity = $individualStartQuantity + $index;
+                                        @endphp
                                         <tr>
                                             <td>
+                                                <input type="checkbox" class="item-checkbox" data-room="{{ Str::slug($roomTitle) }}" data-item-id="{{ $item->id }}" onchange="updateBulkActions()">
+                                            </td>
+                                            <td>
                                                 @if($item->photo)
-                                                    <img src="{{ route('room-item.photo', $item->id) }}"
+                                                    <img src="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw=="
+                                                        data-src="{{ route('room-item.photo', $item->id) }}"
                                                         alt="Item Photo"
-                                                        class="img-thumbnail"
-                                                        style="max-width: 40px;">
+                                                        class="img-thumbnail lazy-img"
+                                                        style="max-width: 40px;"
+                                                        loading="lazy" decoding="async" fetchpriority="low">
                                                 @else
                                                     <img src="{{ asset('path/to/your/placeholder.jpg') }}"
                                                         alt="Item Photo"
@@ -1502,6 +2002,9 @@
                                                         <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.5, 30) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; max-width:100%; height:auto;">
                                                     </div>
                                                 </div>
+                                            </td>
+                                            <td>
+                                                <span class="badge badge-quantity">{{ $continuousQuantity }}</span>
                                             </td>
                                             <td>
                                                 <span class="badge {{ $item->status === 'Unusable' ? 'badge-unusable' : 'badge-usable' }}">
@@ -1808,6 +2311,10 @@
                             <textarea name="description" placeholder="Item details..."></textarea>
                         </div>
                         <div class="form-group">
+                            <label>Quantity</label>
+                            <input type="number" name="quantity" min="1" value="1" required>
+                        </div>
+                        <div class="form-group">
                             <label>Status</label>
                             <select name="status" required>
                                 <option value="">-- Select Status --</option>
@@ -1833,13 +2340,28 @@
     // Room Toggle Function
     function toggleRoom(roomSlug) {
         const roomGroup = document.getElementById('room-' + roomSlug);
-        roomGroup.classList.toggle('collapsed');
+        roomGroup.classList.toggle('expanded');
+        if (roomGroup.classList.contains('expanded')) {
+            triggerLazyLoad(roomGroup);
+        }
     }
 
-    // Full Set Toggle Function
+    // PC Group Toggle Function
+    function togglePCGroup(pcId) {
+        const pcGroup = document.getElementById('pc-' + pcId);
+        pcGroup.classList.toggle('expanded');
+        if (pcGroup.classList.contains('expanded')) {
+            triggerLazyLoad(pcGroup);
+        }
+    }
+
+    // Full Set Toggle Function (Legacy)
     function toggleFullSet(fullsetId) {
         const fullsetGroup = document.getElementById('fullset-' + fullsetId);
         fullsetGroup.classList.toggle('collapsed');
+        if (!fullsetGroup.classList.contains('collapsed')) {
+            triggerLazyLoad(fullsetGroup);
+        }
     }
 
     // Step Navigation Functions
@@ -2098,24 +2620,223 @@
         }
     });
 
+    // Dismiss alert function
+    function dismissAlert(button) {
+        const alert = button.closest('.alert-message');
+        alert.style.opacity = '0';
+        alert.style.transform = 'translate(-50%, -50%) scale(0.8)';
+        setTimeout(() => {
+            alert.remove();
+        }, 300);
+    }
+
     document.addEventListener('DOMContentLoaded', (event) => {
         toggleStepCustomRoom();
         toggleEditCustomRoomInput();
         toggleStepFullSet();
         toggleEditFullSet();
+        initLazyImages();
         
-        // Initialize all rooms as expanded by default
-        // If you want them collapsed by default, uncomment the lines below:
-        // document.querySelectorAll('.room-group').forEach(group => {
-        //     group.classList.add('collapsed');
-        // });
-        
-        // Initialize all full sets as expanded by default
-        // If you want them collapsed by default, uncomment the lines below:
-        // document.querySelectorAll('.fullset-group').forEach(group => {
-        //     group.classList.add('collapsed');
-        // });
+        // Auto-expand first room for better UX
+        const firstRoom = document.querySelector('.room-group');
+        if (firstRoom) {
+            firstRoom.classList.add('expanded');
+            
+            // Also expand the first PC within the first room
+            const firstPC = firstRoom.querySelector('.pc-group');
+            if (firstPC) {
+                firstPC.classList.add('expanded');
+            }
+        }
     });
+
+    // Lazy-load images with IntersectionObserver
+    function initLazyImages() {
+        const images = document.querySelectorAll('img.lazy-img[data-src]');
+        if ('IntersectionObserver' in window) {
+            const observer = new IntersectionObserver((entries, obs) => {
+                entries.forEach(entry => {
+                    if (entry.isIntersecting) {
+                        const img = entry.target;
+                        img.src = img.getAttribute('data-src');
+                        img.removeAttribute('data-src');
+                        img.classList.remove('lazy-img');
+                        obs.unobserve(img);
+                    }
+                });
+            }, { rootMargin: '200px 0px', threshold: 0.01 });
+
+            images.forEach(img => observer.observe(img));
+        } else {
+            // Fallback: eager swap for older browsers
+            images.forEach(img => {
+                img.src = img.getAttribute('data-src');
+                img.removeAttribute('data-src');
+                img.classList.remove('lazy-img');
+            });
+        }
+    }
+
+    function triggerLazyLoad(container) {
+        const pending = container.querySelectorAll('img.lazy-img[data-src]');
+        pending.forEach(img => {
+            // If observer already set, just rely on it; otherwise eager-load now
+            if (!('IntersectionObserver' in window)) {
+                img.src = img.getAttribute('data-src');
+                img.removeAttribute('data-src');
+                img.classList.remove('lazy-img');
+            }
+        });
+    }
+
+    // Room-level Selection Functions
+    function updateBulkActions() {
+        // Update each room individually
+        document.querySelectorAll('.room-group').forEach(roomGroup => {
+            const roomSlug = roomGroup.id.replace('room-', '');
+            const roomCheckboxes = roomGroup.querySelectorAll('.item-checkbox:checked');
+            const roomDeleteBtn = roomGroup.querySelector('.room-delete-btn');
+            const roomDeleteContainer = roomGroup.querySelector('.room-delete-selected');
+            const selectedCountElement = roomGroup.querySelector('.selected-count');
+            const selectedNumberElement = roomGroup.querySelector('.selected-number');
+            
+            if (roomCheckboxes.length > 0) {
+                // Show delete button and selected count
+                roomDeleteContainer.style.display = 'flex';
+                roomDeleteBtn.disabled = false;
+                selectedCountElement.style.display = 'flex';
+                selectedNumberElement.textContent = roomCheckboxes.length;
+            } else {
+                // Hide delete button and selected count
+                roomDeleteContainer.style.display = 'none';
+                roomDeleteBtn.disabled = true;
+                selectedCountElement.style.display = 'none';
+            }
+        });
+    }
+
+    function toggleSelectAll(containerId) {
+        const container = document.querySelector(`[data-container="${containerId}"]`) || 
+                        document.querySelector(`#fullset-${containerId}`) ||
+                        document.querySelector(`#room-${containerId.split('-')[0]}`);
+        
+        if (!container) return;
+        
+        const checkboxes = container.querySelectorAll('.item-checkbox');
+        const selectAllCheckbox = container.querySelector('.select-all-checkbox');
+        const isChecked = selectAllCheckbox.checked;
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+        
+        updateBulkActions();
+    }
+
+    function toggleRoomSelectAll(roomSlug) {
+        const roomContainer = document.getElementById(`room-${roomSlug}`);
+        const checkboxes = roomContainer.querySelectorAll('.item-checkbox');
+        const selectAllCheckbox = document.getElementById(`selectAll-${roomSlug}`);
+        const isChecked = selectAllCheckbox.checked;
+        
+        checkboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+        
+        // Update all select-all checkboxes within this room
+        const selectAllCheckboxes = roomContainer.querySelectorAll('.select-all-checkbox');
+        selectAllCheckboxes.forEach(checkbox => {
+            checkbox.checked = isChecked;
+        });
+        
+        updateBulkActions();
+    }
+
+    function updateRoomSelectAllStates() {
+        document.querySelectorAll('.room-select-all-checkbox').forEach(roomCheckbox => {
+            const roomSlug = roomCheckbox.id.replace('selectAll-', '');
+            const roomContainer = document.getElementById(`room-${roomSlug}`);
+            const checkboxes = roomContainer.querySelectorAll('.item-checkbox');
+            const checkedBoxes = roomContainer.querySelectorAll('.item-checkbox:checked');
+            
+            if (checkboxes.length === 0) {
+                roomCheckbox.checked = false;
+                roomCheckbox.indeterminate = false;
+            } else if (checkedBoxes.length === checkboxes.length) {
+                roomCheckbox.checked = true;
+                roomCheckbox.indeterminate = false;
+            } else if (checkedBoxes.length > 0) {
+                roomCheckbox.checked = false;
+                roomCheckbox.indeterminate = true;
+            } else {
+                roomCheckbox.checked = false;
+                roomCheckbox.indeterminate = false;
+            }
+        });
+    }
+
+
+    function confirmRoomDelete(roomSlug) {
+        const roomContainer = document.getElementById(`room-${roomSlug}`);
+        const checkboxes = roomContainer.querySelectorAll('.item-checkbox:checked');
+        
+        if (checkboxes.length === 0) return;
+        
+        const itemIds = Array.from(checkboxes).map(checkbox => checkbox.dataset.itemId);
+        
+        // Create custom confirmation dialog
+        const confirmed = confirm(`Are you sure you want to delete ${itemIds.length} selected item(s) from this room?\n\nThis action cannot be undone.\n\nClick OK to confirm or Cancel to abort.`);
+        
+        if (confirmed) {
+            bulkDeleteItems(itemIds);
+        }
+    }
+
+    function deleteSelectedRoomItems(roomSlug) {
+        const roomContainer = document.getElementById(`room-${roomSlug}`);
+        const checkboxes = roomContainer.querySelectorAll('.item-checkbox:checked');
+        
+        if (checkboxes.length === 0) return;
+        
+        const itemIds = Array.from(checkboxes).map(checkbox => checkbox.dataset.itemId);
+        
+        if (confirm(`Are you sure you want to delete ${itemIds.length} selected item(s) from this room? This action cannot be undone.`)) {
+            bulkDeleteItems(itemIds);
+        }
+    }
+
+    function bulkDeleteItems(itemIds) {
+        // Create a form to submit the bulk delete request
+        const form = document.createElement('form');
+        form.method = 'POST';
+        form.action = '{{ route("room-manage.bulk-destroy") }}';
+        
+        // Add CSRF token
+        const csrfToken = document.createElement('input');
+        csrfToken.type = 'hidden';
+        csrfToken.name = '_token';
+        csrfToken.value = '{{ csrf_token() }}';
+        form.appendChild(csrfToken);
+        
+        // Add method override for DELETE
+        const methodField = document.createElement('input');
+        methodField.type = 'hidden';
+        methodField.name = '_method';
+        methodField.value = 'DELETE';
+        form.appendChild(methodField);
+        
+        // Add item IDs
+        itemIds.forEach(id => {
+            const input = document.createElement('input');
+            input.type = 'hidden';
+            input.name = 'item_ids[]';
+            input.value = id;
+            form.appendChild(input);
+        });
+        
+        document.body.appendChild(form);
+        form.submit();
+    }
 </script>
 
 @endsection

@@ -36,3 +36,4 @@
     <hr style="border:none; border-top:1px solid #dee2e6; margin:30px 0;">
     <p style="font-size:12px; color:#6c757d;">This is an automated notification from the IT Inventory System. Please do not reply to this email.</p>
 </div>
+

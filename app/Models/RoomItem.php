@@ -21,6 +21,7 @@ class RoomItem extends Model
         'description',
         'barcode',
         'status',
+        'quantity',
         'is_full_item',
         'full_set_id',
     ];

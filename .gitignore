@@ -1,5 +1,6 @@
 *.log
 .DS_Store
+
 .env.backup
 .env.production
 .phpactor.json
@@ -12,13 +13,12 @@
 /.zed
 /auth.json
 /node_modules
-
+/public/build
 /public/hot
 /public/storage
 /storage/*.key
 /storage/pail
+
 Homestead.json
 Homestead.yaml
 Thumbs.db
-GMAIL_SETUP.md
-EMAIL_TROUBLESHOOTING.md

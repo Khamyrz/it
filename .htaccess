@@ -2,14 +2,11 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # If the request is not already in /public, send it there
-    RewriteCond %{REQUEST_URI} !^/public
+    # Redirect all requests to the public folder
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
-
-# Block sensitive files and folders
-<FilesMatch "^(\.env|\.env\..*|\.git|composer\.json|composer\.lock|artisan|server\.php|storage|vendor)">
+<FilesMatch "^(\.env|\.git|composer\.json|artisan|server\.php|storage|vendor)">
     Order allow,deny
     Deny from all
 </FilesMatch>
-
+| Out-File -Encoding UTF8 ".htaccess"

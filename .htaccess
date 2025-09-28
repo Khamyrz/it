@@ -1,5 +1,5 @@
 # Block sensitive files
-<FilesMatch "(\.env|\.git|composer\.json|composer\.lock|artisan|server\.php|storage|vendor)">
+<FilesMatch "(\.env|\.git|composer\.(json|lock)|artisan|server\.php|storage|vendor)">
     Order allow,deny
     Deny from all
 </FilesMatch>

@@ -4,7 +4,10 @@
     # Redirect all requests to the public folder
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
-<FilesMatch "^(\.env|\.git|composer\.json|artisan|server\.php|storage|vendor)">
-    Order allow,deny
-    Deny from all
+<FilesMatch "(\.env|artisan|composer\.(json|lock)|server\.php|phpunit\.xml)">
+    Require all denied
 </FilesMatch>
+
+RedirectMatch 404 ^/vendor/
+RedirectMatch 404 ^/storage/
+

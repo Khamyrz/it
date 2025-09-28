@@ -1,14 +1,18 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
-    RewriteBase /
 
-    # Send everything to the public folder
-    RewriteCond %{REQUEST_URI} !^/public/
+    # Redirect all requests to the public folder
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
-<FilesMatch "(\.env|artisan|composer\.(json|lock)|server\.php)">
-    Require all denied
-</FilesMatch>
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    RewriteBase /
 
-RedirectMatch 404 ^/vendor/
-RedirectMatch 404 ^/storage/
+    # Force Laravel public directory
+    RewriteRule ^ index.php [L]
+</IfModule>
+
+<FilesMatch "^(\.env|\.git|composer\.json|artisan|server\.php|storage|vendor)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>

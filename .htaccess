@@ -1,18 +1,35 @@
 <IfModule mod_rewrite.c>
-    <IfModule mod_negotiation.c>
-        Options -MultiViews -Indexes
-    </IfModule>
-
     RewriteEngine On
-
-    # Handle Front Controller
+    
+    # Handle Authorization Header
+    RewriteCond %{HTTP:Authorization} .
+    RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+    
+    # Redirect Trailing Slashes If Not A Folder...
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_URI} (.+)/$
+    RewriteRule ^ %1 [L,R=301]
+    
+    # Send Requests To Front Controller...
     RewriteCond %{REQUEST_FILENAME} !-d
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
+    
+    # Redirect all requests to the public folder if not already there
+    RewriteCond %{REQUEST_URI} !^/public/
+    RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
 
-# Block sensitive files
-<FilesMatch "^(artisan|server\.php|composer\.(json|lock)|\.env|\.gitignore|phpunit\.xml|webpack\.mix\.js|package\.json)$">
+# Prevent access to sensitive files
+<FilesMatch "^(\.env|\.git.*|composer\.(json|lock)|artisan|package\.json|webpack\.mix\.js)$">
     Order allow,deny
     Deny from all
 </FilesMatch>
+
+# Disable directory browsing
+Options -Indexes
+
+# Set permissions
+<IfModule mod_headers.c>
+    Header set X-Content-Type-Options "nosniff"
+</IfModule>

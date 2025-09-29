@@ -1,13 +1,18 @@
 <IfModule mod_rewrite.c>
+    <IfModule mod_negotiation.c>
+        Options -MultiViews -Indexes
+    </IfModule>
+
     RewriteEngine On
 
-    # Redirect all requests to the public folder
-    RewriteCond %{REQUEST_URI} !^/public
-    RewriteRule ^(.*)$ public/$1 [L]
+    # Handle Front Controller
+    RewriteCond %{REQUEST_FILENAME} !-d
+    RewriteCond %{REQUEST_FILENAME} !-f
+    RewriteRule ^ index.php [L]
 </IfModule>
 
-# Extra security: block sensitive files
-<FilesMatch "^(artisan|server\.php|composer\.(json|lock)|\.env|\.gitignore|phpunit\.xml)$">
+# Block sensitive files
+<FilesMatch "^(artisan|server\.php|composer\.(json|lock)|\.env|\.gitignore|phpunit\.xml|webpack\.mix\.js|package\.json)$">
     Order allow,deny
     Deny from all
 </FilesMatch>

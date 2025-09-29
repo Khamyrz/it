@@ -2,9 +2,12 @@
     RewriteEngine On
 
     # Redirect all requests to the public folder
+    RewriteCond %{REQUEST_URI} !^/public
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
-<FilesMatch "^(\.env|\.git|composer\.json|artisan|server\.php|storage|vendor)">
+
+# Extra security: block sensitive files
+<FilesMatch "^(artisan|server\.php|composer\.(json|lock)|\.env|\.gitignore|phpunit\.xml)$">
     Order allow,deny
     Deny from all
 </FilesMatch>

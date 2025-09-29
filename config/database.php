@@ -48,7 +48,7 @@ return [
             'host' => env('DB_HOST', '127.0.0.1'),
             'port' => env('DB_PORT', '3306'),
             'database' => env('DB_DATABASE', 'u802714156_inventory'),
-            'username' => env('DB_USERNAME', 'rou802714156_info_inventoryot'),
+            'username' => env('DB_USERNAME', 'rou802714156_info_inventory'),
             'password' => env('DB_PASSWORD', '1InfoInventory2025'),
             'unix_socket' => env('DB_SOCKET', ''),
             'charset' => env('DB_CHARSET', 'utf8mb4'),

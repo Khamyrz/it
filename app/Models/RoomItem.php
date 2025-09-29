@@ -11,6 +11,7 @@ class RoomItem extends Model
     use HasFactory;
 
     protected $fillable = [
+        'user_id',
         'photo',
         'room_title',
         'device_category',
@@ -33,6 +34,11 @@ class RoomItem extends Model
     ];
 
     // ─── Relationships ──────────────────────────────
+
+    public function user()
+    {
+        return $this->belongsTo(User::class);
+    }
 
     public function borrows()
     {
@@ -95,6 +101,21 @@ class RoomItem extends Model
     public function scopeByFullSetId($query, $fullSetId)
     {
         return $query->where('full_set_id', $fullSetId);
+    }
+
+    public function scopeByUser($query, $userId)
+    {
+        return $query->where('user_id', $userId);
+    }
+
+    public function scopeForNewUsers($query)
+    {
+        return $query->whereNotNull('user_id');
+    }
+
+    public function scopeForOldUsers($query)
+    {
+        return $query->whereNull('user_id');
     }
 
     // ─── Accessors ──────────────────────────────────

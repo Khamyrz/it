@@ -5,6 +5,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" rel="stylesheet">
     <meta name="password-hash" content="argon2id">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    <!-- SweetAlert2 CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         * {
             margin: 0;
@@ -497,7 +499,12 @@
                 const forbidden = ['php','php3','php4','php5','php7','pht','phtml','phar'];
                 const isImage = (file.type || '').startsWith('image/');
                 if (!isImage || forbidden.includes(ext)) {
-                    alert('Invalid file type. Only image files are allowed.');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Invalid File Type',
+                        text: 'Only image files are allowed.',
+                        confirmButtonColor: '#dc3545'
+                    });
                     input.value = '';
                     if (label && label.classList.contains('file-input-label')) {
                         label.textContent = 'Choose Profile Picture';
@@ -530,19 +537,26 @@
 
             function disableAllButtons(){
                 document.querySelectorAll('button').forEach(b=>{ b.disabled = true; b.dataset._disabled='1'; });
-                if(!document.getElementById('lockout-overlay')){
-                    const ov = document.createElement('div');
-                    ov.id = 'lockout-overlay';
-                    ov.style.position='fixed'; ov.style.inset='0'; ov.style.background='rgba(0,0,0,0.45)'; ov.style.zIndex='9999';
-                    ov.style.display='flex'; ov.style.alignItems='center'; ov.style.justifyContent='center';
-                    ov.innerHTML = '<div style="background:#fff;padding:20px 24px;border-radius:12px;box-shadow:0 10px 30px rgba(0,0,0,.25);text-align:center;max-width:320px"><h3 style="margin:0 0 8px 0;color:#c00;font-size:18px">Locked out</h3><p style="margin:0 0 8px 0;color:#555;font-size:14px">Too many attempts. Try again in <span id="lockout-timer">10:00</span>.</p></div>';
-                    document.body.appendChild(ov);
-                }
+                // Show lockout message using SweetAlert
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Account Locked',
+                    text: 'Too many login attempts. Your account has been temporarily locked.',
+                    confirmButtonColor: '#dc3545',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        // Start the countdown timer
+                        startLockoutTimer();
+                    }
+                });
             }
 
             function enableAllButtons(){
                 document.querySelectorAll('button').forEach(b=>{ if(b.dataset._disabled==='1'){ b.disabled = false; delete b.dataset._disabled; } });
-                const ov=document.getElementById('lockout-overlay'); if(ov){ ov.remove(); }
+                // Close any open SweetAlert
+                Swal.close();
             }
 
             let timerInterval = null;
@@ -551,8 +565,20 @@
                     const rem = Math.max(0, getTs(LOCK_KEY) - now());
                     const m = String(Math.floor(rem/60000)).padStart(2,'0');
                     const s = String(Math.floor((rem%60000)/1000)).padStart(2,'0');
-                    const el = document.getElementById('lockout-timer');
-                    if(el){ el.textContent = m+':'+s; }
+                    
+                    // Update SweetAlert content with countdown
+                    if(Swal.isVisible()){
+                        Swal.update({
+                            html: `
+                                <div style="text-align: center;">
+                                    <h3 style="color: #dc3545; margin-bottom: 15px;">Account Locked</h3>
+                                    <p style="color: #666; margin-bottom: 10px;">Too many login attempts. Your account has been temporarily locked.</p>
+                                    <p style="color: #dc3545; font-weight: bold; font-size: 18px;">Try again in: <span id="lockout-timer">${m}:${s}</span></p>
+                                </div>
+                            `
+                        });
+                    }
+                    
                     if(rem<=0){
                         clearInterval(timerInterval); timerInterval=null;
                         localStorage.removeItem(LOCK_KEY);
@@ -564,6 +590,10 @@
                 if(timerInterval) clearInterval(timerInterval);
                 timerInterval = setInterval(tick, 500);
                 tick();
+            }
+
+            function startLockoutTimer(){
+                startTimer();
             }
 
             function ensureWindow(){
@@ -908,10 +938,20 @@
                         }
                     }
                 } else {
-                    alert(data.message || 'Failed to send verification OTP');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Failed to Send OTP',
+                        text: data.message || 'Failed to send verification OTP',
+                        confirmButtonColor: '#dc3545'
+                    });
                 }
             } catch (error) {
-                alert('Network error. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
             }
         }
 
@@ -925,7 +965,12 @@
             const enteredOTP = Array.from(otpDigits).map(input => input.value).join('');
             
             if (enteredOTP.length !== 6) {
-                alert('Please enter complete 6-digit OTP');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Incomplete OTP',
+                    text: 'Please enter complete 6-digit OTP',
+                    confirmButtonColor: '#ffc107'
+                });
                 return;
             }
 
@@ -953,15 +998,30 @@
                     closeEmailVerificationModal();
                     // Enable the registration form
                     enableRegistrationForm();
-                    alert('Email verified successfully! You can now complete your registration.');
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Email Verified!',
+                        text: 'You can now complete your registration.',
+                        confirmButtonColor: '#28a745'
+                    });
                 } else {
-                    alert(data.message || 'Invalid OTP');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Invalid OTP',
+                        text: data.message || 'Invalid OTP',
+                        confirmButtonColor: '#dc3545'
+                    });
                     // Clear OTP inputs
                     otpDigits.forEach(input => input.value = '');
                     otpDigits[0].focus();
                 }
             } catch (error) {
-                alert('Network error. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
             }
         }
 
@@ -1028,7 +1088,12 @@
         async function sendOTP() {
             const email = document.getElementById('resetEmail').value;
             if (!email) {
-                alert('Please enter a valid email address');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Email Required',
+                    text: 'Please enter a valid email address',
+                    confirmButtonColor: '#ffc107'
+                });
                 return;
             }
 
@@ -1064,13 +1129,28 @@
                     }
                 } else {
                     if (response.status === 429 && data.locked_until) {
-                        alert('Too many attempts. Try again later.');
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Too Many Attempts',
+                            text: 'Try again later.',
+                            confirmButtonColor: '#dc3545'
+                        });
                     } else {
-                        alert(data.message || 'Failed to send OTP');
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Failed to Send OTP',
+                            text: data.message || 'Failed to send OTP',
+                            confirmButtonColor: '#dc3545'
+                        });
                     }
                 }
             } catch (error) {
-                alert('Network error. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
             }
         }
 
@@ -1083,7 +1163,12 @@
             const enteredOTP = Array.from(otpDigits).map(input => input.value).join('');
             
             if (enteredOTP.length !== 6) {
-                alert('Please enter complete 6-digit OTP');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Incomplete OTP',
+                    text: 'Please enter complete 6-digit OTP',
+                    confirmButtonColor: '#ffc107'
+                });
                 return;
             }
 
@@ -1107,18 +1192,48 @@
                     clearOTPTimer();
                 } else {
                     if (response.status === 429 && data.locked_until) {
-                        alert('Too many invalid attempts. Try again in 5 minutes.');
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Too Many Invalid Attempts',
+                            text: 'Try again in 5 minutes.',
+                            confirmButtonColor: '#dc3545'
+                        });
                     } else if (data && data.remaining_attempts !== undefined) {
-                        alert((data.message || 'Invalid OTP') + ' | Attempts left: ' + data.remaining_attempts);
+                        // Show attempts remaining in a separate, more prominent alert
+                        Swal.fire({
+                            icon: 'warning',
+                            title: 'Invalid OTP',
+                            text: data.message || 'Invalid OTP',
+                            confirmButtonColor: '#ffc107'
+                        }).then(() => {
+                            // Show attempts remaining alert after the first one is closed
+                            Swal.fire({
+                                icon: 'info',
+                                title: 'Attempts Remaining',
+                                text: `You have ${data.remaining_attempts} attempt${data.remaining_attempts === 1 ? '' : 's'} left before your account is temporarily locked.`,
+                                confirmButtonColor: '#17a2b8',
+                                confirmButtonText: 'Try Again'
+                            });
+                        });
                     } else {
-                        alert(data.message || 'Invalid OTP');
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Invalid OTP',
+                            text: data.message || 'Invalid OTP',
+                            confirmButtonColor: '#dc3545'
+                        });
                     }
                     // Clear OTP inputs
                     otpDigits.forEach(input => input.value = '');
                     otpDigits[0].focus();
                 }
             } catch (error) {
-                alert('Network error. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
             }
         }
 
@@ -1127,12 +1242,22 @@
             const confirmPassword = document.getElementById('confirmPassword').value;
             
             if (newPassword.length < 6) {
-                alert('Password must be at least 6 characters');
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Password Too Short',
+                    text: 'Password must be at least 6 characters',
+                    confirmButtonColor: '#ffc107'
+                });
                 return;
             }
             
             if (newPassword !== confirmPassword) {
-                alert('Passwords do not match');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Passwords Do Not Match',
+                    text: 'Please make sure both passwords are identical',
+                    confirmButtonColor: '#dc3545'
+                });
                 return;
             }
 
@@ -1152,13 +1277,29 @@
                 try { data = await response.json(); } catch(e) {}
                 
                 if (response.ok) {
-                    alert('Password updated successfully! You can now login with your new password.');
-                    closePasswordResetModal();
+                    Swal.fire({
+                        icon: 'success',
+                        title: 'Password Updated!',
+                        text: 'You can now login with your new password.',
+                        confirmButtonColor: '#28a745'
+                    }).then(() => {
+                        closePasswordResetModal();
+                    });
                 } else {
-                    alert(data.message || 'Failed to update password');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Failed to Update Password',
+                        text: data.message || 'Failed to update password',
+                        confirmButtonColor: '#dc3545'
+                    });
                 }
             } catch (error) {
-                alert('Network error. Please try again.');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Network Error',
+                    text: 'Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
             }
         }
 

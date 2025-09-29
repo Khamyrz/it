@@ -12,7 +12,9 @@ return new class extends Migration
     public function up(): void
     {
         Schema::table('room_items', function (Blueprint $table) {
-            $table->integer('quantity')->default(1)->after('status');
+            $table->unsignedBigInteger('user_id')->nullable()->after('id');
+            $table->foreign('user_id')->references('id')->on('users')->onDelete('cascade');
+            $table->index('user_id');
         });
     }
 
@@ -22,7 +24,9 @@ return new class extends Migration
     public function down(): void
     {
         Schema::table('room_items', function (Blueprint $table) {
-            $table->dropColumn('quantity');
+            $table->dropForeign(['user_id']);
+            $table->dropIndex(['user_id']);
+            $table->dropColumn('user_id');
         });
     }
 };

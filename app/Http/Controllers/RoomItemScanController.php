@@ -24,10 +24,18 @@ class RoomItemScanController extends Controller
             'barcode' => 'required|string'
         ]);
 
+        $user = auth()->user();
         $barcode = $request->input('barcode');
 
-        // Find all matching room items by barcode
-        $items = RoomItem::where('barcode', $barcode)->get();
+        // Find all matching room items by barcode with user isolation
+        $itemsQuery = RoomItem::where('barcode', $barcode);
+        
+        // Apply user-based filtering for new users
+        if ($user->is_new_user) {
+            $itemsQuery->where('user_id', $user->id);
+        }
+        
+        $items = $itemsQuery->get();
 
         if ($items->isEmpty()) {
             return view('scan-barcode', [
@@ -52,10 +60,18 @@ class RoomItemScanController extends Controller
             'barcode' => 'required|string'
         ]);
 
+        $user = auth()->user();
         $barcode = $request->input('barcode');
 
-        // Find all matching room items by barcode
-        $items = RoomItem::where('barcode', $barcode)->get();
+        // Find all matching room items by barcode with user isolation
+        $itemsQuery = RoomItem::where('barcode', $barcode);
+        
+        // Apply user-based filtering for new users
+        if ($user->is_new_user) {
+            $itemsQuery->where('user_id', $user->id);
+        }
+        
+        $items = $itemsQuery->get();
 
         if ($items->isEmpty()) {
             return response()->json([

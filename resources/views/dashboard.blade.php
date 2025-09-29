@@ -218,25 +218,35 @@
     </div>
 
     <div class="activity-panel">
-        <div class="activity-box">Users: {{ $pendingUsers->count() }}</div>
-        <div class="activity-box">Categories/Rooms: {{ $roomItemCounts->count() }}</div>
-        <div class="activity-box">Peripherals Devices: {{ $peripheralCount }}</div>
-        <div class="activity-box">Computer Units: {{ $computerUnitCount }}</div>
-        <div class="activity-box">Computers to be Repaired: {{ $unusableCount }}</div>
-        <div class="activity-box">Peripheral Devices to be Repaired: {{ $unusableCount }}</div>
-        <div class="activity-box">Borrowed Computer Units: {{ $borrowedComputerCount }}</div>
-        <div class="activity-box">Borrowed Peripheral Devices: {{ $borrowedPeripheralCount }}</div>
-        <div class="activity-box">Total Borrowed Items: {{ $borrowedCount }}</div>
+        <div class="activity-box">Pending Users: {{ $pendingUsers->count() }}</div>
+        <div class="activity-box">Total Rooms: {{ $roomItemCounts->count() }}</div>
+        <div class="activity-box">Total Peripherals: {{ $peripheralCount }}</div>
+        <div class="activity-box">Total Computer Units: {{ $computerUnitCount }}</div>
+        <div class="activity-box">Usable Peripherals: {{ $usablePeripheralCount }}</div>
+        <div class="activity-box">Usable Computer Units: {{ $usableComputerUnitCount }}</div>
+        <div class="activity-box">Unusable Peripherals: {{ $unusablePeripheralCount }}</div>
+        <div class="activity-box">Unusable Computer Units: {{ $unusableComputerUnitCount }}</div>
+        <div class="activity-box">Borrowed Items: {{ $borrowedCount }}</div>
     </div>
 
     <div class="chart-container">
-        <h3>Inventory Overview</h3>
+        <h3>Items by Category</h3>
         <canvas id="deviceChart" height="120"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h3>Item Status Overview</h3>
+        <canvas id="statusChart" height="120"></canvas>
+    </div>
+
+    <div class="chart-container">
+        <h3>Borrowed Items by Type</h3>
+        <canvas id="borrowedChart" height="120"></canvas>
     </div>
 
     <!-- Button to Trigger Modal -->
     <div style="margin-top: 10px;">
-        <button class="contribution-btn" onclick="openModal()">📊 View Contribution Graph</button>
+        <button class="contribution-btn" onclick="openModal()">📊 View Inventory Distribution</button>
     </div>
 </div>
 
@@ -244,7 +254,7 @@
 <div id="contributionModal">
     <div class="modal-content">
         <span class="close" onclick="closeModal()">&times;</span>
-        <h3 style="text-align:center;">Peripheral vs Computer Contribution</h3>
+        <h3 style="text-align:center;">Total Inventory Distribution</h3>
         <canvas id="contributionChart" height="250"></canvas>
     </div>
 </div>
@@ -259,6 +269,7 @@
     setInterval(updateDateTime, 1000);
     updateDateTime();
 
+    // Items by Category Chart
     const ctx = document.getElementById('deviceChart').getContext('2d');
     const deviceChart = new Chart(ctx, {
         type: 'bar',
@@ -269,6 +280,62 @@
                 data: {!! json_encode($itemCounts->pluck('total')) !!},
                 backgroundColor: 'rgba(46, 204, 113, 0.7)',
                 borderColor: 'rgba(46, 204, 113, 1)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    stepSize: 1
+                }
+            }
+        }
+    });
+
+    // Item Status Overview Chart
+    const statusCtx = document.getElementById('statusChart').getContext('2d');
+    const statusChart = new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Usable', 'Unusable'],
+            datasets: [{
+                data: [{{ $usableCount }}, {{ $unusableCount }}],
+                backgroundColor: ['rgba(46, 204, 113, 0.7)', 'rgba(231, 76, 60, 0.7)'],
+                borderColor: ['rgba(46, 204, 113, 1)', 'rgba(231, 76, 60, 1)'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
+                            const value = context.raw;
+                            const percent = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
+                            return `${context.label}: ${value} (${percent}%)`;
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    // Borrowed Items by Type Chart
+    const borrowedCtx = document.getElementById('borrowedChart').getContext('2d');
+    const borrowedChart = new Chart(borrowedCtx, {
+        type: 'bar',
+        data: {
+            labels: ['Peripheral Devices', 'Computer Units'],
+            datasets: [{
+                label: 'Borrowed Items',
+                data: [{{ $borrowedPeripheralCount }}, {{ $borrowedComputerCount }}],
+                backgroundColor: ['rgba(52, 152, 219, 0.7)', 'rgba(155, 89, 182, 0.7)'],
+                borderColor: ['rgba(52, 152, 219, 1)', 'rgba(155, 89, 182, 1)'],
                 borderWidth: 1
             }]
         },
@@ -303,7 +370,7 @@
             data: {
                 labels: ['Peripheral Devices', 'Computer Units'],
                 datasets: [{
-                    data: [{{ $borrowedPeripheralCount }}, {{ $borrowedComputerCount }}],
+                    data: [{{ $peripheralCount }}, {{ $computerUnitCount }}],
                     backgroundColor: ['rgba(52, 152, 219, 0.7)', 'rgba(231, 76, 60, 0.7)'],
                     borderColor: ['rgba(52, 152, 219, 1)', 'rgba(231, 76, 60, 1)'],
                     borderWidth: 1
@@ -318,7 +385,7 @@
                             label: function(context) {
                                 const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
                                 const value = context.raw;
-                                const percent = ((value / total) * 100).toFixed(1);
+                                const percent = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
                                 return `${context.label}: ${value} (${percent}%)`;
                             }
                         }

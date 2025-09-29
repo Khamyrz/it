@@ -11,12 +11,27 @@ class MaintenanceController extends Controller
 {
     public function index()
     {
-        // Get all items and group by full_set_id
-        $items = RoomItem::whereNotNull('full_set_id')
-                         ->orderBy('full_set_id')
-                         ->orderBy('device_category')
-                         ->orderBy('created_at', 'desc')
-                         ->get();
+        $user = auth()->user();
+        
+        // Check if this is a new user
+        $isNewUser = $user->is_new_user;
+        
+        if ($isNewUser) {
+            // New users only see their own items
+            $items = RoomItem::where('user_id', $user->id)
+                             ->whereNotNull('full_set_id')
+                             ->orderBy('full_set_id')
+                             ->orderBy('device_category')
+                             ->orderBy('created_at', 'desc')
+                             ->get();
+        } else {
+            // Old users see all items (backward compatibility)
+            $items = RoomItem::whereNotNull('full_set_id')
+                             ->orderBy('full_set_id')
+                             ->orderBy('device_category')
+                             ->orderBy('created_at', 'desc')
+                             ->get();
+        }
         
         // Group items by full_set_id using arrays
         $fullsets = [];
@@ -96,9 +111,16 @@ class MaintenanceController extends Controller
             'note' => 'nullable|string|max:1000'
         ]);
 
-        // Get the display name (barcode) for the fullset
-        $item = RoomItem::where('full_set_id', $fullsetId)->first();
-        $displayName = $item ? $item->barcode : $fullsetId;
+        $user = auth()->user();
+        
+        // Verify the fullset belongs to the user (for new users) or exists (for old users)
+        $itemQuery = RoomItem::where('full_set_id', $fullsetId);
+        if ($user->is_new_user) {
+            $itemQuery->where('user_id', $user->id);
+        }
+        $item = $itemQuery->firstOrFail();
+        
+        $displayName = $item->barcode;
 
         MaintenanceNote::updateOrCreate(
             ['fullset_id' => $fullsetId],
@@ -115,9 +137,15 @@ class MaintenanceController extends Controller
             'status' => 'required|in:Usable,Unusable'
         ]);
 
-        $items = RoomItem::where('full_set_id', $fullsetId)
-                         ->where('device_category', $request->category)
-                         ->get();
+        $user = auth()->user();
+        
+        // Build query with user isolation
+        $itemsQuery = RoomItem::where('full_set_id', $fullsetId)
+                             ->where('device_category', $request->category);
+        if ($user->is_new_user) {
+            $itemsQuery->where('user_id', $user->id);
+        }
+        $items = $itemsQuery->get();
 
         if ($items->isEmpty()) {
             return redirect()->back()->with('error', 'No items found for the specified category.');

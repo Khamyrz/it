@@ -42,6 +42,7 @@ class AuthController extends Controller
             'password' => Hash::make($request->password),
             'photo' => $photoName,
             'is_approved' => false, // default to pending
+            'is_new_user' => true, // Mark as new user for data isolation
         ];
         // Ensure non-null mobile column is satisfied if present
         try {

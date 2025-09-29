@@ -11,21 +11,40 @@ class BorrowController extends Controller
 {
     public function index()
     {
-        // Eager load the latestBorrow relation for each item
-        $items = RoomItem::with('latestBorrow')->get();
-
-        // Only show usable items that are not currently borrowed
-        $availableItems = RoomItem::where('status', 'Usable')
-            ->whereDoesntHave('latestBorrow', function ($query) {
-                $query->where('status', 'Borrowed');
-            })->get();
-
-        // Monthly borrow tracker
-        $activities = Borrow::with('roomItem')
-            ->whereMonth('borrow_date', now()->month)
-            ->whereYear('borrow_date', now()->year)
-            ->orderByDesc('borrow_date')
-            ->get();
+        $user = auth()->user();
+        
+        // Check if this is a new user
+        $isNewUser = $user->is_new_user;
+        
+        if ($isNewUser) {
+            // New users only see their own items
+            $items = RoomItem::where('user_id', $user->id)->with('latestBorrow')->get();
+            $availableItems = RoomItem::where('user_id', $user->id)
+                ->where('status', 'Usable')
+                ->whereDoesntHave('latestBorrow', function ($query) {
+                    $query->where('status', 'Borrowed');
+                })->get();
+            $activities = Borrow::with('roomItem')
+                ->whereHas('roomItem', function($query) use ($user) {
+                    $query->where('user_id', $user->id);
+                })
+                ->whereMonth('borrow_date', now()->month)
+                ->whereYear('borrow_date', now()->year)
+                ->orderByDesc('borrow_date')
+                ->get();
+        } else {
+            // Old users see all items (backward compatibility)
+            $items = RoomItem::with('latestBorrow')->get();
+            $availableItems = RoomItem::where('status', 'Usable')
+                ->whereDoesntHave('latestBorrow', function ($query) {
+                    $query->where('status', 'Borrowed');
+                })->get();
+            $activities = Borrow::with('roomItem')
+                ->whereMonth('borrow_date', now()->month)
+                ->whereYear('borrow_date', now()->year)
+                ->orderByDesc('borrow_date')
+                ->get();
+        }
 
         return view('borrow', [
             'items' => $items,
@@ -42,6 +61,15 @@ class BorrowController extends Controller
             'borrow_date' => 'required|date',
         ]);
 
+        $user = auth()->user();
+        
+        // Verify the item belongs to the user (for new users) or exists (for old users)
+        $itemQuery = RoomItem::where('id', $request->room_item_id);
+        if ($user->is_new_user) {
+            $itemQuery->where('user_id', $user->id);
+        }
+        $item = $itemQuery->firstOrFail();
+
         // Create borrow record
         Borrow::create([
             'room_item_id' => $request->room_item_id,
@@ -51,7 +79,6 @@ class BorrowController extends Controller
         ]);
 
         // Update item status to "Borrowed"
-        $item = RoomItem::findOrFail($request->room_item_id);
         $item->status = 'Borrowed';
         $item->save();
 
@@ -60,13 +87,23 @@ class BorrowController extends Controller
 
     public function returnItem($id)
     {
-        $borrow = Borrow::findOrFail($id);
+        $user = auth()->user();
+        
+        // Find borrow record and verify user has access to the item
+        $borrowQuery = Borrow::with('roomItem')->where('id', $id);
+        if ($user->is_new_user) {
+            $borrowQuery->whereHas('roomItem', function($query) use ($user) {
+                $query->where('user_id', $user->id);
+            });
+        }
+        $borrow = $borrowQuery->firstOrFail();
+        
         $borrow->status = 'Returned';
         $borrow->return_date = now();
         $borrow->save();
 
         // Restore item status to "Usable"
-        $item = RoomItem::findOrFail($borrow->room_item_id);
+        $item = $borrow->roomItem;
         $item->status = 'Usable';
         $item->save();
 

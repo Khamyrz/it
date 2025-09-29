@@ -1654,6 +1654,11 @@
 </style>
 @endpush
 
+@push('scripts')
+<!-- Sweet Alert 2 -->
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+@endpush
+
 <div class="main-content">
     <div class="content-wrapper">
         <div class="page-header">
@@ -1666,34 +1671,43 @@
         </div>
 
         @if(session('success'))
-            <div class="alert-message success">
-                <div class="alert-content">
-                    <i class="fas fa-check-circle"></i>
-                    <div class="alert-text">{{ session('success') }}</div>
-                    <button class="alert-okay-btn" onclick="dismissAlert(this)">Okay</button>
-                </div>
-            </div>
+            <script>
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: '{{ session('success') }}',
+                    confirmButtonText: 'OK',
+                    confirmButtonColor: '#28a745'
+                });
+            </script>
         @endif
 
         @if ($errors->any() || session('error'))
-            <div class="alert-message error">
-                <div class="alert-content">
-                    <i class="fas fa-times-circle"></i>
-                    <div class="alert-text">
-                        @if (session('error'))
-                            {{ session('error') }}
-                        @endif
-                        @if ($errors->any())
-                            <ul>
+            <script>
+                @if (session('error'))
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error!',
+                        text: '{{ session('error') }}',
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#dc3545'
+                    });
+                @else
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Validation Error!',
+                        html: `
+                            <ul style="text-align: left; margin: 0; padding-left: 20px;">
                                 @foreach ($errors->all() as $error)
                                     <li>{{ $error }}</li>
                                 @endforeach
                             </ul>
-                        @endif
-                    </div>
-                    <button class="alert-okay-btn" onclick="dismissAlert(this)">Okay</button>
-                </div>
-            </div>
+                        `,
+                        confirmButtonText: 'OK',
+                        confirmButtonColor: '#dc3545'
+                    });
+                @endif
+            </script>
         @endif
 
 
@@ -1911,7 +1925,7 @@
                                                                 </button>
                                                                 <form method="POST" action="/manage-room/item/{{ $item->id }}" style="display:inline;">
                                                                     @csrf @method('DELETE')
-                                                                    <button class="icon-btn delete" onclick="return confirm('Delete this item?')">
+                                                                    <button class="icon-btn delete" onclick="confirmDeleteItem({{ $item->id }})">
                                                                         <i class="fas fa-trash"></i>
                                                                     </button>
                                                                 </form>
@@ -2019,7 +2033,7 @@
                                                     </button>
                                                     <form method="POST" action="/manage-room/item/{{ $item->id }}" style="display:inline;">
                                                         @csrf @method('DELETE')
-                                                        <button class="icon-btn delete" onclick="return confirm('Delete this item?')">
+                                                        <button class="icon-btn delete" onclick="confirmDeleteItem({{ $item->id }})">
                                                             <i class="fas fa-trash"></i>
                                                         </button>
                                                     </form>
@@ -2336,6 +2350,8 @@
 <script>
     let currentStep = 1;
     let currentEditStep = 1;
+
+
 
     // Room Toggle Function
     function toggleRoom(roomSlug) {
@@ -2784,12 +2800,43 @@
         
         const itemIds = Array.from(checkboxes).map(checkbox => checkbox.dataset.itemId);
         
-        // Create custom confirmation dialog
-        const confirmed = confirm(`Are you sure you want to delete ${itemIds.length} selected item(s) from this room?\n\nThis action cannot be undone.\n\nClick OK to confirm or Cancel to abort.`);
-        
-        if (confirmed) {
-            bulkDeleteItems(itemIds);
-        }
+        // Use Sweet Alert for confirmation
+        Swal.fire({
+            title: 'Are you sure?',
+            text: `You are about to delete ${itemIds.length} selected item(s) from this room. This action cannot be undone!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete them!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                bulkDeleteItems(itemIds);
+            }
+        });
+    }
+
+    function confirmDeleteItem(itemId) {
+        // Use Sweet Alert for confirmation
+        Swal.fire({
+            title: 'Are you sure?',
+            text: "You are about to delete this item. This action cannot be undone!",
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete it!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                // Find the form and submit it
+                const form = document.querySelector(`form[action="/manage-room/item/${itemId}"]`);
+                if (form) {
+                    form.submit();
+                }
+            }
+        });
     }
 
     function deleteSelectedRoomItems(roomSlug) {
@@ -2800,9 +2847,21 @@
         
         const itemIds = Array.from(checkboxes).map(checkbox => checkbox.dataset.itemId);
         
-        if (confirm(`Are you sure you want to delete ${itemIds.length} selected item(s) from this room? This action cannot be undone.`)) {
-            bulkDeleteItems(itemIds);
-        }
+        // Use Sweet Alert for confirmation
+        Swal.fire({
+            title: 'Are you sure?',
+            text: `You are about to delete ${itemIds.length} selected item(s) from this room. This action cannot be undone!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete them!',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                bulkDeleteItems(itemIds);
+            }
+        });
     }
 
     function bulkDeleteItems(itemIds) {

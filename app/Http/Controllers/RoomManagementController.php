@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\DB;
 use App\Models\RoomItem;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
@@ -14,7 +15,19 @@ class RoomManagementController extends Controller
     public function index()
     {
         $user = auth()->user();
-        $items = RoomItem::orderBy('created_at', 'desc')->get();
+        
+        // Check if this is a new user
+        $isNewUser = $user->is_new_user;
+        
+        if ($isNewUser) {
+            // New users only see their own items
+            $items = RoomItem::where('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+        } else {
+            // Old users see all items (backward compatibility)
+            $items = RoomItem::orderBy('created_at', 'desc')->get();
+        }
 
         // Process items to add photo URLs
         $items->transform(function ($item) {
@@ -90,6 +103,7 @@ class RoomManagementController extends Controller
         $oldSerialNumber : $this->generateSerialNumber();
 
         $itemData = [
+            'user_id' => auth()->id(),
             'room_title' => $roomTitle,
             'device_category' => $validatedData['device_category'],
             'device_type' => $this->getDeviceType($validatedData['device_category']),
@@ -176,29 +190,50 @@ class RoomManagementController extends Controller
         
         // Create multiple full sets based on quantity
         for ($setIndex = 0; $setIndex < $quantity; $setIndex++) {
-            // Calculate PC number for this set (starting number + set index)
-            $pcNumber = str_pad(intval($startingPcNumber) + $setIndex, 3, '0', STR_PAD_LEFT);
-            
-            foreach ($validatedData['fullset_categories'] as $index => $componentCategory) {
-                // Generate barcode for each component using the same PC number
-                $barcode = $this->generateBarcodeForFullSet($roomTitle, $componentCategory, $pcNumber);
-                // Generate unique serial number for each component
-                $serialNumber = $this->generateSerialNumber();
-                RoomItem::create([
-                    'room_title' => $roomTitle,
-                    'device_category' => $componentCategory, // Changed from 'Full Set' to actual component category
-                    'device_type' => $this->getDeviceType($componentCategory),
-                    'brand' => $validatedData['fullset_brand'],
-                    'model' => $validatedData['fullset_model'],
-                    'serial_number' => $serialNumber,
-                    'barcode' => $barcode,
-                    'photo' => $photoPath, // Same photo for all components in the full set
-                    'description' => $request->description,
-                    'quantity' => 1, // Each component in a full set has quantity 1
-                    'status' => $request->status,
-                    'full_set_id' => $fullSetId . '-' . ($setIndex + 1), // Unique full set ID for each set
-                    'is_full_set_item' => true,
-                ]);
+            // Compute initial PC number for this set
+            $pcNumberInt = intval($startingPcNumber) + $setIndex;
+
+            // Retry loop to avoid barcode unique collisions by advancing PC number
+            while (true) {
+                $pcNumber = str_pad($pcNumberInt, 3, '0', STR_PAD_LEFT);
+
+                try {
+                    DB::transaction(function () use ($validatedData, $roomTitle, $pcNumber, $photoPath, $request, $fullSetId, $setIndex) {
+                        foreach ($validatedData['fullset_categories'] as $index => $componentCategory) {
+                            // Generate barcode for each component using the same PC number
+                            $barcode = $this->generateBarcodeForFullSet($roomTitle, $componentCategory, $pcNumber);
+                            // Generate unique serial number for each component
+                            $serialNumber = $this->generateSerialNumber();
+                            RoomItem::create([
+                                'user_id' => auth()->id(),
+                                'room_title' => $roomTitle,
+                                'device_category' => $componentCategory, // Actual component category
+                                'device_type' => $this->getDeviceType($componentCategory),
+                                'brand' => $validatedData['fullset_brand'],
+                                'model' => $validatedData['fullset_model'],
+                                'serial_number' => $serialNumber,
+                                'barcode' => $barcode,
+                                'photo' => $photoPath,
+                                'description' => $request->description,
+                                'quantity' => 1,
+                                'status' => $request->status,
+                                'full_set_id' => $fullSetId . '-' . ($setIndex + 1),
+                                'is_full_set_item' => true,
+                            ]);
+                        }
+                    });
+
+                    // Success for this set, break retry loop
+                    break;
+                } catch (\Illuminate\Database\QueryException $e) {
+                    // If unique barcode constraint hit, advance PC number and retry
+                    $message = $e->getMessage();
+                    if (strpos($message, 'room_items_barcode_unique') !== false || strpos($message, 'Duplicate entry') !== false) {
+                        $pcNumberInt++;
+                        continue;
+                    }
+                    throw $e;
+                }
             }
         }
 
@@ -421,6 +456,9 @@ class RoomManagementController extends Controller
 
     public function getRoomsList()
     {
+        $user = auth()->user();
+        $isNewUser = $user->is_new_user;
+        
         $predefinedRooms = [
             'Server',
             'ComLab 1',
@@ -429,10 +467,16 @@ class RoomManagementController extends Controller
             'ComLab 4',
             'ComLab 5'
         ];
-        $customRooms = RoomItem::whereNotIn('room_title', $predefinedRooms)
-            ->distinct()
+        
+        // Build query for custom rooms with user isolation
+        $customRoomsQuery = RoomItem::whereNotIn('room_title', $predefinedRooms);
+        if ($isNewUser) {
+            $customRoomsQuery->where('user_id', $user->id);
+        }
+        $customRooms = $customRoomsQuery->distinct()
             ->pluck('room_title')
             ->toArray();
+            
         return response()->json([
             'predefined' => $predefinedRooms,
             'custom' => $customRooms
@@ -460,13 +504,22 @@ class RoomManagementController extends Controller
 
     public function searchByBarcode($pattern)
     {
+        $user = auth()->user();
+        $isNewUser = $user->is_new_user;
+        
         $cleanPattern = str_replace(' ', '', $pattern);
-        $items = RoomItem::where(function($query) use ($pattern, $cleanPattern) {
+        $itemsQuery = RoomItem::where(function($query) use ($pattern, $cleanPattern) {
             $query->where('barcode', 'LIKE', '%' . $pattern . '%')
                   ->orWhere('barcode', 'LIKE', '%' . $cleanPattern . '%');
-        })
-        ->orderBy('barcode')
-        ->get();
+        });
+        
+        // Apply user isolation for new users
+        if ($isNewUser) {
+            $itemsQuery->where('user_id', $user->id);
+        }
+        
+        $items = $itemsQuery->orderBy('barcode')->get();
+        
         // Add photo URLs to search results
         $items->transform(function ($item) {
             if ($item->photo) {
@@ -645,21 +698,27 @@ class RoomManagementController extends Controller
             strtoupper(substr(str_replace([' ', '-', '_'], '', $roomTitle), 0, 3));
 
         // Find the highest PC number by looking at existing barcodes with the room code
-        $existingItems = RoomItem::where('room_title', $roomTitle)
-            ->where('is_full_set_item', true)
+        // Consider ALL users' items so numbering is continuous across additions
+        $existingBarcodes = RoomItem::where('room_title', $roomTitle)
+            // consider all items in the room to determine the highest number
             ->where('barcode', 'LIKE', $roomCode . '-%')
-            ->orderBy('barcode', 'desc')
-            ->first();
-        
-        $nextPcNumber = 1;
-        if ($existingItems) {
-            // Extract PC number from barcode like "CL1-SU001" -> 001
-            if (preg_match('/' . $roomCode . '-\w+(\d+)$/', $existingItems->barcode, $matches)) {
-                $lastPcNumber = intval($matches[1]);
-                $nextPcNumber = $lastPcNumber + 1;
+            ->pluck('barcode');
+
+        $maxPcNumber = 0;
+        $escapedRoomCode = preg_quote($roomCode, '/');
+        foreach ($existingBarcodes as $barcode) {
+            // Extract trailing number from formats like: CL1-SU001, CL1-MS120, etc.
+            // Pattern: ^ROOM-[A-Z]+(digits)$, case-insensitive
+            if (preg_match('/^' . $escapedRoomCode . '-[A-Z]+(\d+)$/i', $barcode, $matches)) {
+                $num = intval($matches[1]);
+                if ($num > $maxPcNumber) {
+                    $maxPcNumber = $num;
+                }
             }
         }
-        
+
+        $nextPcNumber = $maxPcNumber + 1;
+
         return str_pad($nextPcNumber, 3, '0', STR_PAD_LEFT);
     }
 
@@ -795,11 +854,18 @@ class RoomManagementController extends Controller
         $basePrefix = $roomCode . '-' . $deviceCode;
 
         // Find the highest existing number for this prefix in the same room
-        $existingItems = RoomItem::where('barcode', 'LIKE', $basePrefix . '%')
+        // For new users, also filter by user_id to prevent conflicts
+        $existingItemsQuery = RoomItem::where('barcode', 'LIKE', $basePrefix . '%')
             ->where('room_title', $roomTitle)
-            ->where('is_full_set_item', false) // Exclude full set items from single item counting
-            ->orderBy('barcode', 'desc')
-            ->first();
+            ->where('is_full_set_item', false); // Exclude full set items from single item counting
+        
+        // For new users, only count items from the same user to prevent conflicts
+        $user = auth()->user();
+        if ($user->is_new_user) {
+            $existingItemsQuery->where('user_id', $user->id);
+        }
+        
+        $existingItems = $existingItemsQuery->orderBy('barcode', 'desc')->first();
             
         $nextNumber = 1;
         if ($existingItems) {

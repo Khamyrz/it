@@ -11,8 +11,8 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::table('room_items', function (Blueprint $table) {
-            $table->string('status')->nullable()->after('description');
+        Schema::table('users', function (Blueprint $table) {
+            $table->boolean('is_new_user')->default(false)->after('is_approved');
         });
     }
 
@@ -21,8 +21,8 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('room_items', function (Blueprint $table) {
-            $table->dropColumn('status');
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('is_new_user');
         });
     }
 };

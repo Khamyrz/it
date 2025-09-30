@@ -1,6 +1,6 @@
 *.log
 .DS_Store
-/.env
+#.env
 .env.backup
 .env.production
 .phpactor.json
@@ -12,13 +12,13 @@
 /.vscode
 /.zed
 /auth.json
-/node_modules
-/public/build
-/public/hot
+#/node_modules
+#/public/build
+/public/hots
 /public/storage
 /storage/*.key
 /storage/pail
-/vendor
+#/vendor
 Homestead.json
 Homestead.yaml
 Thumbs.db

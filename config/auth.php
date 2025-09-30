@@ -62,7 +62,7 @@ return [
 'providers' => [
     'users' => [ // don't rename this key!
         'driver' => 'eloquent',
-        'model' => App\Models\Account::class, // <- change this line
+        'model' => App\Models\User::class, // Use the user model at app/Models/user.php
     ],
 ],
 

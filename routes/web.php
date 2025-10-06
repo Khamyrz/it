@@ -14,7 +14,7 @@ use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\AdminMetricsController;
 
 Route::get('/', function () {
-    return redirect('/register');
+    return redirect('/login');
 });
 
 // AUTHENTICATION ROUTES

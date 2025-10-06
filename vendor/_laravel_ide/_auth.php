@@ -5,7 +5,7 @@ namespace Illuminate\Contracts\Auth;
 interface Guard
 {
     /**
-     * @return \App\Models\Account|null
+     * @return \App\Models\user|null
      */
     public function user();
 }

@@ -328,10 +328,12 @@
         }
 
         .bwippbarcode img {
-            width: 70px; /* Adjusted for smaller display */
-            height: 20px; /* Adjusted for smaller display */
             display: block;
             margin: 0 auto;
+            width: auto; /* Use intrinsic width for clarity */
+            height: auto; /* Use intrinsic height for clarity */
+            image-rendering: crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
         }
 
         .action-buttons {
@@ -665,6 +667,18 @@
                 background: white;
                 padding: 20px;
             }
+            #printContainer .print-grid {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                gap: 10px 12px;
+                align-items: start;
+            }
+            #printContainer .barcode-card {
+                border: 1px solid #000;
+                padding: 8px 6px;
+                border-radius: 4px;
+                background: #fff;
+            }
             .barcode-text {
                 font-weight: bold !important;
                 font-size: 14px !important;
@@ -678,9 +692,11 @@
                 padding: 15px !important;
             }
             .bwippbarcode img {
-                width: 150px !important; /* Adjusted for smaller print size */
-                height: 50px !important; /* Adjusted for smaller print size */
+                width: 120px !important; /* Fixed size for uniform print */
+                height: 40px !important;
                 margin: 0 auto !important;
+                image-rendering: crisp-edges !important;
+                image-rendering: -webkit-optimize-contrast !important;
             }
         }
 
@@ -988,7 +1004,7 @@
 
         .pc-content .barcode-text {
             font-family: 'Courier New', monospace;
-            font-size: 11px;
+            font-size: 10px;
             color: #333;
             font-weight: 500;
         }
@@ -1800,6 +1816,14 @@
                                     Delete
                                 </button>
                             </div>
+                            <form method="POST" action="{{ route('room-manage.room-destroy', Str::slug($roomTitle)) }}" onsubmit="return confirmDeleteRoom(event, '{{ addslashes($roomTitle) }}')" style="margin-right:10px;">
+                                @csrf
+                                @method('DELETE')
+                                <input type="hidden" name="room_title" value="{{ $roomTitle }}">
+                                <button type="submit" class="room-delete-btn" title="Delete Room">
+                                    <i class="fas fa-trash"></i> Delete Room
+                                </button>
+                            </form>
                             <div class="toggle-icon">▶</div>
                         </div>
                     </div>
@@ -1843,6 +1867,8 @@
                                             <i class="fas fa-hashtag"></i>
                                             Qty: {{ $pcStartQuantity }}-{{ $pcStartQuantity + $pcTotalCount - 1 }}
                                         </div>
+                                        <button class="room-delete-btn" style="margin-left:8px;" onclick="openAddComponentModal('{{ addslashes($roomTitle) }}','{{ $displayPcNumber }}', event)"><i class="fas fa-plus"></i> Add Component</button>
+                                        <button class="room-delete-btn" style="margin-left:8px; background:#17a2b8;" onclick="printAllBarcodes()"><i class="fas fa-print"></i> Print Barcode</button>
                                         <div class="toggle-icon">▶</div>
                                     </div>
                                 </div>
@@ -1892,7 +1918,12 @@
                                                             @endif
                                                         </td>
                                                         <td>
-                                                            <div class="barcode-text">{{ $item->barcode }}</div>
+                                                            <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
+                                                                <div class="barcode-text">{{ $item->barcode }}</div>
+                                                                <div class="bwippbarcode">
+                                                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.6, 40) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; max-width:none; height:auto;">
+                                                                </div>
+                                                            </div>
                                                         </td>
                                                         <td>
                                                             <div class="device-category">{{ $item->device_category }}</div>
@@ -2013,7 +2044,7 @@
                                                 <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                     <div class="barcode-text">{{ $item->barcode }}</div>
                                                     <div class="bwippbarcode">
-                                                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.5, 30) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; max-width:100%; height:auto;">
+                                                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.6, 40) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; max-width:none; height:auto;">
                                                     </div>
                                                 </div>
                                             </td>
@@ -2344,6 +2375,65 @@
                 </form>
             </div>
         </div>
+
+        {{-- Add Component Modal --}}
+        <div id="addComponentModal" class="modal" style="display:none;">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h3>Add Component to <span id="acRoom"></span> - PC<span id="acPc"></span></h3>
+                    <button class="close-btn" onclick="closeModal('addComponentModal')">×</button>
+                </div>
+                <form method="POST" action="#" enctype="multipart/form-data" id="addComponentForm">
+                    @csrf
+                    <input type="hidden" name="room_title" id="ac_room_title">
+                    <div class="form-grid">
+                        <div>
+                            <label>Device Category</label>
+                            <select name="device_category" required>
+                                <option value="System Unit">System Unit</option>
+                                <option value="Monitor">Monitor</option>
+                                <option value="Keyboard">Keyboard</option>
+                                <option value="Mouse">Mouse</option>
+                                <option value="Speaker">Speaker</option>
+                                <option value="SSD">SSD</option>
+                                <option value="Motherboard">Motherboard</option>
+                                <option value="Graphic Card">Graphic Card</option>
+                                <option value="RAM">RAM</option>
+                                <option value="Webcam">Webcam</option>
+                                <option value="Headset">Headset</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Brand</label>
+                            <input type="text" name="brand" placeholder="Brand">
+                        </div>
+                        <div>
+                            <label>Model</label>
+                            <input type="text" name="model" placeholder="Model">
+                        </div>
+                        <div>
+                            <label>Status</label>
+                            <select name="status" required>
+                                <option value="Usable">Usable</option>
+                                <option value="Unusable">Unusable</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label>Description</label>
+                            <textarea name="description" rows="2" placeholder="Optional"></textarea>
+                        </div>
+                        <div>
+                            <label>Photo (optional)</label>
+                            <input type="file" name="photo" accept="image/*">
+                        </div>
+                    </div>
+                    <div style="margin-top:12px; text-align:right; display:flex; gap:8px; justify-content:flex-end;">
+                        <button type="button" class="room-delete-btn" onclick="submitAddComponent()">Add Component</button>
+                        <button type="button" class="room-delete-btn" style="background:#17a2b8;" onclick="printAllBarcodes()"><i class="fas fa-print"></i> Print Barcode</button>
+                    </div>
+                </form>
+            </div>
+        </div>
     </div>
 </div>
 
@@ -2493,6 +2583,22 @@
         toggleStepFullSet();
     }
 
+    function openAddComponentModal(roomTitle, pcNumber, e){
+        if(e){ e.stopPropagation(); }
+        const modal = document.getElementById('addComponentModal');
+        document.getElementById('acRoom').innerText = roomTitle;
+        document.getElementById('acPc').innerText = pcNumber;
+        document.getElementById('ac_room_title').value = roomTitle;
+        const slug = roomTitle.toLowerCase().replace(/\s+/g,'-');
+        const form = document.getElementById('addComponentForm');
+        form.action = `/manage-room/pc/${slug}/${pcNumber}/component`;
+        modal.classList.add('show');
+    }
+
+    function submitAddComponent(){
+        document.getElementById('addComponentForm').submit();
+    }
+
     // Custom Room Toggle Functions
     function toggleStepCustomRoom() {
         const roomSelect = document.getElementById('step_room_title');
@@ -2614,6 +2720,87 @@
             printWindow.focus();
             printWindow.print();
         }
+    }
+
+    // Print all barcodes on a single page (grouped by Room and PC)
+    function printAllBarcodes() {
+        // Ensure any lazy images are loaded within expanded sections
+        document.querySelectorAll('.room-group').forEach(group => triggerLazyLoad(group));
+
+        const roomGroups = document.querySelectorAll('.room-group');
+        if (!roomGroups.length) return;
+
+        // Build printable HTML using same sizing as single-item print (150x50)
+        let html = '' +
+            '<html><head><title>Print All Barcodes</title>' +
+            '<style>' +
+            'body{margin:0;padding:20px;font-family:Arial,sans-serif;}' +
+            'h2{margin:20px 0 8px 0;font-size:18px;text-align:center;text-transform:capitalize;}' +
+            '.pc-header{font-weight:bold;margin:8px 0 6px 0;}' +
+            '.grid{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin-bottom:18px;}' +
+            '.card{border:1px solid #000;padding:8px 6px;border-radius:4px;background:#fff;text-align:center;}' +
+            '.label{font-weight:bold;font-size:14px;margin-bottom:10px;font-family:monospace;color:#000;}' +
+            '.card img{width:150px;height:50px;display:block;margin:0 auto;image-rendering:crisp-edges;image-rendering:-webkit-optimize-contrast;}' +
+            '@media print{.card{break-inside:avoid;page-break-inside:avoid;}}' +
+            '</style></head><body>';
+
+        roomGroups.forEach(room => {
+            const roomTitleEl = room.querySelector('.room-title');
+            const roomTitle = roomTitleEl ? roomTitleEl.textContent.trim() : 'Room';
+
+            // Gather PC groups within the room
+            const pcs = room.querySelectorAll('.pc-group');
+            if (!pcs.length) return;
+
+            html += '<h2>' + roomTitle + '</h2>';
+
+            pcs.forEach(pc => {
+                // Collect barcode wrappers inside this PC group
+                const barcodes = pc.querySelectorAll('.barcode-wrapper');
+                if (!barcodes.length) return;
+
+                // Attempt to derive PC number from first barcode's last 3 digits
+                let pcDisplay = '';
+                const firstLabelEl = barcodes[0].querySelector('.barcode-text');
+                const firstLabel = firstLabelEl ? firstLabelEl.textContent : '';
+                const match = firstLabel.match(/(\d{3})$/);
+                if (match) {
+                    pcDisplay = 'PC' + match[1];
+                } else {
+                    // Fallback: try reading any number in barcode label
+                    const any = firstLabel.match(/(\d{1,3})/);
+                    pcDisplay = any ? ('PC' + any[1].padStart(3, '0')) : 'PC';
+                }
+
+                html += '<div class="pc-header">' + pcDisplay + '</div>';
+                html += '<div class="grid">';
+                barcodes.forEach(node => {
+                    const textEl = node.querySelector('.barcode-text');
+                    const imgEl = node.querySelector('img');
+                    const label = textEl ? textEl.textContent : '';
+                    const src = imgEl ? imgEl.src : '';
+                    if (!src) return;
+                    html += '<div class="card">' +
+                                '<div class="label">' + (label || '') + '</div>' +
+                                '<img src="' + src + '" />' +
+                            '</div>';
+                });
+                html += '</div>';
+            });
+        });
+
+        html += '</body></html>';
+
+        const w = window.open('', '', 'height=800,width=1000');
+        if (!w) return; // popup blocked
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        // Give the browser a tick to render images before printing
+        w.onload = function(){
+            w.print();
+        };
     }
 
     // Event Listeners
@@ -2815,6 +3002,25 @@
                 bulkDeleteItems(itemIds);
             }
         });
+    }
+
+    function confirmDeleteRoom(e, roomTitle) {
+        e.preventDefault();
+        Swal.fire({
+            title: 'Delete Room?',
+            text: `This will permanently delete all items in "${roomTitle}". This action cannot be undone!`,
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#dc3545',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Yes, delete room',
+            cancelButtonText: 'Cancel'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                e.target.submit();
+            }
+        });
+        return false;
     }
 
     function confirmDeleteItem(itemId) {

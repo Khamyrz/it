@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use App\Models\IpTracking;
 
 class AuthController extends Controller
 {
@@ -76,11 +77,27 @@ class AuthController extends Controller
         ]);
 
         $credentials = $request->only('email', 'password');
+        $ip = $request->ip();
+        $userAgent = $request->userAgent();
+
+        // Log login attempt (don't let this block login if it fails)
+        try {
+            IpTracking::logEvent($ip, 'login_attempt', $request->email, false, $userAgent);
+        } catch (\Exception $e) {
+            Log::error('Failed to log login attempt: ' . $e->getMessage());
+        }
 
         if (Auth::attempt($credentials)) {
             if (!Auth::user()->is_approved) {
                 Auth::logout();
                 return back()->withErrors(['email' => 'Your account is pending approval from the administrator. Once approved by iitech.inventory@gmail.com, you can login directly to the IT Inventory System. You will receive an email notification when approved.']);
+            }
+
+            // Log successful login (don't let this block login if it fails)
+            try {
+                IpTracking::logEvent($ip, 'login_success', $request->email, true, $userAgent);
+            } catch (\Exception $e) {
+                Log::error('Failed to log successful login: ' . $e->getMessage());
             }
 
             $request->session()->regenerate();

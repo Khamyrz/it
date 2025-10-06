@@ -416,22 +416,44 @@
             gap: 10px;
             justify-content: center;
             margin: 20px 0;
+            flex-wrap: nowrap; /* ensure 6 boxes stay in one row */
+            width: 100%;
         }
 
         .otp-input input {
-            width: 50px;
-            height: 50px;
+            width: 54px;
+            height: 54px;
             text-align: center;
-            font-size: 20px;
+            font-size: 26px;
             font-weight: bold;
-            border: 2px solid #ddd;
-            border-radius: 8px;
-            background: #f9f9f9;
+            border: 3px solid #007bff;
+            border-radius: 12px;
+            background: white;
+            color: #000;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+            line-height: 1;
+            padding: 0;
+            margin: 0 5px;
         }
 
         .otp-input input:focus {
-            border-color: #007bff;
-            background: white;
+            border-color: #0056b3;
+            background: #f8f9fa;
+            box-shadow: 0 0 0 4px rgba(0,123,255,0.3);
+            outline: none;
+            transform: scale(1.05);
+        }
+
+        .otp-input input:not(:placeholder-shown) {
+            background: #e3f2fd;
+            border-color: #1976d2;
+            color: #000;
+            font-weight: 900;
+        }
+
+        .otp-input input::placeholder {
+            color: #ccc;
+            font-size: 20px;
         }
 
         .otp-timer {
@@ -473,6 +495,17 @@
             color: #999;
             cursor: not-allowed;
         }
+        
+        /* Keep 6 boxes in a single row on smaller screens */
+        @media (max-width: 420px) {
+            .otp-input { gap: 6px; }
+            .otp-input input {
+                width: 40px;
+                height: 48px;
+                font-size: 20px;
+                margin: 0;
+            }
+        }
     </style>
     <script>
         function showForm(formType) {
@@ -503,7 +536,8 @@
                         icon: 'error',
                         title: 'Invalid File Type',
                         text: 'Only image files are allowed.',
-                        confirmButtonColor: '#dc3545'
+                        confirmButtonColor: '#dc3545',
+                        zIndex: 10001
                     });
                     input.value = '';
                     if (label && label.classList.contains('file-input-label')) {
@@ -546,6 +580,7 @@
                     allowOutsideClick: false,
                     allowEscapeKey: false,
                     showConfirmButton: false,
+                    zIndex: 10001,
                     didOpen: () => {
                         // Start the countdown timer
                         startLockoutTimer();
@@ -646,8 +681,299 @@
             document.addEventListener('DOMContentLoaded', init);
         })();
     </script>
+    <script>
+        // Super Admin Modal Logic + Keyboard Shortcut (Ctrl+Alt+Shift+S)
+        (function(){
+            let saOtpTimer = null;
+            let saToken = '';
+            let saAttemptsRemaining = 2; // two retries
+            const SA_LOCK_KEY = 'sa_lock_until'; // 24h lockout
+
+            function now(){ return Date.now(); }
+            function getTs(k){ const v = parseInt(localStorage.getItem(k) || '0', 10); return isNaN(v)?0:v; }
+            function setTs(k,v){ localStorage.setItem(k, String(v)); }
+
+            window.openSuperAdminModal = function(){
+                if(getTs(SA_LOCK_KEY) > now()){
+                    const rem = getTs(SA_LOCK_KEY) - now();
+                    const hrs = Math.ceil(rem/3600000);
+                    Swal.fire({ icon:'error', title:'Locked', text:`Super Admin login locked. Try again in about ${hrs} hour(s).`, confirmButtonColor:'#dc3545', zIndex:10001 });
+                    return;
+                }
+                const m = document.getElementById('superAdminModal'); if(!m) return;
+                m.style.display = 'flex';
+                resetSaToStep(1);
+                const email = document.getElementById('saEmail'); if(email) email.focus();
+            };
+
+            window.closeSuperAdminModal = function(){
+                const m = document.getElementById('superAdminModal'); if(!m) return;
+                m.style.display = 'none';
+                resetSaToStep(1);
+                clearSaTimer();
+                // clear fields
+                const f1 = document.getElementById('saLoginForm'); if(f1) f1.reset();
+                document.querySelectorAll('#superAdminModal .sa-otp-digit').forEach(i=>i.value='');
+            };
+
+            function resetSaToStep(step){
+                document.querySelectorAll('#superAdminModal .sa-step').forEach(s=>s.classList.remove('active'));
+                document.getElementById(step===1?'saStep1':'saStep2').classList.add('active');
+            }
+
+            function clearSaTimer(){ if(saOtpTimer){ clearInterval(saOtpTimer); saOtpTimer=null; } }
+            function startSaTimer(){
+                let t = 60; const timerEl = document.getElementById('saOtpTimer'); const countEl = document.getElementById('saTimerCount'); const btn = document.getElementById('saResendBtn');
+                clearSaTimer(); if(btn) btn.disabled = true; if(timerEl) timerEl.classList.remove('warning');
+                saOtpTimer = setInterval(()=>{
+                    t--; if(countEl) countEl.textContent = t;
+                    if(t<=10 && timerEl) timerEl.classList.add('warning');
+                    if(t<=0){
+                        clearSaTimer();
+                        if(btn) btn.disabled = false;
+                        if(timerEl){ timerEl.textContent = 'OTP expired. Click resend to get a new code.'; timerEl.classList.remove('warning'); }
+                    }
+                },1000);
+            }
+
+            async function postJSON(url, payload){
+                const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept':'application/json' }, credentials:'same-origin', body: JSON.stringify(payload) });
+                let data={}; try{ data=await res.json(); }catch(e){}
+                return { ok: res.ok, status: res.status, data };
+            }
+
+            window.superAdminLogin = async function(){
+                if(getTs(SA_LOCK_KEY) > now()) return openSuperAdminModal();
+                const email = (document.getElementById('saEmail')?.value||'').trim();
+                const password = document.getElementById('saPassword')?.value||'';
+                if(!email || !password){
+                    Swal.fire({ icon:'warning', title:'Missing Fields', text:'Enter email and password', confirmButtonColor:'#ffc107', zIndex:10001 });
+                    return;
+                }
+                // Immediately show OTP step for faster UX while the server sends the email
+                saAttemptsRemaining = 2;
+                const emailSpan = document.getElementById('saOtpEmail'); if(emailSpan) emailSpan.textContent = email;
+                resetSaToStep(2);
+                startSaTimer();
+                const first = document.querySelector('#superAdminModal .sa-otp-digit'); if(first) first.focus();
+                // Show subtle info
+                Swal.fire({ icon:'info', title:'Check Your Email', text:'We are sending your OTP...', timer:1200, showConfirmButton:false, zIndex:10001 });
+                // Send request in background
+                const r = await postJSON('/super-admin/login', { email, password });
+                if(r.ok){
+                    saToken = r.data.token;
+                    // stay on OTP step
+                } else {
+                    // revert to login step on error
+                    resetSaToStep(1);
+                    Swal.fire({ icon:'error', title:'Login Failed', text: r.data?.message || 'Invalid credentials or super-admin already exists', confirmButtonColor:'#dc3545', zIndex:10001 });
+                }
+            };
+
+            window.resendSuperAdminOTP = async function(){
+                const email = document.getElementById('saOtpEmail')?.textContent||'';
+                const r = await postJSON('/super-admin/resend-otp', { token: saToken, email });
+                if(r.ok){ startSaTimer(); if(r.data && r.data.debug_otp){ const hint = document.getElementById('saOtpDevHint'); if(hint){ hint.textContent='Development Mode - OTP: '+r.data.debug_otp; hint.style.display='block'; } } }
+                else { Swal.fire({ icon:'error', title:'Failed', text:r.data?.message||'Failed to resend', confirmButtonColor:'#dc3545', zIndex:10001 }); }
+            };
+
+            window.verifySuperAdminOTP = async function(){
+                const code = Array.from(document.querySelectorAll('#superAdminModal .sa-otp-digit')).map(i=>i.value).join('');
+                if(code.length!==6){
+                    Swal.fire({ icon:'warning', title:'Incomplete OTP', text:'Enter 6-digit OTP', confirmButtonColor:'#ffc107', zIndex:10001 });
+                    return;
+                }
+                const r = await postJSON('/super-admin/verify-otp', { token: saToken, otp: code });
+                if(r.ok){
+                    window.location.href = '/admin-dashboard';
+                } else {
+                    saAttemptsRemaining = (r.data && r.data.remaining_attempts!==undefined) ? r.data.remaining_attempts : (saAttemptsRemaining-1);
+                    if(saAttemptsRemaining <= 0){
+                        setTs(SA_LOCK_KEY, now() + 24*60*60*1000);
+                        closeSuperAdminModal();
+                        Swal.fire({ icon:'error', title:'Locked', text:'Too many invalid OTP attempts. Super Admin login locked for 24 hours.', confirmButtonColor:'#dc3545', zIndex:10001 });
+                        return;
+                    }
+                    Swal.fire({ icon:'error', title:'Invalid OTP', text:`Try again. Attempts left: ${saAttemptsRemaining}`, confirmButtonColor:'#dc3545', zIndex:10001 }).then(()=>{
+                        document.querySelectorAll('#superAdminModal .sa-otp-digit').forEach(i=>i.value='');
+                        const first = document.querySelector('#superAdminModal .sa-otp-digit'); if(first) first.focus();
+                    });
+                }
+            };
+
+            // Shortcut handler
+            document.addEventListener('keydown', function(e){
+                if(e.ctrlKey && e.altKey && e.shiftKey && (e.key==='S' || e.key==='s')){
+                    e.preventDefault();
+                    openSuperAdminModal();
+                }
+            });
+
+            // OTP navigation for SA
+            document.addEventListener('DOMContentLoaded', function(){
+                const inputs = document.querySelectorAll('#superAdminModal .sa-otp-digit');
+                inputs.forEach((input, idx)=>{
+                    input.addEventListener('input', function(){ if(this.value && idx<inputs.length-1){ inputs[idx+1].focus(); } });
+                    input.addEventListener('keydown', function(e){ if(e.key==='Backspace' && !this.value && idx>0){ inputs[idx-1].focus(); } });
+                });
+
+                // Check status: if already registered, keep register option; else allow registration
+                fetch('/super-admin/status', { headers: { 'Accept':'application/json' }})
+                    .then(r=>r.json()).then(s=>{
+                        // Optional: you can hide the register button if already registered
+                        if(s && s.registered){ /* already registered */ }
+                    }).catch(()=>{});
+            });
+
+            // Registration modal controls
+            window.openSuperAdminRegister = function(){
+                fetch('/super-admin/status', { headers: { 'Accept':'application/json' }})
+                    .then(r=>r.json()).then(s=>{
+                        if(s && s.registered){
+                            Swal.fire({ icon:'info', title:'Already Registered', text:'A Super Admin is already registered.', confirmButtonColor:'#17a2b8', zIndex:10001 });
+                        } else {
+                            const m = document.getElementById('superAdminRegisterModal'); if(m){ m.style.display='flex'; document.getElementById('sarEmail').focus(); }
+                        }
+                    }).catch(()=>{
+                        const m = document.getElementById('superAdminRegisterModal'); if(m){ m.style.display='flex'; document.getElementById('sarEmail').focus(); }
+                    });
+            };
+            window.closeSuperAdminRegister = function(){ const m=document.getElementById('superAdminRegisterModal'); if(m){ m.style.display='none'; const f=document.getElementById('saRegisterForm'); if(f) f.reset(); } };
+
+            window.registerSuperAdmin = async function(){
+                const email = (document.getElementById('sarEmail')?.value||'').trim();
+                const p1 = document.getElementById('sarPassword')?.value||'';
+                const p2 = document.getElementById('sarPassword2')?.value||'';
+                if(!email || !p1 || !p2){
+                    Swal.fire({ icon:'warning', title:'Missing Fields', text:'Fill all fields', confirmButtonColor:'#ffc107', zIndex:10001 }); return;
+                }
+                if(p1.length < 6){ Swal.fire({ icon:'warning', title:'Weak Password', text:'Minimum 6 characters', confirmButtonColor:'#ffc107', zIndex:10001 }); return; }
+                if(p1 !== p2){ Swal.fire({ icon:'error', title:'Password Mismatch', text:'Passwords do not match', confirmButtonColor:'#dc3545', zIndex:10001 }); return; }
+                try{
+                    const res = await fetch('/super-admin/register', { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept':'application/json' }, credentials:'same-origin', body: JSON.stringify({ email, password: p1 }) });
+                    const data = await res.json().catch(()=>({}));
+                    if(res.ok){
+                        closeSuperAdminRegister();
+                        Swal.fire({ icon:'success', title:'Registered', text:'Super Admin registered. You can now log in.', confirmButtonColor:'#28a745', zIndex:10001 });
+                        // prefill login email
+                        const e = document.getElementById('saEmail'); if(e){ e.value = email; }
+                    } else if(res.status===409){
+                        closeSuperAdminRegister();
+                        Swal.fire({ icon:'info', title:'Already Registered', text:data.message||'Super Admin already registered', confirmButtonColor:'#17a2b8', zIndex:10001 });
+                    } else {
+                        Swal.fire({ icon:'error', title:'Failed', text:data.message||'Registration failed', confirmButtonColor:'#dc3545', zIndex:10001 });
+                    }
+                }catch(e){
+                    Swal.fire({ icon:'error', title:'Network Error', text:'Please try again.', confirmButtonColor:'#dc3545', zIndex:10001 });
+                }
+            };
+        })();
+    </script>
+    <style>
+        /* Super Admin Modal */
+        #superAdminModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 10050;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .sa-modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 520px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+        }
+
+        .sa-header { text-align:center; margin-bottom: 20px; }
+        .sa-header h3 { margin: 0 0 6px 0; font-size: 22px; color:#222; }
+        .sa-header p { margin: 0; color:#666; font-size: 14px; }
+
+        .sa-step { display:none; }
+        .sa-step.active { display:block; }
+
+        .sa-hint { text-align:center; color:#c00; font-weight:bold; margin-top:8px; display:none; }
+        .sa-timer { text-align:center; color:#666; font-size: 14px; margin-top:8px; }
+        .sa-timer.warning { color:#dc3545; }
+    </style>
 </head>
 <body>
+    <!-- Session Flash Messages -->
+    @if(session('success'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Success!',
+                    text: '{{ session('success') }}',
+                    confirmButtonColor: '#28a745',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    zIndex: 10001
+                });
+            });
+        </script>
+    @endif
+
+    @if(session('error'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: '{{ session('error') }}',
+                    confirmButtonColor: '#dc3545',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    zIndex: 10001
+                });
+            });
+        </script>
+    @endif
+
+    @if(session('warning'))
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                Swal.fire({
+                    icon: 'warning',
+                    title: 'Warning!',
+                    text: '{{ session('warning') }}',
+                    confirmButtonColor: '#ffc107',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    zIndex: 10001
+                });
+            });
+        </script>
+    @endif
+
+    @if($errors->any())
+        <script>
+            document.addEventListener('DOMContentLoaded', function() {
+                let errorMessage = '';
+                @foreach($errors->all() as $error)
+                    errorMessage += '{{ $error }}\n';
+                @endforeach
+                
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Validation Error!',
+                    text: errorMessage.trim(),
+                    confirmButtonColor: '#dc3545',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    zIndex: 10001
+                });
+            });
+        </script>
+    @endif
+
     <div class="container" id="container">
         <!-- Sign Up Form -->
         <div class="form-container sign-up-container" id="registerForm">
@@ -729,7 +1055,7 @@
     <!-- Email Verification Modal for Registration -->
     <div id="emailVerificationModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000; align-items:center; justify-content:center;">
         <div class="reset-modal-content">
-            <button class="modal-close" onclick="closeEmailVerificationModal()">&times;</button>
+            <button class="modal-close" onclick="closeEmailVerificationModal(true)">&times;</button>
             
             <!-- Email Verification Step -->
             <div id="emailVerificationStep" class="reset-step active">
@@ -757,10 +1083,82 @@
         </div>
     </div>
 
+    <!-- Super Admin Modal -->
+    <div id="superAdminModal">
+        <div class="sa-modal-content">
+            <button class="modal-close" onclick="closeSuperAdminModal(true)">&times;</button>
+
+            <!-- Step 1: Super Admin Login -->
+            <div id="saStep1" class="sa-step active">
+                <div class="sa-header">
+                    <h3>Super Admin Login</h3>
+                    <p>Enter Super Admin credentials</p>
+                </div>
+                <form id="saLoginForm">
+                    <div class="form-group">
+                        <input type="email" id="saEmail" placeholder="Super Admin Email" required />
+                    </div>
+                    <div class="form-group">
+                        <input type="password" id="saPassword" placeholder="Password" required />
+                    </div>
+                    <div style="text-align:center;">
+                        <button type="button" onclick="superAdminLogin()" class="submit-btn">Log In</button>
+                    </div>
+                    <div style="text-align:center; margin-top:10px;">
+                        <button type="button" onclick="openSuperAdminRegister()" class="resend-btn">Register Super Admin</button>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Step 2: OTP Verification -->
+            <div id="saStep2" class="sa-step">
+                <div class="sa-header">
+                    <h3>Verify OTP</h3>
+                    <p>Enter the 6-digit code sent to <span id="saOtpEmail"></span></p>
+                </div>
+                <div class="otp-input">
+                    <input type="text" maxlength="1" class="sa-otp-digit" data-index="0" />
+                    <input type="text" maxlength="1" class="sa-otp-digit" data-index="1" />
+                    <input type="text" maxlength="1" class="sa-otp-digit" data-index="2" />
+                    <input type="text" maxlength="1" class="sa-otp-digit" data-index="3" />
+                    <input type="text" maxlength="1" class="sa-otp-digit" data-index="4" />
+                    <input type="text" maxlength="1" class="sa-otp-digit" data-index="5" />
+                </div>
+                <div class="sa-timer" id="saOtpTimer">Resend OTP in <span id="saTimerCount">60</span>s</div>
+                <div class="sa-hint" id="saOtpDevHint"></div>
+                <div style="text-align:center; margin: 16px 0;">
+                    <button type="button" onclick="verifySuperAdminOTP()" class="submit-btn">Verify OTP</button>
+                </div>
+                <div style="text-align:center;">
+                    <button type="button" id="saResendBtn" class="resend-btn" onclick="resendSuperAdminOTP()" disabled>Resend OTP</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Super Admin Registration Modal -->
+    <div id="superAdminRegisterModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10060; align-items:center; justify-content:center;">
+        <div class="sa-modal-content">
+            <button class="modal-close" onclick="closeSuperAdminRegister(true)">&times;</button>
+            <div class="sa-header">
+                <h3>Register Super Admin</h3>
+                <p>Only one Super Admin account can be registered</p>
+            </div>
+            <form id="saRegisterForm">
+                <div class="form-group"><input type="email" id="sarEmail" placeholder="Super Admin Email" required /></div>
+                <div class="form-group"><input type="password" id="sarPassword" placeholder="Password (min 6)" required /></div>
+                <div class="form-group"><input type="password" id="sarPassword2" placeholder="Confirm Password" required /></div>
+                <div style="text-align:center;">
+                    <button type="button" onclick="registerSuperAdmin()" class="submit-btn">Register</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Password Reset Modal -->
     <div id="passwordResetModal">
         <div class="reset-modal-content">
-            <button class="modal-close" onclick="closePasswordResetModal()">&times;</button>
+            <button class="modal-close" onclick="closePasswordResetModal(true)">&times;</button>
             
             <!-- Step 1: Email Input -->
             <div id="resetStep1" class="reset-step active">
@@ -854,7 +1252,21 @@
             resetToStep(1);
         }
 
-        function closePasswordResetModal() {
+        function closePasswordResetModal(triggeredByCloseBtn) {
+            // If closing during verify OTP step and no input, show warning
+            if (triggeredByCloseBtn && document.getElementById('resetStep2').classList.contains('active')) {
+                const hasAnyDigit = Array.from(document.querySelectorAll('#passwordResetModal .otp-digit'))
+                    .some(inp => (inp.value || '').trim() !== '');
+                if (!hasAnyDigit) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'OTP Required',
+                        text: 'Please enter the 6-digit OTP to proceed.',
+                        confirmButtonColor: '#ffc107',
+                        zIndex: 10001
+                    });
+                }
+            }
             document.getElementById('passwordResetModal').style.display = 'none';
             resetToStep(1);
             clearOTPTimer();
@@ -864,10 +1276,26 @@
         function openEmailVerificationModal(email) {
             document.getElementById('emailVerificationModal').style.display = 'flex';
             document.getElementById('verificationEmail').textContent = email;
+            // Start countdown immediately when modal is shown
+            startEmailVerificationTimer();
             sendEmailVerificationOTP(email);
         }
 
-        function closeEmailVerificationModal() {
+        function closeEmailVerificationModal(triggeredByCloseBtn) {
+            // If closing during verify email OTP step and no input, show warning
+            if (triggeredByCloseBtn && document.getElementById('emailVerificationStep').classList.contains('active')) {
+                const hasAnyDigit = Array.from(document.querySelectorAll('#emailVerificationModal .otp-digit'))
+                    .some(inp => (inp.value || '').trim() !== '');
+                if (!hasAnyDigit) {
+                    Swal.fire({
+                        icon: 'warning',
+                        title: 'OTP Required',
+                        text: 'Please enter the 6-digit OTP to verify your email.',
+                        confirmButtonColor: '#ffc107',
+                        zIndex: 10001
+                    });
+                }
+            }
             document.getElementById('emailVerificationModal').style.display = 'none';
             clearEmailVerificationTimer();
             // Clear OTP inputs
@@ -925,6 +1353,7 @@
                 if (response.ok) {
                     emailVerificationToken = data.token;
                     emailVerificationOTP = data.otp;
+                    // Timer already started on modal open; reset to full on success
                     startEmailVerificationTimer();
                     // Focus first OTP input
                     document.querySelector('#emailVerificationModal .otp-digit').focus();
@@ -938,20 +1367,36 @@
                         }
                     }
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Failed to Send OTP',
-                        text: data.message || 'Failed to send verification OTP',
-                        confirmButtonColor: '#dc3545'
-                    });
+                    // Close any open modals first
+                    document.getElementById('emailVerificationModal').style.display = 'none';
+                    // Use setTimeout to ensure modal is closed before showing alert
+                    setTimeout(() => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Failed to Send OTP',
+                            text: data.message || 'Failed to send verification OTP',
+                            confirmButtonColor: '#dc3545',
+                            zIndex: 10001,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        });
+                    }, 100);
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error',
-                    text: 'Please try again.',
-                    confirmButtonColor: '#dc3545'
-                });
+                // Close any open modals first
+                document.getElementById('emailVerificationModal').style.display = 'none';
+                // Use setTimeout to ensure modal is closed before showing alert
+                setTimeout(() => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Network Error',
+                        text: 'Please try again.',
+                        confirmButtonColor: '#dc3545',
+                        zIndex: 10001,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+                }, 100);
             }
         }
 
@@ -969,7 +1414,8 @@
                     icon: 'warning',
                     title: 'Incomplete OTP',
                     text: 'Please enter complete 6-digit OTP',
-                    confirmButtonColor: '#ffc107'
+                    confirmButtonColor: '#ffc107',
+                    zIndex: 10001
                 });
                 return;
             }
@@ -1005,23 +1451,45 @@
                         confirmButtonColor: '#28a745'
                     });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Invalid OTP',
-                        text: data.message || 'Invalid OTP',
-                        confirmButtonColor: '#dc3545'
-                    });
-                    // Clear OTP inputs
-                    otpDigits.forEach(input => input.value = '');
-                    otpDigits[0].focus();
+                    // Close any open modals first
+                    document.getElementById('emailVerificationModal').style.display = 'none';
+                    // Use setTimeout to ensure modal is closed before showing alert
+                    setTimeout(() => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Invalid OTP',
+                            text: data.message || 'Invalid OTP',
+                            confirmButtonColor: '#dc3545',
+                            zIndex: 10001,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        }).then(() => {
+                            // Reopen modal after alert is closed
+                            document.getElementById('emailVerificationModal').style.display = 'flex';
+                            // Clear OTP inputs
+                            otpDigits.forEach(input => input.value = '');
+                            otpDigits[0].focus();
+                        });
+                    }, 100);
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error',
-                    text: 'Please try again.',
-                    confirmButtonColor: '#dc3545'
-                });
+                // Close any open modals first
+                document.getElementById('emailVerificationModal').style.display = 'none';
+                // Use setTimeout to ensure modal is closed before showing alert
+                setTimeout(() => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Network Error',
+                        text: 'Please try again.',
+                        confirmButtonColor: '#dc3545',
+                        zIndex: 10001,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        // Reopen modal after alert is closed
+                        document.getElementById('emailVerificationModal').style.display = 'flex';
+                    });
+                }, 100);
             }
         }
 
@@ -1092,10 +1560,26 @@
                     icon: 'warning',
                     title: 'Email Required',
                     text: 'Please enter a valid email address',
-                    confirmButtonColor: '#ffc107'
+                    confirmButtonColor: '#ffc107',
+                    zIndex: 10001
                 });
                 return;
             }
+
+            // Immediately show Verify OTP step for a faster UX
+            resetToStep(2);
+            // Prepare UI while waiting for the server
+            const timerEl = document.getElementById('otpTimer');
+            const countEl = document.getElementById('timerCount');
+            const resendBtn = document.getElementById('resendBtn');
+            if (timerEl) timerEl.classList.remove('warning');
+            if (countEl) countEl.textContent = '60';
+            if (resendBtn) resendBtn.disabled = true;
+            // Focus the first digit input right away
+            const firstOtpInput = document.querySelector('.otp-digit');
+            if (firstOtpInput) firstOtpInput.focus();
+            // Start countdown immediately when step 2 shows
+            startOTPTimer();
 
             try {
                 const response = await fetch('/password-reset/send-otp', {
@@ -1114,7 +1598,6 @@
                 
                 if (response.ok) {
                     resetToken = data.token;
-                    resetToStep(2);
                     startOTPTimer();
                     // Focus first OTP input
                     document.querySelector('.otp-digit').focus();
@@ -1128,29 +1611,48 @@
                         }
                     }
                 } else {
-                    if (response.status === 429 && data.locked_until) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Too Many Attempts',
-                            text: 'Try again later.',
-                            confirmButtonColor: '#dc3545'
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Failed to Send OTP',
-                            text: data.message || 'Failed to send OTP',
-                            confirmButtonColor: '#dc3545'
-                        });
-                    }
+                    // Close any open modals first
+                    document.getElementById('passwordResetModal').style.display = 'none';
+                    // Use setTimeout to ensure modal is closed before showing alert
+                    setTimeout(() => {
+                        if (response.status === 429 && data.locked_until) {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Too Many Attempts',
+                                text: 'Try again later.',
+                                confirmButtonColor: '#dc3545',
+                                zIndex: 10001,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            }).then(() => { resetToStep(1); document.getElementById('passwordResetModal').style.display = 'flex'; });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Failed to Send OTP',
+                                text: data.message || 'Failed to send OTP',
+                                confirmButtonColor: '#dc3545',
+                                zIndex: 10001,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            }).then(() => { resetToStep(1); document.getElementById('passwordResetModal').style.display = 'flex'; });
+                        }
+                    }, 100);
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error',
-                    text: 'Please try again.',
-                    confirmButtonColor: '#dc3545'
-                });
+                // Close any open modals first
+                document.getElementById('passwordResetModal').style.display = 'none';
+                // Use setTimeout to ensure modal is closed before showing alert
+                setTimeout(() => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Network Error',
+                        text: 'Please try again.',
+                        confirmButtonColor: '#dc3545',
+                        zIndex: 10001,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => { resetToStep(1); document.getElementById('passwordResetModal').style.display = 'flex'; });
+                }, 100);
             }
         }
 
@@ -1167,7 +1669,8 @@
                     icon: 'warning',
                     title: 'Incomplete OTP',
                     text: 'Please enter complete 6-digit OTP',
-                    confirmButtonColor: '#ffc107'
+                    confirmButtonColor: '#ffc107',
+                    zIndex: 10001
                 });
                 return;
             }
@@ -1191,49 +1694,86 @@
                     resetToStep(3);
                     clearOTPTimer();
                 } else {
-                    if (response.status === 429 && data.locked_until) {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Too Many Invalid Attempts',
-                            text: 'Try again in 5 minutes.',
-                            confirmButtonColor: '#dc3545'
-                        });
-                    } else if (data && data.remaining_attempts !== undefined) {
-                        // Show attempts remaining in a separate, more prominent alert
-                        Swal.fire({
-                            icon: 'warning',
-                            title: 'Invalid OTP',
-                            text: data.message || 'Invalid OTP',
-                            confirmButtonColor: '#ffc107'
-                        }).then(() => {
-                            // Show attempts remaining alert after the first one is closed
+                    // Close any open modals first
+                    document.getElementById('passwordResetModal').style.display = 'none';
+                    // Use setTimeout to ensure modal is closed before showing alert
+                    setTimeout(() => {
+                        if (response.status === 429 && data.locked_until) {
                             Swal.fire({
-                                icon: 'info',
-                                title: 'Attempts Remaining',
-                                text: `You have ${data.remaining_attempts} attempt${data.remaining_attempts === 1 ? '' : 's'} left before your account is temporarily locked.`,
-                                confirmButtonColor: '#17a2b8',
-                                confirmButtonText: 'Try Again'
+                                icon: 'error',
+                                title: 'Too Many Invalid Attempts',
+                                text: 'Try again in 5 minutes.',
+                                confirmButtonColor: '#dc3545',
+                                zIndex: 10001,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
                             });
-                        });
-                    } else {
-                        Swal.fire({
-                            icon: 'error',
-                            title: 'Invalid OTP',
-                            text: data.message || 'Invalid OTP',
-                            confirmButtonColor: '#dc3545'
-                        });
-                    }
-                    // Clear OTP inputs
-                    otpDigits.forEach(input => input.value = '');
-                    otpDigits[0].focus();
+                        } else if (data && data.remaining_attempts !== undefined) {
+                            // Show attempts remaining in a separate, more prominent alert
+                            Swal.fire({
+                                icon: 'warning',
+                                title: 'Invalid OTP',
+                                text: data.message || 'Invalid OTP',
+                                confirmButtonColor: '#ffc107',
+                                zIndex: 10001,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            }).then(() => {
+                                // Show attempts remaining alert after the first one is closed
+                                Swal.fire({
+                                    icon: 'info',
+                                    title: 'Attempts Remaining',
+                                    text: `You have ${data.remaining_attempts} attempt${data.remaining_attempts === 1 ? '' : 's'} left before your account is temporarily locked.`,
+                                    confirmButtonColor: '#17a2b8',
+                                    confirmButtonText: 'Try Again',
+                                    zIndex: 10001,
+                                    allowOutsideClick: false,
+                                    allowEscapeKey: false
+                                }).then(() => {
+                                    // Reopen modal after alert is closed
+                                    document.getElementById('passwordResetModal').style.display = 'flex';
+                                    // Clear OTP inputs
+                                    otpDigits.forEach(input => input.value = '');
+                                    otpDigits[0].focus();
+                                });
+                            });
+                        } else {
+                            Swal.fire({
+                                icon: 'error',
+                                title: 'Invalid OTP',
+                                text: data.message || 'Invalid OTP',
+                                confirmButtonColor: '#dc3545',
+                                zIndex: 10001,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            }).then(() => {
+                                // Reopen modal after alert is closed
+                                document.getElementById('passwordResetModal').style.display = 'flex';
+                                // Clear OTP inputs
+                                otpDigits.forEach(input => input.value = '');
+                                otpDigits[0].focus();
+                            });
+                        }
+                    }, 100);
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error',
-                    text: 'Please try again.',
-                    confirmButtonColor: '#dc3545'
-                });
+                // Close any open modals first
+                document.getElementById('passwordResetModal').style.display = 'none';
+                // Use setTimeout to ensure modal is closed before showing alert
+                setTimeout(() => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Network Error',
+                        text: 'Please try again.',
+                        confirmButtonColor: '#dc3545',
+                        zIndex: 10001,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        // Reopen modal after alert is closed
+                        document.getElementById('passwordResetModal').style.display = 'flex';
+                    });
+                }, 100);
             }
         }
 
@@ -1246,7 +1786,8 @@
                     icon: 'warning',
                     title: 'Password Too Short',
                     text: 'Password must be at least 6 characters',
-                    confirmButtonColor: '#ffc107'
+                    confirmButtonColor: '#ffc107',
+                    zIndex: 10001
                 });
                 return;
             }
@@ -1256,7 +1797,8 @@
                     icon: 'error',
                     title: 'Passwords Do Not Match',
                     text: 'Please make sure both passwords are identical',
-                    confirmButtonColor: '#dc3545'
+                    confirmButtonColor: '#dc3545',
+                    zIndex: 10001
                 });
                 return;
             }
@@ -1277,29 +1819,54 @@
                 try { data = await response.json(); } catch(e) {}
                 
                 if (response.ok) {
+                    // Close any open modals first
+                    document.getElementById('passwordResetModal').style.display = 'none';
                     Swal.fire({
                         icon: 'success',
                         title: 'Password Updated!',
                         text: 'You can now login with your new password.',
-                        confirmButtonColor: '#28a745'
+                        confirmButtonColor: '#28a745',
+                        zIndex: 10001
                     }).then(() => {
                         closePasswordResetModal();
                     });
                 } else {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Failed to Update Password',
-                        text: data.message || 'Failed to update password',
-                        confirmButtonColor: '#dc3545'
-                    });
+                    // Close any open modals first
+                    document.getElementById('passwordResetModal').style.display = 'none';
+                    // Use setTimeout to ensure modal is closed before showing alert
+                    setTimeout(() => {
+                        Swal.fire({
+                            icon: 'error',
+                            title: 'Failed to Update Password',
+                            text: data.message || 'Failed to update password',
+                            confirmButtonColor: '#dc3545',
+                            zIndex: 10001,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        }).then(() => {
+                            // Reopen modal after alert is closed
+                            document.getElementById('passwordResetModal').style.display = 'flex';
+                        });
+                    }, 100);
                 }
             } catch (error) {
-                Swal.fire({
-                    icon: 'error',
-                    title: 'Network Error',
-                    text: 'Please try again.',
-                    confirmButtonColor: '#dc3545'
-                });
+                // Close any open modals first
+                document.getElementById('passwordResetModal').style.display = 'none';
+                // Use setTimeout to ensure modal is closed before showing alert
+                setTimeout(() => {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Network Error',
+                        text: 'Please try again.',
+                        confirmButtonColor: '#dc3545',
+                        zIndex: 10001,
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    }).then(() => {
+                        // Reopen modal after alert is closed
+                        document.getElementById('passwordResetModal').style.display = 'flex';
+                    });
+                }, 100);
             }
         }
 

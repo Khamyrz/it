@@ -12,7 +12,8 @@
             font-family: Arial, sans-serif;
             display: flex;
             height: 100vh;
-            background: #f4f6f8;
+            background: radial-gradient(1200px 600px at 70% 30%, #1b0f1f 0%, #140a18 40%, #0f0813 100%);
+            color: #ffe9cc;
         }
 
         nav {
@@ -64,14 +65,14 @@
             flex: 1;
             display: flex;
             flex-direction: column;
-            padding: 20px;
+            padding: 12px;
         }
 
         .topbar {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
         .topbar .datetime {
@@ -110,31 +111,49 @@
 
         .activity-panel {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 14px;
+            margin-bottom: 16px;
         }
 
         .activity-box {
-            background: #fff;
-            padding: 15px;
-            border-radius: 8px;
+            background: linear-gradient(180deg, rgba(40,18,26,0.9) 0%, rgba(30,12,20,0.9) 100%);
+            padding: 12px;
+            border-radius: 10px;
             text-align: center;
             font-weight: bold;
-            box-shadow: 0 0 8px rgba(0,0,0,0.05);
+            box-shadow: 0 0 0 1px rgba(255, 140, 0, 0.25), 0 0 18px rgba(255, 140, 0, 0.08) inset;
+            color: #ffd7a1;
         }
 
         .chart-container {
-            height: auto;
-            background: #fff;
-            border-radius: 10px;
-            box-shadow: 0 0 5px rgba(0,0,0,0.1);
-            padding: 20px;
-            margin-bottom: 20px;
+            height: 200px;
+            background: linear-gradient(180deg, rgba(40,18,26,0.9) 0%, rgba(30,12,20,0.9) 100%);
+            border-radius: 12px;
+            box-shadow: 0 0 0 1px rgba(255, 140, 0, 0.25), 0 0 22px rgba(255, 140, 0, 0.08) inset;
+            padding: 8px;
+            margin-bottom: 8px;
         }
 
         canvas {
             max-width: 100%;
+            width: 100% !important;
+            height: 100% !important;
+        }
+
+        .hud-row {
+            display: grid;
+            grid-template-columns: repeat(12, 1fr);
+            gap: 8px;
+        }
+        .col-4 { grid-column: span 4; }
+        .col-6 { grid-column: span 6; }
+        .col-12 { grid-column: span 12; }
+        .hud-title {
+            color: #ffae52;
+            letter-spacing: 1px;
+            margin: 0 0 12px 0;
+            font-weight: 700;
         }
 
         #contributionModal {
@@ -229,19 +248,27 @@
         <div class="activity-box">Borrowed Items: {{ $borrowedCount }}</div>
     </div>
 
-    <div class="chart-container">
-        <h3>Items by Category</h3>
-        <canvas id="deviceChart" height="120"></canvas>
-    </div>
-
-    <div class="chart-container">
-        <h3>Item Status Overview</h3>
-        <canvas id="statusChart" height="120"></canvas>
-    </div>
-
-    <div class="chart-container">
-        <h3>Borrowed Items by Type</h3>
-        <canvas id="borrowedChart" height="120"></canvas>
+    <div class="hud-row">
+        <div class="chart-container col-4">
+            <h3 class="hud-title">Items by Category</h3>
+            <canvas id="deviceChart"></canvas>
+        </div>
+        <div class="chart-container col-4">
+            <h3 class="hud-title">Item Status Overview</h3>
+            <canvas id="statusChart"></canvas>
+        </div>
+        <div class="chart-container col-4">
+            <h3 class="hud-title">Borrowed Items by Type</h3>
+            <canvas id="borrowedChart"></canvas>
+        </div>
+        <div class="chart-container col-4">
+            <h3 class="hud-title">Activity Timeline</h3>
+            <canvas id="hudLineChart"></canvas>
+        </div>
+        <div class="chart-container col-4">
+            <h3 class="hud-title">Utilization Gauge</h3>
+            <canvas id="gaugeChart"></canvas>
+        </div>
     </div>
 
     <!-- Button to Trigger Modal -->
@@ -271,6 +298,13 @@
 
     // Items by Category Chart
     const ctx = document.getElementById('deviceChart').getContext('2d');
+    // Orange/Cyan palette
+    const neonCyan = 'rgba(0, 255, 209, 1)';
+    const cyanDim = 'rgba(0, 255, 209, 0.35)';
+    const neonOrange = 'rgba(255, 153, 0, 1)';
+    const orangeDim = 'rgba(255, 153, 0, 0.35)';
+    const gridColor = 'rgba(255, 190, 120, 0.18)';
+
     const deviceChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -278,17 +312,24 @@
             datasets: [{
                 label: 'Items per Category',
                 data: {!! json_encode($itemCounts->pluck('total')) !!},
-                backgroundColor: 'rgba(46, 204, 113, 0.7)',
-                borderColor: 'rgba(46, 204, 113, 1)',
-                borderWidth: 1
+                backgroundColor: cyanDim,
+                borderColor: neonCyan,
+                borderWidth: 2,
+                borderRadius: 6
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
                 y: {
                     beginAtZero: true,
-                    stepSize: 1
+                    grid: { color: gridColor },
+                    ticks: { color: '#ffd7a1' }
+                },
+                x: {
+                    grid: { color: 'transparent' },
+                    ticks: { color: '#ffd7a1' }
                 }
             }
         }
@@ -302,13 +343,15 @@
             labels: ['Usable', 'Unusable'],
             datasets: [{
                 data: [{{ $usableCount }}, {{ $unusableCount }}],
-                backgroundColor: ['rgba(46, 204, 113, 0.7)', 'rgba(231, 76, 60, 0.7)'],
-                borderColor: ['rgba(46, 204, 113, 1)', 'rgba(231, 76, 60, 1)'],
-                borderWidth: 1
+                backgroundColor: [neonCyan, orangeDim],
+                borderColor: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
+                borderWidth: 0,
+                hoverOffset: 6
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             plugins: {
                 legend: { position: 'bottom' },
                 tooltip: {
@@ -334,18 +377,80 @@
             datasets: [{
                 label: 'Borrowed Items',
                 data: [{{ $borrowedPeripheralCount }}, {{ $borrowedComputerCount }}],
-                backgroundColor: ['rgba(52, 152, 219, 0.7)', 'rgba(155, 89, 182, 0.7)'],
-                borderColor: ['rgba(52, 152, 219, 1)', 'rgba(155, 89, 182, 1)'],
-                borderWidth: 1
+                backgroundColor: [neonOrange, neonCyan],
+                borderColor: ['rgba(0,0,0,0)', 'rgba(0,0,0,0)'],
+                borderWidth: 0,
+                borderRadius: 8
             }]
         },
         options: {
             responsive: true,
+            maintainAspectRatio: false,
             scales: {
                 y: {
                     beginAtZero: true,
-                    stepSize: 1
+                    grid: { color: gridColor },
+                    ticks: { color: '#ffd7a1' }
+                },
+                x: {
+                    grid: { color: 'transparent' },
+                    ticks: { color: '#ffd7a1' }
                 }
+            }
+        }
+    });
+
+    // HUD Line Chart (sine-like with points)
+    const hudLineCtx = document.getElementById('hudLineChart').getContext('2d');
+    const hudLineChart = new Chart(hudLineCtx, {
+        type: 'line',
+        data: {
+            labels: Array.from({length: 24}, (_, i) => i + 1),
+            datasets: [{
+                label: 'Activity',
+                data: Array.from({length: 24}, (_, i) => Math.round(40 + 20*Math.sin(i/2) + (Math.random()*10-5))),
+                borderColor: neonCyan,
+                backgroundColor: 'rgba(0, 255, 209, 0.12)',
+                tension: 0.35,
+                fill: true,
+                pointRadius: 3,
+                pointBackgroundColor: neonCyan,
+                pointBorderWidth: 0
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+                y: { grid: { color: gridColor }, ticks: { color: '#ffd7a1' }, beginAtZero: true },
+                x: { grid: { color: 'rgba(255, 190, 120, 0.08)' }, ticks: { color: '#ffd7a1' } }
+            }
+        }
+    });
+
+    // Semi-circle Gauge (utilization)
+    const gaugeCtx = document.getElementById('gaugeChart').getContext('2d');
+    const gaugeValue = {{ max(0, min(100, round(($usableCount/ max(1, $usableCount+$unusableCount))*100))) }}; // percent
+    const gaugeChart = new Chart(gaugeCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Used', 'Remaining'],
+            datasets: [{
+                data: [gaugeValue, 100 - gaugeValue],
+                backgroundColor: [neonOrange, 'rgba(80, 40, 20, 0.6)'],
+                borderWidth: 0,
+                cutout: '70%'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            rotation: -90,
+            circumference: 180,
+            plugins: {
+                legend: { display: false },
+                tooltip: { enabled: false }
             }
         }
     });

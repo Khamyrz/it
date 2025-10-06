@@ -894,6 +894,19 @@ document.addEventListener('DOMContentLoaded', function() {
         let html = `<h3>🔍 Camera Scan Result for: <code>${barcode}</code></h3>`;
         
         items.forEach(item => {
+            // Extract PC number from barcode or serial number
+            let pcNumber = null;
+            const barcodeMatch = item.barcode.match(/(\d{3})$/);
+            const serialMatch = item.serial_number.match(/(\d{3})$/);
+            
+            if (barcodeMatch) {
+                pcNumber = parseInt(barcodeMatch[1]);
+            } else if (serialMatch) {
+                pcNumber = parseInt(serialMatch[1]);
+            }
+            
+            const pcDisplay = pcNumber ? `<span style="color: #0d6efd; font-weight: 600; margin-left: 10px;">PC${pcNumber.toString().padStart(3, '0')}</span>` : '';
+            
             html += `
                 <div class="item-box" style="margin: 15px 0; padding: 15px; border: 1px solid #ddd; border-radius: 8px;">
                     <div style="display: flex; gap: 15px;">
@@ -904,7 +917,9 @@ document.addEventListener('DOMContentLoaded', function() {
                             }
                         </div>
                         <div style="flex: 1;">
-                            <div style="font-weight: bold; font-size: 16px; color: #007bff; margin-bottom: 8px;">${item.room_title}</div>
+                            <div style="font-weight: bold; font-size: 16px; color: #007bff; margin-bottom: 8px;">
+                                ${item.room_title}${pcDisplay}
+                            </div>
                             <div style="display: grid; grid-template-columns: auto 1fr; gap: 5px 15px; font-size: 14px;">
                                 <span style="font-weight: 600;">Category:</span> <span>${item.device_category}</span>
                                 <span style="font-weight: 600;">Type:</span> <span>${item.device_type}</span>
@@ -1323,13 +1338,14 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="full-set-container">
                         <div class="full-set-header">
                             <i class="fas fa-desktop"></i>
-                            Full Set {{ $setId }}
+                            PC{{ str_pad($setId, 3, '0', STR_PAD_LEFT) }}
                             <span class="component-count">{{ count($setItems) }} Components</span>
                         </div>
                         <div class="full-set-items">
                             <div class="set-summary">
-                                <h4>Set Information</h4>
+                                <h4>PC Information</h4>
                                 <div class="set-meta">
+                                    <div><strong>PC#:</strong> PC{{ str_pad($setId, 3, '0', STR_PAD_LEFT) }}</div>
                                     <div><strong>Room:</strong> {{ $setItems[0]->room_title }}</div>
                                     <div><strong>Brand:</strong> {{ $setItems[0]->brand ?? 'N/A' }}</div>
                                     <div><strong>Model:</strong> {{ $setItems[0]->model ?? 'N/A' }}</div>
@@ -1388,6 +1404,15 @@ document.addEventListener('DOMContentLoaded', function() {
 
                 {{-- Display Individual Items --}}
                 @foreach($individualItems as $item)
+                    @php
+                        // Try to extract PC number from barcode or serial number for individual items
+                        $pcNumber = null;
+                        if (preg_match('/(\d{3})$/', $item->barcode, $matches)) {
+                            $pcNumber = intval($matches[1]);
+                        } elseif (preg_match('/(\d{3})$/', $item->serial_number, $matches)) {
+                            $pcNumber = intval($matches[1]);
+                        }
+                    @endphp
                     <div class="item-box">
                         <div class="photo-wrapper">
                             @if($item->photo)
@@ -1397,7 +1422,12 @@ document.addEventListener('DOMContentLoaded', function() {
                             @endif
                         </div>
                         <div class="item-info">
-                            <div class="room-title">{{ $item->room_title }}</div>
+                            <div class="room-title">
+                                {{ $item->room_title }}
+                                @if($pcNumber)
+                                    <span style="color: #0d6efd; font-weight: 600; margin-left: 10px;">PC{{ str_pad($pcNumber, 3, '0', STR_PAD_LEFT) }}</span>
+                                @endif
+                            </div>
 
                             <div><span class="label">Category:</span> {{ $item->device_category }}</div>
                             <div><span class="label">Type:</span> {{ $item->device_type ?? 'Unspecified' }}</div>

@@ -10,6 +10,8 @@ use App\Http\Controllers\BorrowController;
 use App\Http\Controllers\CategoryController;
 use App\Http\Controllers\PrintReportController;
 use App\Http\Controllers\RoomItemScanController;
+use App\Http\Controllers\SuperAdminController;
+use App\Http\Controllers\AdminMetricsController;
 
 Route::get('/', function () {
     return redirect('/login');
@@ -32,6 +34,9 @@ Route::post('/password-reset/update', [AuthController::class, 'updatePassword'])
 
 // DASHBOARD (PROTECTED)
 Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth');
+// ADMIN DASHBOARD VIEW (you can implement controller/view)
+Route::get('/admin-dashboard', function(){ return view('admin-dashboard'); })->name('admin.dashboard');
+Route::get('/admin-metrics', [AdminMetricsController::class, 'metrics'])->name('admin.metrics');
 
 Route::middleware('auth')->group(function () {
 
@@ -46,6 +51,8 @@ Route::middleware('auth')->group(function () {
     Route::put('/manage-room/item/{item}', [RoomManagementController::class, 'update'])->name('room-manage.update');
     Route::delete('/manage-room/item/{item}', [RoomManagementController::class, 'destroy'])->name('room-manage.destroy');
     Route::delete('/manage-room/bulk-delete', [RoomManagementController::class, 'bulkDestroy'])->name('room-manage.bulk-destroy');
+    Route::delete('/manage-room/room/{room}', [RoomManagementController::class, 'destroyRoom'])->name('room-manage.room-destroy');
+    Route::post('/manage-room/pc/{room}/{pc}/component', [RoomManagementController::class, 'addComponent'])->name('room-manage.pc.add-component');
     
     
     // PHOTO DISPLAY ROUTES
@@ -101,3 +108,10 @@ Route::post('/scan-barcode/api-search', [RoomItemScanController::class, 'apiSear
         return response()->json($items);
     });
 });
+
+// SUPER ADMIN AUTH (backend endpoints expected)
+Route::post('/super-admin/login', [SuperAdminController::class, 'login']);
+Route::post('/super-admin/resend-otp', [SuperAdminController::class, 'resendOtp']);
+Route::post('/super-admin/verify-otp', [SuperAdminController::class, 'verifyOtp']);
+Route::get('/super-admin/status', [SuperAdminController::class, 'status']);
+Route::post('/super-admin/register', [SuperAdminController::class, 'register']);

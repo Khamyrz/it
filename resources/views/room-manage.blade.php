@@ -2730,64 +2730,85 @@
         const roomGroups = document.querySelectorAll('.room-group');
         if (!roomGroups.length) return;
 
-        // Build printable HTML using same sizing as single-item print (150x50)
-        let html = '' +
-            '<html><head><title>Print All Barcodes</title>' +
-            '<style>' +
-            'body{margin:0;padding:20px;font-family:Arial,sans-serif;}' +
-            'h2{margin:20px 0 8px 0;font-size:18px;text-align:center;text-transform:capitalize;}' +
-            '.pc-header{font-weight:bold;margin:8px 0 6px 0;}' +
-            '.grid{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-start;margin-bottom:18px;}' +
-            '.card{border:1px solid #000;padding:8px 6px;border-radius:4px;background:#fff;text-align:center;}' +
-            '.label{font-weight:bold;font-size:14px;margin-bottom:10px;font-family:monospace;color:#000;}' +
-            '.card img{width:150px;height:50px;display:block;margin:0 auto;image-rendering:crisp-edges;image-rendering:-webkit-optimize-contrast;}' +
-            '@media print{.card{break-inside:avoid;page-break-inside:avoid;}}' +
-            '</style></head><body>';
-
+        // Collect all PC groups with their barcodes
+        let allPCs = [];
         roomGroups.forEach(room => {
             const roomTitleEl = room.querySelector('.room-title');
             const roomTitle = roomTitleEl ? roomTitleEl.textContent.trim() : 'Room';
-
-            // Gather PC groups within the room
+            
             const pcs = room.querySelectorAll('.pc-group');
-            if (!pcs.length) return;
-
-            html += '<h2>' + roomTitle + '</h2>';
-
             pcs.forEach(pc => {
-                // Collect barcode wrappers inside this PC group
                 const barcodes = pc.querySelectorAll('.barcode-wrapper');
-                if (!barcodes.length) return;
-
-                // Attempt to derive PC number from first barcode's last 3 digits
-                let pcDisplay = '';
-                const firstLabelEl = barcodes[0].querySelector('.barcode-text');
-                const firstLabel = firstLabelEl ? firstLabelEl.textContent : '';
-                const match = firstLabel.match(/(\d{3})$/);
-                if (match) {
-                    pcDisplay = 'PC' + match[1];
-                } else {
-                    // Fallback: try reading any number in barcode label
-                    const any = firstLabel.match(/(\d{1,3})/);
-                    pcDisplay = any ? ('PC' + any[1].padStart(3, '0')) : 'PC';
+                if (barcodes.length > 0) {
+                    // Attempt to derive PC number from first barcode's last 3 digits
+                    let pcDisplay = '';
+                    const firstLabelEl = barcodes[0].querySelector('.barcode-text');
+                    const firstLabel = firstLabelEl ? firstLabelEl.textContent : '';
+                    const match = firstLabel.match(/(\d{3})$/);
+                    if (match) {
+                        pcDisplay = 'PC' + match[1];
+                    } else {
+                        // Fallback: try reading any number in barcode label
+                        const any = firstLabel.match(/(\d{1,3})/);
+                        pcDisplay = any ? ('PC' + any[1].padStart(3, '0')) : 'PC';
+                    }
+                    
+                    allPCs.push({
+                        roomTitle: roomTitle,
+                        pcDisplay: pcDisplay,
+                        barcodes: Array.from(barcodes).map(node => {
+                            const textEl = node.querySelector('.barcode-text');
+                            const imgEl = node.querySelector('img');
+                            return {
+                                label: textEl ? textEl.textContent : '',
+                                src: imgEl ? imgEl.src : ''
+                            };
+                        }).filter(barcode => barcode.src)
+                    });
                 }
-
-                html += '<div class="pc-header">' + pcDisplay + '</div>';
-                html += '<div class="grid">';
-                barcodes.forEach(node => {
-                    const textEl = node.querySelector('.barcode-text');
-                    const imgEl = node.querySelector('img');
-                    const label = textEl ? textEl.textContent : '';
-                    const src = imgEl ? imgEl.src : '';
-                    if (!src) return;
-                    html += '<div class="card">' +
-                                '<div class="label">' + (label || '') + '</div>' +
-                                '<img src="' + src + '" />' +
-                            '</div>';
-                });
-                html += '</div>';
             });
         });
+
+        // Build printable HTML optimized for 3 PC# per bond paper
+        let html = '' +
+            '<html><head><title>Print All Barcodes - 3 PC per Page</title>' +
+            '<style>' +
+            '@page { size: A4; margin: 0.5in; }' +
+            'body { margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 10px; }' +
+            '.page { width: 100%; height: 11in; page-break-after: always; display: flex; flex-direction: column; }' +
+            '.page:last-child { page-break-after: avoid; }' +
+            '.pc-section { flex: 1; display: flex; flex-direction: column; margin-bottom: 12px; border: 1px solid #ccc; padding: 6px; }' +
+            '.pc-header { font-weight: bold; font-size: 11px; text-align: center; margin-bottom: 6px; background: #f0f0f0; padding: 3px; }' +
+            '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; }' +
+            '.barcode-card { border: 1px solid #000; padding: 3px; text-align: center; background: #fff; }' +
+            '.barcode-label { font-weight: bold; font-size: 7px; margin-bottom: 3px; font-family: monospace; color: #000; word-break: break-all; }' +
+            '.barcode-img { width: 80px; height: 25px; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; border: 1px solid #000; }' +
+            '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
+            '</style></head><body>';
+
+        // Group PCs into pages of 3
+        for (let i = 0; i < allPCs.length; i += 3) {
+            const pagePCs = allPCs.slice(i, i + 3);
+            
+            html += '<div class="page">';
+            
+            pagePCs.forEach(pc => {
+                html += '<div class="pc-section">';
+                html += '<div class="pc-header">' + pc.roomTitle + ' - ' + pc.pcDisplay + '</div>';
+                html += '<div class="barcode-grid">';
+                
+                pc.barcodes.forEach(barcode => {
+                    html += '<div class="barcode-card">' +
+                                '<div class="barcode-label">' + (barcode.label || '') + '</div>' +
+                                '<img class="barcode-img" src="' + barcode.src + '" />' +
+                            '</div>';
+                });
+                
+                html += '</div></div>';
+            });
+            
+            html += '</div>';
+        }
 
         html += '</body></html>';
 

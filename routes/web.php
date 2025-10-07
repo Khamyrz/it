@@ -12,9 +12,10 @@ use App\Http\Controllers\PrintReportController;
 use App\Http\Controllers\RoomItemScanController;
 use App\Http\Controllers\SuperAdminController;
 use App\Http\Controllers\AdminMetricsController;
+use App\Http\Controllers\ShareTokenController;
 
 Route::get('/', function () {
-    return redirect('/login');
+    return view('login');
 });
 
 // AUTHENTICATION ROUTES
@@ -23,6 +24,9 @@ Route::post('/register', [AuthController::class, 'register']);
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
 Route::get('/logout', [AuthController::class, 'logout']);
+// Email verification during registration (OTP)
+Route::post('/email-verification/send-otp', [AuthController::class, 'sendEmailVerificationOTP']);
+Route::post('/email-verification/verify-otp', [AuthController::class, 'verifyEmailOTP']);
 // Scan-based login helpers
 Route::get('/login/id-image', [AuthController::class, 'idImage'])->name('login.id_image');
 Route::post('/login/scan', [AuthController::class, 'loginByScan'])->name('login.scan');
@@ -107,6 +111,12 @@ Route::post('/scan-barcode/api-search', [RoomItemScanController::class, 'apiSear
         $items = App\Models\RoomItem::take(10)->get(['id', 'barcode', 'is_full_set_item', 'device_category', 'room_title']);
         return response()->json($items);
     });
+
+    // SHARE TOKEN
+    Route::get('/share/state', [ShareTokenController::class, 'state']);
+    Route::post('/share/generate', [ShareTokenController::class, 'generate']);
+    Route::post('/share/paste', [ShareTokenController::class, 'paste']);
+    Route::post('/share/revoke/{sharedUser}', [ShareTokenController::class, 'revoke']);
 });
 
 // SUPER ADMIN AUTH (backend endpoints expected)

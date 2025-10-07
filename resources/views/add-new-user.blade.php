@@ -1,236 +1,30 @@
 @extends('layouts.app')
 
-@section('title', 'Pending User Approvals')
+@section('title', 'Share Token')
 
 @section('content')
     <style>
-        .main-content {
-            padding: 40px 60px;
-            background: #f8f9fa;
-            min-height: 100vh;
-            margin-left: auto;
-            margin-right: auto;
-            max-width: 1200px;
-        }
-        
-        .page-header {
-            margin-bottom: 40px;
-            text-align: center;
-        }
-        
-        .page-title {
-            font-size: 28px;
-            font-weight: 600;
-            color: #2c3e50;
-            margin: 0;
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            justify-content: center;
-        }
-        
-        .page-title::before {
-            content: "👥";
-            font-size: 24px;
-        }
-        
-        .success-alert {
-            background: linear-gradient(135deg, #d4edda, #c3e6cb);
-            border: none;
-            border-left: 4px solid #28a745;
-            border-radius: 8px;
-            padding: 15px 20px;
-            margin-bottom: 25px;
-            color: #155724;
-            font-weight: 500;
-            box-shadow: 0 2px 10px rgba(40, 167, 69, 0.1);
-        }
-        
-        .empty-state {
-            text-align: center;
-            padding: 60px 20px;
-            background: white;
-            border-radius: 15px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-        }
-        
-        .empty-state-icon {
-            font-size: 64px;
-            margin-bottom: 20px;
-            opacity: 0.6;
-        }
-        
-        .empty-state-text {
-            font-size: 18px;
-            color: #6c757d;
-            margin: 0;
-        }
-        
-        .approvals-table {
-            background: white;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            border: none;
-            margin: 0 auto;
-            width: 100%;
-        }
-        
-        .table-header {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-        }
-        
-        .table-header th {
-            padding: 20px 24px;
-            font-weight: 600;
-            font-size: 14px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            border: none;
-        }
-        
-        .table-body td {
-            padding: 20px 24px;
-            border: none;
-            border-bottom: 1px solid #f1f3f4;
-            vertical-align: middle;
-        }
-        
-        .table-body tr:last-child td {
-            border-bottom: none;
-        }
-        
-        .table-body tr:hover {
-            background: #f8f9fa;
-            transition: background 0.3s ease;
-        }
-        
-        .user-photo {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            object-fit: cover;
-            border: 3px solid #e9ecef;
-            transition: transform 0.3s ease;
-        }
-        
-        .user-photo:hover {
-            transform: scale(1.1);
-        }
-        
-        .user-name {
-            font-weight: 600;
-            color: #2c3e50;
-            font-size: 16px;
-        }
-        
-        .user-email {
-            color: #6c757d;
-            font-size: 14px;
-        }
-        
-        .action-buttons {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-        }
-        
-        .btn {
-            padding: 10px 20px;
-            border: none;
-            border-radius: 25px;
-            font-weight: 600;
-            font-size: 13px;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-            cursor: pointer;
-            transition: all 0.3s ease;
-            box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
-        }
-        
-        .btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-        }
-        
-        .btn-approve {
-            background: linear-gradient(135deg, #28a745, #20c997);
-            color: white;
-        }
-        
-        .btn-approve:hover {
-            background: linear-gradient(135deg, #218838, #1aa085);
-        }
-        
-        .btn-reject {
-            background: linear-gradient(135deg, #dc3545, #e83e8c);
-            color: white;
-        }
-        
-        .btn-reject:hover {
-            background: linear-gradient(135deg, #c82333, #d91a72);
-        }
-        
-        .stats-card {
-            background: white;
-            border-radius: 15px;
-            padding: 20px;
-            margin: 0 auto 30px auto;
-            max-width: 300px;
-            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
-            text-align: center;
-        }
-        
-        .stats-number {
-            font-size: 32px;
-            font-weight: 700;
-            color: #667eea;
-            margin: 0;
-        }
-        
-        .stats-label {
-            color: #6c757d;
-            font-size: 14px;
-            margin: 5px 0 0 0;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        @media (max-width: 768px) {
-            .main-content {
-                padding: 20px 30px;
-                margin: 0;
-                max-width: 100%;
-            }
-            
-            .approvals-table {
-                overflow-x: auto;
-            }
-            
-            .action-buttons {
-                flex-direction: column;
-                gap: 8px;
-            }
-            
-            .btn {
-                padding: 8px 16px;
-                font-size: 12px;
-            }
-            
-            .user-photo {
-                width: 45px;
-                height: 45px;
-            }
-        }
+        .main-content { padding: 40px 60px; background: #f8f9fa; min-height: 100vh; margin-left: auto; margin-right: auto; max-width: 800px; }
+        .page-header { margin-bottom: 24px; text-align: center; }
+        .page-title { font-size: 28px; font-weight: 600; color: #2c3e50; margin: 0; display: inline-flex; align-items: center; gap: 10px; justify-content: center; }
+        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 16px; }
+        .row { display: flex; gap: 12px; align-items: center; }
+        .row > * { flex: 1; }
+        .btn { padding: 10px 16px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
+        .btn-primary { background: #667eea; color: #fff; }
+        .btn-danger { background: #dc3545; color: #fff; }
+        .btn-secondary { background: #6c757d; color: #fff; }
+        .muted { color: #6c757d; font-size: 13px; }
+        .pill { background:#eef2ff; color:#4f46e5; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+        input[type=text] { width: 100%; padding: 10px 12px; border:1px solid #e5e7eb; border-radius:10px; }
+        ul { list-style: none; padding: 0; margin: 0; }
+        li { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f1f3f4; }
     </style>
 
     <div class="main-content">
         <div class="page-header">
-            <h1 class="page-title">Pending Account Approvals</h1>
-            <div style="margin-top: 15px;">
-                
-            </div>
+            <h1 class="page-title">Share Token</h1>
+            <div class="muted">Share read-only access to your data with up to 5 users for 3 hours.</div>
         </div>
 
         @if(session('success'))
@@ -251,99 +45,140 @@
             </div>
         @endif
 
-        @if($users->isNotEmpty())
-            <div class="stats-card">
-                <h2 class="stats-number">{{ $users->count() }}</h2>
-                <p class="stats-label">Pending Approvals</p>
+        <div class="card">
+            <div class="row">
+                <button id="btn-generate" class="btn btn-primary">Share Token</button>
+                <input id="token-output" type="text" placeholder="Generated token appears here" readonly>
+                <button id="btn-toggle" class="btn btn-secondary">Show</button>
             </div>
-        @endif
+            <div class="muted" style="margin-top:8px;">Token valid for 3 hours • Max 5 users</div>
+        </div>
 
-        @if($users->isEmpty())
-            <div class="empty-state">
-                <div class="empty-state-icon">✅</div>
-                <p class="empty-state-text">No pending user accounts to review</p>
+        <div class="card">
+            <div class="row">
+                <input id="token-input" type="text" placeholder="Paste token here">
+                <button id="btn-paste" class="btn btn-secondary">Paste Token</button>
             </div>
-        @else
-            <table class="approvals-table">
-                <thead class="table-header">
-                    <tr>
-                        <th>Photo</th>
-                        <th>Full Name</th>
-                        <th>Email Address</th>
-                        <th>Registration Date</th>
-                        <th>Account Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody class="table-body">
-                    @foreach($users as $user)
-                        <tr>
-                            <td>
-                                <img src="{{ asset('photos/' . $user->photo) }}" 
-                                     alt="{{ $user->name }}" 
-                                     class="user-photo">
-                            </td>
-                            <td>
-                                <div class="user-name">{{ $user->name }}</div>
-                            </td>
-                            <td>
-                                <div class="user-email">{{ $user->email }}</div>
-                            </td>
-                            <td>
-                                <div style="color: #6c757d; font-size: 14px;">
-                                    {{ $user->created_at->format('M d, Y') }}<br>
-                                    <small>{{ $user->created_at->format('g:i A') }}</small>
-                                </div>
-                            </td>
-                            <td>
-                                <div style="display: flex; flex-direction: column; gap: 5px;">
-                                    <span style="background: #fff3cd; color: #856404; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-align: center;">
-                                        ⏳ Pending Approval
-                                    </span>
-                                    <span style="background: #d4edda; color: #155724; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-align: center;">
-                                        ✅ Gmail Verified
-                                    </span>
-                                    <span style="background: #e3f2fd; color: #1976d2; padding: 4px 8px; border-radius: 12px; font-size: 12px; font-weight: bold; text-align: center;">
-                                        🚀 Ready for Direct Access
-                                    </span>
-                                </div>
-                            </td>
-                            <td>
-                                <div class="action-buttons">
-                                    <form method="POST" action="/approve-user/{{ $user->id }}" style="display: inline;" onsubmit="return confirmApproval('{{ $user->name }}', '{{ $user->email }}')">
-                                        @csrf
-                                        <button class="btn btn-approve" type="submit">
-                                            ✓ Approve
-                                        </button>
-                                    </form>
-                                    <form method="POST" action="/reject-user/{{ $user->id }}" style="display: inline;" onsubmit="return confirmRejection('{{ $user->name }}', '{{ $user->email }}')">
-                                        @csrf
-                                        <button class="btn btn-reject" type="submit">
-                                            ✗ Reject
-                                        </button>
-                                    </form>
-                                    <form method="POST" action="/resend-admin-notification/{{ $user->id }}" style="display: inline;">
-                                        @csrf
-                                        <button class="btn" type="submit" style="background: #17a2b8; color: white; font-size: 11px; padding: 8px 12px;">
-                                            📧 Resend
-                                        </button>
-                                    </form>
-                                </div>
-                            </td>
-                        </tr>
-                    @endforeach
-                </tbody>
-            </table>
-        @endif
+            <div class="muted" style="margin-top:8px;">If you joined via a token, you cannot generate your own.</div>
+        </div>
+
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="font-weight:700;">Shared Users</div>
+                <span id="uses-pill" class="pill">0 / 5 used</span>
+            </div>
+            <ul id="shared-list"></ul>
+        </div>
     </div>
 
     <script>
-        function confirmApproval(name, email) {
-            return confirm(`Are you sure you want to APPROVE this account?\n\nUser: ${name}\nEmail: ${email}\n\nThis will:\n✅ Grant DIRECT LOGIN access to the IT Inventory System\n✅ Send approval confirmation email to user\n✅ User can login immediately with their Gmail account\n✅ No need to login to infotech-inventory.com first\n\nClick OK to approve or Cancel to abort.`);
+        let TOKEN_HIDDEN = true;
+        let TOKEN_PLAIN = '';
+
+        async function fetchState() {
+            const res = await fetch('/share/state', { credentials: 'same-origin', headers: { 'Accept': 'application/json' }});
+            const data = await res.json();
+            const output = document.getElementById('token-output');
+            const usesPill = document.getElementById('uses-pill');
+            const list = document.getElementById('shared-list');
+            const genBtn = document.getElementById('btn-generate');
+            const toggleBtn = document.getElementById('btn-toggle');
+
+            list.innerHTML = '';
+
+            if (data.activeToken) {
+                TOKEN_PLAIN = data.activeToken.token;
+                output.value = TOKEN_HIDDEN && TOKEN_PLAIN ? '*' : TOKEN_PLAIN;
+                usesPill.textContent = (data.activeToken.uses || 0) + ' / ' + (data.activeToken.max_uses || 5) + ' used';
+                toggleBtn.disabled = !TOKEN_PLAIN;
+                toggleBtn.textContent = TOKEN_HIDDEN ? 'Show' : 'Hide';
+            } else {
+                TOKEN_PLAIN = '';
+                output.value = '';
+                usesPill.textContent = '0 / 5 used';
+                toggleBtn.disabled = true;
+                toggleBtn.textContent = 'Show';
+            }
+
+            if (data.sharedFrom) {
+                genBtn.disabled = true;
+                genBtn.title = 'Blocked: you joined via a shared token';
+            } else {
+                genBtn.disabled = false;
+                genBtn.title = '';
+            }
+
+            (data.sharedUsers || []).forEach(function(entry){
+                const li = document.createElement('li');
+                const left = document.createElement('div');
+                const right = document.createElement('div');
+                left.textContent = (entry.shared_user?.name || 'User') + ' • ' + (entry.shared_user?.email || '');
+                const btn = document.createElement('button');
+                btn.className = 'btn btn-danger';
+                btn.textContent = 'Revoke';
+                btn.onclick = async function(){ await revoke(entry.shared_user_id); };
+                right.appendChild(btn);
+                li.appendChild(left); li.appendChild(right);
+                list.appendChild(li);
+            });
         }
 
-        function confirmRejection(name, email) {
-            return confirm(`Are you sure you want to REJECT this account?\n\nUser: ${name}\nEmail: ${email}\n\nThis will:\n❌ Permanently delete the user account\n❌ Send rejection notification email to user\n❌ User will not be able to register again with this email\n\nClick OK to reject or Cancel to abort.`);
+        async function generate() {
+            const res = await fetch('/share/generate', { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }});
+            if (res.ok) {
+                const data = await res.json();
+                TOKEN_PLAIN = data.token || '';
+                TOKEN_HIDDEN = true;
+                document.getElementById('token-output').value = TOKEN_PLAIN ? '*' : '';
+                document.getElementById('btn-toggle').disabled = !TOKEN_PLAIN;
+                document.getElementById('btn-toggle').textContent = 'Show';
+                await Swal.fire({ icon: 'success', title: 'Token Generated', text: TOKEN_PLAIN, confirmButtonText: 'Copy', showCancelButton: true });
+                navigator.clipboard?.writeText(data.token).catch(()=>{});
+                await fetchState();
+            } else {
+                const err = await res.json().catch(()=>({message:'Failed'}));
+                Swal.fire({ icon: 'error', title: 'Cannot Generate', text: err.message || 'Unknown error' });
+            }
         }
+
+        async function paste() {
+            const token = document.getElementById('token-input').value.trim();
+            if (!token) { return Swal.fire({ icon:'warning', title:'No token', text:'Please paste a token' }); }
+            const res = await fetch('/share/paste', { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type':'application/json', 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }, body: JSON.stringify({ token }) });
+            if (res.ok) {
+                Swal.fire({ icon: 'success', title: 'Access Granted' });
+                document.getElementById('token-input').value = '';
+                await fetchState();
+            } else {
+                const err = await res.json().catch(()=>({message:'Failed'}));
+                Swal.fire({ icon: 'error', title: 'Unable to Join', text: err.message || 'Unknown error' });
+            }
+        }
+
+        async function revoke(sharedUserId) {
+            const ok = await Swal.fire({ title:'Revoke access?', icon:'warning', showCancelButton:true, confirmButtonText:'Revoke' }).then(r=>r.isConfirmed);
+            if (!ok) return;
+            const res = await fetch('/share/revoke/' + sharedUserId, { method: 'POST', credentials: 'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json' }});
+            if (res.ok) {
+                Swal.fire({ icon:'success', title:'Access Revoked' });
+                await fetchState();
+            } else {
+                const err = await res.json().catch(()=>({message:'Failed'}));
+                Swal.fire({ icon:'error', title:'Failed', text: err.message || 'Unknown error' });
+            }
+        }
+
+        function toggleVisibility() {
+            if (!TOKEN_PLAIN) return;
+            TOKEN_HIDDEN = !TOKEN_HIDDEN;
+            document.getElementById('token-output').value = TOKEN_HIDDEN ? '*' : TOKEN_PLAIN;
+            document.getElementById('btn-toggle').textContent = TOKEN_HIDDEN ? 'Show' : 'Hide';
+        }
+
+        document.getElementById('btn-generate').addEventListener('click', generate);
+        document.getElementById('btn-toggle').addEventListener('click', toggleVisibility);
+        document.getElementById('btn-paste').addEventListener('click', paste);
+        document.addEventListener('DOMContentLoaded', fetchState);
     </script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 @endsection

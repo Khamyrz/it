@@ -6,6 +6,7 @@
     <title>Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
         body {
             margin: 0;
@@ -202,6 +203,43 @@
         .contribution-btn:hover {
             background: #3498db;
         }
+
+        /* Profile header above Usable Peripherals */
+        .profile-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin: 8px 0 14px 0;
+        }
+        .profile-header img {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            object-fit: cover;
+            box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.35);
+        }
+        .profile-header .name {
+            font-weight: 800;
+            letter-spacing: .3px;
+            color: #ffd7a1;
+            text-shadow: 0 0 8px rgba(255, 140, 0, 0.2);
+        }
+
+        /* Topbar right group (profile + dropdown) */
+        .topbar-right { display:flex; align-items:center; gap: 12px; }
+        .topbar-profile { display:flex; align-items:center; gap:8px; }
+        .topbar-profile img { width:36px; height:36px; border-radius:50%; object-fit:cover; box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.25); }
+        .topbar-profile .name { color:#ffe9cc; font-weight:700; font-size:14px; }
+
+        /* Profile Modal */
+        #profileModal { display:none; position:fixed; inset:0; background:rgba(0,0,0,.6); z-index:10000; }
+        #profileModal .modal-content { background:#fff; width: 92%; max-width:520px; margin: 8% auto; border-radius:12px; box-shadow:0 20px 60px rgba(0,0,0,.35); position:relative; padding:20px; }
+        #profileModal .close { position:absolute; right:14px; top:10px; font-size:26px; color:#999; cursor:pointer; }
+        .profile-form .row { display:flex; gap:12px; margin-bottom:12px; align-items:center; }
+        .profile-form label { width: 120px; font-weight:700; color:#111827; }
+        .profile-form input { flex:1; padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; }
+        .profile-avatar { display:flex; align-items:center; gap:12px; }
+        .profile-avatar img { width:72px; height:72px; border-radius:50%; object-fit:cover; }
     </style>
 </head>
 <body>
@@ -226,12 +264,18 @@
 <div class="container">
     <div class="topbar">
         <div class="datetime" id="datetime"></div>
-        <div class="account">
-            <button>&#9660; {{ $user->full_name }}</button>
-            <div class="dropdown">
-                <a href="#">Profile</a><br>
-                <a href="#">Settings</a><br>
-                <a href="/logout">Logout</a>
+        <div class="topbar-right">
+            <div class="topbar-profile">
+                <img src="{{ asset('photos/' . ($user->photo ?? '')) }}" onerror="this.src='{{ asset('images/logo.png') }}'" alt="Profile">
+                <div class="name">{{ $user->name ?? $user->full_name }}</div>
+            </div>
+            <div class="account">
+                <button onclick="toggleAccountMenu(event)" aria-label="Open menu">&#9660;</button>
+                <div class="dropdown" id="accountDropdown">
+                    <a href="#" onclick="openProfileModal(); return false;">Profile</a><br>
+                    <a href="#" onclick="openProfileModal(); return false;">Settings</a><br>
+                    <a href="/logout">Logout</a>
+                </div>
             </div>
         </div>
     </div>
@@ -266,7 +310,7 @@
             <canvas id="hudLineChart"></canvas>
         </div>
         <div class="chart-container col-4">
-            <h3 class="hud-title">Utilization Gauge</h3>
+            <h3 class="hud-title">Usable Peripherals</h3>
             <canvas id="gaugeChart"></canvas>
         </div>
     </div>
@@ -284,6 +328,52 @@
         <h3 style="text-align:center;">Total Inventory Distribution</h3>
         <canvas id="contributionChart" height="250"></canvas>
     </div>
+</div>
+
+<!-- Profile Modal -->
+<div id="profileModal">
+    <div class="modal-content">
+        <span class="close" onclick="closeProfileModal()">&times;</span>
+        <h3 style="margin-top:0; text-align:center; color:#111827;">Profile Settings</h3>
+        <div class="profile-avatar" style="justify-content:center; margin-bottom:12px;">
+            <img src="{{ asset('photos/' . ($user->photo ?? '')) }}" onerror="this.src='{{ asset('images/logo.png') }}'" alt="Avatar">
+            <div>
+                <div style="font-weight:800; color:#111827;">{{ $user->name ?? $user->full_name }}</div>
+                <div style="color:#6b7280; font-size:14px;">{{ $user->email }}</div>
+            </div>
+        </div>
+        <form class="profile-form" id="profileForm" enctype="multipart/form-data">
+            @csrf
+            <div class="row profile-avatar">
+                <img id="profilePreview" src="{{ asset('photos/' . ($user->photo ?? '')) }}" onerror="this.src='{{ asset('images/logo.png') }}'" alt="Avatar">
+                <div>
+                    <label style="width:auto;">Change Photo</label>
+                    <input type="file" name="photo" accept="image/*">
+                </div>
+            </div>
+            <div class="row">
+                <label>Full Name</label>
+                <input type="text" name="name" value="{{ $user->name ?? $user->full_name }}" placeholder="Leave empty to keep current">
+            </div>
+            <div class="row">
+                <label>Email</label>
+                <input type="email" name="email" value="{{ $user->email }}" placeholder="Leave empty to keep current">
+            </div>
+            <div class="row">
+                <label>Password</label>
+                <input type="password" name="password" placeholder="Leave blank to keep">
+            </div>
+            <div class="row">
+                <label>Confirm</label>
+                <input type="password" name="password_confirmation" placeholder="Confirm new password">
+            </div>
+            <div style="text-align:right; margin-top:6px; display:flex; gap:8px; justify-content:flex-end;">
+                <button type="button" class="contribution-btn" onclick="closeProfileModal()" style="background:#6c757d;">Cancel</button>
+                <button type="submit" class="contribution-btn">Save Changes</button>
+            </div>
+        </form>
+    </div>
+    
 </div>
 
 <script>
@@ -455,6 +545,18 @@
         }
     });
 
+    function toggleAccountMenu(e){
+        e.stopPropagation();
+        const dd = document.getElementById('accountDropdown');
+        if(!dd) return; dd.style.display = dd.style.display==='block' ? 'none' : 'block';
+        document.addEventListener('click', function hide(e2){ if(!dd.contains(e2.target)){ dd.style.display='none'; document.removeEventListener('click', hide); } });
+    }
+
+    function openProfileModal(){
+        const m = document.getElementById('profileModal'); if(!m) return; m.style.display = 'block';
+    }
+    function closeProfileModal(){ const m = document.getElementById('profileModal'); if(!m) return; m.style.display='none'; }
+
     function openModal() {
         document.getElementById('contributionModal').style.display = 'block';
         setTimeout(() => {
@@ -506,6 +608,56 @@
             closeModal();
         }
     };
+
+    // Profile save handler (AJAX + SweetAlert)
+    document.addEventListener('DOMContentLoaded', function(){
+        const form = document.getElementById('profileForm');
+        if(form){
+            form.addEventListener('submit', async function(e){
+                e.preventDefault();
+                const fd = new FormData(form);
+                // If password is blank, don't send password fields at all
+                const pw = (form.querySelector('input[name="password"]')?.value || '').trim();
+                const pwc = (form.querySelector('input[name="password_confirmation"]')?.value || '').trim();
+                if (!pw && !pwc) {
+                    fd.delete('password');
+                    fd.delete('password_confirmation');
+                }
+                try{
+                    const res = await fetch('{{ route('profile.update') }}', { method:'POST', credentials:'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: fd });
+                    let data = {};
+                    try { data = await res.json(); } catch(e) { try { const t = await res.text(); data = { message: t }; } catch(_) {} }
+                    if(res.ok){
+                        closeProfileModal();
+                        const name = (data.user && data.user.name) || '';
+                        const photo = (data.user && data.user.photo) ? ('{{ asset('photos') }}/' + data.user.photo) : null;
+                        const nameEls = document.querySelectorAll('.topbar-profile .name');
+                        nameEls.forEach(el=> el.textContent = name);
+                        if(photo){ document.querySelectorAll('.topbar-profile img').forEach(el=> el.src = photo); }
+                        Swal.fire({ icon:'success', title:'Saved', text: data.message || 'Profile updated successfully', confirmButtonColor:'#28a745' });
+                    } else if (res.status === 419) {
+                        closeProfileModal();
+                        Swal.fire({ icon:'error', title:'Session Expired', text:'Please refresh the page and try again.', confirmButtonColor:'#dc3545' });
+                    } else if (res.status === 422) {
+                        closeProfileModal();
+                        let msg = 'Validation failed';
+                        if (data && data.errors) {
+                            msg = Object.values(data.errors).flat().join('\n');
+                        } else if (data && data.message) { msg = data.message; }
+                        Swal.fire({ icon:'error', title:'Validation Error', text: msg, confirmButtonColor:'#dc3545' });
+                    } else {
+                        closeProfileModal();
+                        Swal.fire({ icon:'error', title:'Update Failed', text: data.message || 'Please try again', confirmButtonColor:'#dc3545' });
+                    }
+                }catch(err){
+                    Swal.fire({ icon:'error', title:'Network Error', text:'Please try again', confirmButtonColor:'#dc3545' });
+                }
+            });
+
+            const file = form.querySelector('input[name="photo"]');
+            if(file){ file.addEventListener('change', function(){ const f=this.files && this.files[0]; if(!f) return; const r=new FileReader(); r.onload = e=>{ const p=document.getElementById('profilePreview'); if(p) p.src=e.target.result; }; r.readAsDataURL(f); }); }
+        }
+    });
 </script>
 
 </body>

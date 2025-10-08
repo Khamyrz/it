@@ -117,6 +117,9 @@ Route::post('/scan-barcode/api-search', [RoomItemScanController::class, 'apiSear
     Route::post('/share/generate', [ShareTokenController::class, 'generate']);
     Route::post('/share/paste', [ShareTokenController::class, 'paste']);
     Route::post('/share/revoke/{sharedUser}', [ShareTokenController::class, 'revoke']);
+
+    // PROFILE
+    Route::post('/profile/update', [AuthController::class, 'updateProfile'])->name('profile.update');
 });
 
 // SUPER ADMIN AUTH (backend endpoints expected)

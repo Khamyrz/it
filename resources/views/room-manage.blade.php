@@ -312,6 +312,34 @@
         .add-item-btn i {
             font-size: 16px;
         }
+        /* Hide header add item button; we'll use a floating action button */
+        .page-header .button-row { display: none; }
+
+        /* Floating Add (+) Button */
+        .fab-add-item {
+            position: fixed;
+            right: 24px;
+            bottom: 24px;
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            border: none;
+            outline: none;
+            cursor: pointer;
+            background: linear-gradient(135deg, #28a745, #20c997);
+            color: #ffffff;
+            box-shadow: 0 10px 24px rgba(0,0,0,0.18);
+            font-size: 42px;
+            line-height: 0;
+            display: grid;
+            place-items: center;
+            z-index: 1000;
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .fab-add-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 14px 28px rgba(0,0,0,0.22);
+        }
 
         .barcode-wrapper {
             text-align: center;
@@ -1679,11 +1707,7 @@
     <div class="content-wrapper">
         <div class="page-header">
             <h1 class="page-title">Room Management</h1>
-            <div class="button-row">
-                <button onclick="toggleStepModal()" class="add-item-btn">
-                    <i class="fas fa-plus-circle"></i> Add Item
-                </button>
-            </div>
+            <div class="button-row"></div>
         </div>
 
         @if(session('success'))
@@ -2436,6 +2460,9 @@
         </div>
     </div>
 </div>
+
+<!-- Floating Add Item Button -->
+<button class="fab-add-item" onclick="toggleStepModal()" aria-label="Add Item" title="Add Item">+</button>
 
 <script>
     let currentStep = 1;

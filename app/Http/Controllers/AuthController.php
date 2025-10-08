@@ -682,5 +682,62 @@ class AuthController extends Controller
             ]);
         }
     }
+
+    public function updateProfile(Request $request)
+    {
+        $user = Auth::user();
+        // Base validation (all optional; validate format when present)
+        $request->validate([
+            'name' => 'nullable|string|min:2',
+            'email' => 'nullable|email',
+            'photo' => 'nullable|image|mimes:jpeg,png,jpg|max:2048',
+        ]);
+
+        // Only validate/update password when BOTH fields are provided and non-empty
+        $newPassword = trim((string) $request->input('password'));
+        $newPasswordConfirmation = trim((string) $request->input('password_confirmation'));
+        $shouldUpdatePassword = ($newPassword !== '' && $newPasswordConfirmation !== '');
+        if ($shouldUpdatePassword) {
+            $request->validate([
+                'password' => 'min:6|confirmed',
+            ]);
+        }
+
+        // Email uniqueness if changed and provided
+        if ($request->filled('email') && $request->email !== $user->email) {
+            $exists = \App\Models\User::where('email', $request->email)->exists();
+            if ($exists) {
+                return response()->json(['message' => 'Email already in use'], 409);
+            }
+        }
+
+        if ($request->filled('name')) {
+            $user->name = $request->name;
+        }
+        if ($request->filled('email')) {
+            $user->email = $request->email;
+        }
+
+        if ($shouldUpdatePassword) {
+            $user->password = Hash::make($request->password);
+        }
+
+        if ($request->hasFile('photo')) {
+            $photoName = time() . '.' . $request->photo->extension();
+            $request->photo->move(public_path('photos'), $photoName);
+            $user->photo = $photoName;
+        }
+
+        $user->save();
+
+        return response()->json([
+            'message' => 'Profile updated successfully',
+            'user' => [
+                'name' => $user->name,
+                'email' => $user->email,
+                'photo' => $user->photo,
+            ],
+        ]);
+    }
 }
     

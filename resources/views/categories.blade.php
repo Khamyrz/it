@@ -8,50 +8,122 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <style>
-    .page-wrap { padding: 28px; background: #f4f6f8; min-height: 100vh; }
-    .page-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 0 0 16px 0; }
-    .page-title { display:flex; align-items:center; gap:10px; margin:0; font-weight:700; color:#1f2937; }
-    .page-title .icon { width:40px; height:40px; display:grid; place-items:center; border-radius:10px; background:linear-gradient(135deg,#667eea,#764ba2); color:#fff; }
-    .card { background:#fff; border:1px solid #eef0f4; border-radius:14px; box-shadow: 0 8px 24px rgba(16,24,40,0.06); padding: 16px; }
-    .card-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin: 0 0 10px 0; }
-    .search { position:relative; }
-    .search input { border:1px solid #e5e7eb; border-radius:10px; padding:10px 36px 10px 36px; outline:none; width:100%; }
-    .search .fa-search { position:absolute; left:12px; top:50%; transform:translateY(-50%); color:#9ca3af; }
-    .table { margin:0; }
-    .table thead th { background:#f9fafb; color:#374151; font-weight:700; border-bottom:1px solid #eef0f4; }
-    .table tbody tr:hover { background:#fafafa; }
-    .badge-soft { background:#eef2ff; color:#4f46e5; padding:6px 10px; border-radius:999px; font-weight:700; font-size:12px; }
-    .btn-icon { border:none; border-radius:10px; padding:8px 10px; background:#eef2ff; color:#4f46e5; }
-    .btn-icon:hover { background:#e0e7ff; }
-    .muted { color:#6b7280; font-size:13px; }
-    .category-total { background:#f8fafc; border:1px solid #eef2f7; border-radius:10px; padding:10px 12px; display:flex; justify-content:space-between; align-items:center; margin:6px 0; }
-    .category-total .category-name { font-weight:700; color:#0f172a; }
-    .category-total .category-count { background:#0ea5e9; color:#fff; padding:4px 10px; border-radius:999px; font-weight:700; font-size:12px; }
-    .no-totals { color:#6b7280; font-style:italic; text-align:center; padding:16px; }
-    @media (max-width: 992px) { .card { margin-bottom: 12px; } }
+    body {
+        margin: 0;
+        font-family: Arial, sans-serif;
+        display: flex;
+        height: 100vh;
+        background: #f4f6f8;
+    }
+    nav {
+        width: 250px;
+        background: #2c3e50;
+        color: white;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding-top: 20px;
+        box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+    }
+    nav img {
+        width: 100px;
+        margin-bottom: 10px;
+    } 
+    nav h2 {
+        font-size: 16px;
+        margin: 0 0 20px;
+    }
+    nav ul {
+        list-style: none;
+        padding: 0;
+        width: 100%;
+    }
+    nav ul li {
+        width: 100%;
+    }
+    nav ul li a {
+        text-decoration: none;
+        color: white;
+        padding: 12px 20px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: background 0.3s ease;
+    }
+    nav ul li a:hover {
+        background: #34495e;
+    }
+    .container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 20px;
+        max-width: 1200px;
+        margin: auto;
+    }
+    .box {
+        background: white;
+        padding: 20px;
+        border-radius: 6px;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+        margin-bottom: 20px;
+    }
+    .category-total {
+        background: #e3f2fd;
+        border-left: 4px solid #2196f3;
+        padding: 8px 12px;
+        margin: 5px 0;
+        border-radius: 4px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .category-total .category-name {
+        font-weight: 600;
+        color: #1976d2;
+    }
+    .category-total .category-count {
+        background: #2196f3;
+        color: white;
+        padding: 4px 8px;
+        border-radius: 12px;
+        font-size: 12px;
+        font-weight: bold;
+    }
+    .totals-section {
+        background: #f8f9fa;
+        border-radius: 6px;
+        padding: 15px;
+        margin-bottom: 15px;
+        border: 1px solid #e9ecef;
+    }
+    .totals-title {
+        font-size: 16px;
+        font-weight: 600;
+        color: #495057;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+    .no-totals {
+        color: #6c757d;
+        font-style: italic;
+        text-align: center;
+        padding: 20px;
+    }
 </style>
 
-<div class="page-wrap">
-    <div class="page-header">
-        <h3 class="page-title"><span class="icon"><i class="fa fa-tags"></i></span> Categories & Rooms</h3>
-        <div class="muted">Browse device categories and rooms. Click the eye icon to inspect items.</div>
-    </div>
-    <div class="row g-3">
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <div style="font-weight:700;">All Categories</div>
-                    <div class="search" style="max-width: 260px; width:100%;">
-                        <i class="fa fa-search"></i>
-                        <input id="filterCategories" type="text" placeholder="Search categories">
-                    </div>
-                </div>
-                <table class="table table-hover align-middle">
+<div class="container">
+    <div class="row">
+        <div class="col-md-6 box">
+            <h4>ALL CATEGORIES (from Room Items)</h4>
+            <table class="table table-bordered">
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Category</th>
-                        <th class="text-center">Items</th>
+                        <th>Category Name</th>
+                        <th>Items Count</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -59,32 +131,26 @@
                     @foreach($roomItemCategories as $index => $category)
                         <tr>
                             <td>{{ $index + 1 }}</td>
-                            <td class="category-name-cell">{{ $category }}</td>
-                            <td class="text-center"><span class="badge-soft">{{ $itemCounts[$category] ?? 0 }}</span></td>
+                            <td>{{ $category }}</td>
+                            <td>{{ $itemCounts[$category] ?? 0 }}</td>
                             <td>
-                                <button class="btn-icon" title="View items" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="loadItems('{{ $category }}', 'category')"><i class="fa fa-eye"></i></button>
+                                <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="loadItems('{{ $category }}', 'category')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
                             </td>
                         </tr>
                     @endforeach
                 </tbody>
-                </table>
-            </div>
+            </table>
         </div>
 
-        <div class="col-lg-6">
-            <div class="card">
-                <div class="card-header">
-                    <div style="font-weight:700;">All Rooms</div>
-                    <div class="search" style="max-width: 260px; width:100%;">
-                        <i class="fa fa-search"></i>
-                        <input id="filterRooms" type="text" placeholder="Search rooms">
-                    </div>
-                </div>
-                <table class="table table-hover align-middle">
+        <div class="col-md-6 box">
+            <h4>ALL ROOMS</h4>
+            <table class="table table-bordered">
                 <thead>
                     <tr>
                         <th>#</th>
-                        <th>Room Title</th>
+                        <th>Room</th>
                         <th>Actions</th>
                     </tr>
                 </thead>
@@ -92,15 +158,16 @@
                     @foreach($rooms as $index => $room)
                         <tr>
                             <td>{{ $index + 1 }}</td>
-                            <td class="room-title-cell">{{ $room->room_title }}</td>
+                            <td>{{ $room->room_title }}</td>
                             <td>
-                                <button class="btn-icon" title="View items" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="loadItems('{{ $room->room_title }}', 'room')"><i class="fa fa-eye"></i></button>
+                                <button class="btn btn-sm btn-info" data-bs-toggle="modal" data-bs-target="#itemModal" onclick="loadItems('{{ $room->room_title }}', 'room')">
+                                    <i class="fas fa-eye"></i>
+                                </button>
                             </td>
                         </tr>
                     @endforeach
                 </tbody>
-                </table>
-            </div>
+            </table>
         </div>
     </div>
 </div>
@@ -128,7 +195,7 @@
                 </div>
 
                 <!-- Items Table -->
-                <table class="table table-striped align-middle">
+                <table class="table table-striped">
                     <thead>
                         <tr>
                             <th>Photo</th>
@@ -179,14 +246,14 @@
                     list.innerHTML = '<tr><td colspan="5">No items found.</td></tr>';
                 } else {
                     data.items.forEach(item => {
-                        const row = document.createElement('tr');
-                        row.innerHTML = `
-                            <td><img src="/storage/${item.photo}" width="50" height="50" style="border-radius:8px; object-fit:cover;" onerror="this.src='/default.png'" /></td>
-                            <td>${item.room_title}</td>
-                            <td>${item.device_category}</td>
-                            <td><code>${item.serial_number || ''}</code></td>
-                            <td><span class="badge ${getStatusBadgeClass(item.status)}">${item.status}</span></td>`;
-                        list.appendChild(row);
+                        list.innerHTML += `
+                            <tr>
+                                <td><img src="/storage/${item.photo}" width="50" height="50" onerror="this.src='/default.png'" /></td>
+                                <td>${item.room_title}</td>
+                                <td>${item.device_category}</td>
+                                <td>${item.serial_number}</td>
+                                <td><span class="badge ${getStatusBadgeClass(item.status)}">${item.status}</span></td>
+                            </tr>`;
                     });
                 }
             })
@@ -237,33 +304,5 @@
                 return 'bg-secondary';
         }
     }
-
-    // Client-side filters
-    document.addEventListener('DOMContentLoaded', function(){
-        const catFilter = document.getElementById('filterCategories');
-        const roomFilter = document.getElementById('filterRooms');
-        if (catFilter) {
-            catFilter.addEventListener('input', function(){
-                const q = this.value.toLowerCase();
-                document.querySelectorAll('.table tbody tr').forEach(function(tr){
-                    if (tr.closest('.col-lg-6') || true) {}
-                });
-                // Filter first table only
-                document.querySelectorAll('.row .col-lg-6:nth-child(1) tbody tr').forEach(function(tr){
-                    const name = (tr.querySelector('.category-name-cell')?.textContent||'').toLowerCase();
-                    tr.style.display = name.includes(q) ? '' : 'none';
-                });
-            });
-        }
-        if (roomFilter) {
-            roomFilter.addEventListener('input', function(){
-                const q = this.value.toLowerCase();
-                document.querySelectorAll('.row .col-lg-6:nth-child(2) tbody tr').forEach(function(tr){
-                    const name = (tr.querySelector('.room-title-cell')?.textContent||'').toLowerCase();
-                    tr.style.display = name.includes(q) ? '' : 'none';
-                });
-            });
-        }
-    });
 </script>
 @endsection

@@ -919,4 +919,116 @@ class RoomManagementController extends Controller
             'serial_number' => $this->generateSerialNumber()
         ]);
     }
+
+    /**
+     * Delete all items in a room (Delete Room action)
+     */
+    public function destroyRoom(Request $request, $room)
+    {
+        // Prefer the original room title from the request (non-slug)
+        $request->validate([
+            'room_title' => 'required|string'
+        ]);
+
+        $roomTitle = $request->input('room_title');
+
+        // Collect all items in the room
+        $items = RoomItem::where('room_title', $roomTitle)->get();
+        if ($items->isEmpty()) {
+            return redirect()->route('room-manage')->with('error', 'No items found for room: ' . $roomTitle);
+        }
+
+        // Track photos to delete once
+        $photosToDelete = [];
+
+        // If any items are part of full sets, group by full_set_id so we delete them together
+        $fullSetIds = $items->where('is_full_set_item', true)
+            ->pluck('full_set_id')
+            ->unique()
+            ->values();
+
+        // Delete all full sets (all items sharing the same full_set_id)
+        foreach ($fullSetIds as $fullSetId) {
+            $fullSetItems = RoomItem::where('full_set_id', $fullSetId)->get();
+            if ($fullSetItems->isNotEmpty()) {
+                $photo = $fullSetItems->first()->photo;
+                if ($photo) { $photosToDelete[$photo] = true; }
+                RoomItem::where('full_set_id', $fullSetId)->delete();
+            }
+        }
+
+        // Delete remaining single items in the room
+        $singleItems = RoomItem::where('room_title', $roomTitle)
+            ->where('is_full_set_item', false)
+            ->get();
+
+        foreach ($singleItems as $item) {
+            if ($item->photo) { $photosToDelete[$item->photo] = true; }
+            $item->delete();
+        }
+
+        // Delete photos from storage once
+        foreach (array_keys($photosToDelete) as $photoPath) {
+            if ($photoPath && Storage::exists($photoPath)) {
+                Storage::delete($photoPath);
+            }
+        }
+
+        return redirect()->route('room-manage')->with('success', 'Room "' . $roomTitle . '" and its items were deleted successfully!');
+    }
+
+    /**
+     * Add a component to an existing PC
+     */
+    public function addComponent(Request $request, $room, $pc)
+    {
+        // Validate the request
+        $validatedData = $request->validate([
+            'room_title' => 'required|string',
+            'device_category' => 'required|string',
+            'brand' => 'nullable|string',
+            'model' => 'nullable|string',
+            'description' => 'nullable|string',
+            'status' => 'required|string|in:Usable,Unusable',
+            'photo' => 'nullable|image|max:2048',
+        ]);
+
+        // Handle photo upload
+        $photoPath = null;
+        if ($request->hasFile('photo')) {
+            $photoPath = $request->file('photo')->store('public/photos');
+        }
+
+        // Generate barcode for the component using the existing PC number
+        $barcode = $this->generateBarcodeForFullSet($validatedData['room_title'], $validatedData['device_category'], $pc);
+
+        // Try to find an existing full set id for this room + PC number so the new
+        // component is grouped with the same PC set
+        $existingPcItem = RoomItem::where('room_title', $validatedData['room_title'])
+            ->where('barcode', 'LIKE', '%-' . $pc)
+            ->orderBy('id', 'desc')
+            ->first();
+        $fullSetId = $existingPcItem ? $existingPcItem->full_set_id : null;
+        $isFullSetItem = $fullSetId ? true : false;
+
+        // Create the component
+        RoomItem::create([
+            'user_id' => auth()->id(),
+            'room_title' => $validatedData['room_title'],
+            'device_category' => $validatedData['device_category'],
+            'device_type' => $this->getDeviceType($validatedData['device_category']),
+            'brand' => $validatedData['brand'],
+            'model' => $validatedData['model'],
+            'serial_number' => $this->generateSerialNumber(),
+            'barcode' => $barcode,
+            'photo' => $photoPath,
+            'description' => $validatedData['description'],
+            'quantity' => 1,
+            'status' => $validatedData['status'],
+            'is_full_set_item' => $isFullSetItem,
+            'full_set_id' => $fullSetId,
+        ]);
+
+        return redirect()->route('room-manage')->with('success', 'Component added successfully!');
+    }
 }

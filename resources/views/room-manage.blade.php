@@ -3152,5 +3152,31 @@
     }
 </script>
 
+@if(session('success'))
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const rawMessage = @json(session('success')) || '';
+        const normalized = String(rawMessage).toLowerCase();
+        let displayText = rawMessage;
+
+        // Map backend success messages to the requested SweetAlert texts
+        if (normalized.includes('delete')) {
+            displayText = 'Successfully Deleted Data';
+        } else if (normalized.includes('save') || normalized.includes('added') || normalized.includes('create')) {
+            displayText = 'Successfully Added Data';
+        }
+
+        if (typeof Swal !== 'undefined') {
+            Swal.fire({
+                icon: 'success',
+                title: displayText,
+                showConfirmButton: false,
+                timer: 1800
+            });
+        }
+    });
+</script>
+@endif
+
 @endsection
 

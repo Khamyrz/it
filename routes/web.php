@@ -15,7 +15,7 @@ use App\Http\Controllers\AdminMetricsController;
 use App\Http\Controllers\ShareTokenController;
 
 Route::get('/', function () {
-    return view('register');
+    return view('login');
 });
 
 // AUTHENTICATION ROUTES

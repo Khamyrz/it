@@ -2622,8 +2622,76 @@
         modal.classList.add('show');
     }
 
+    // Prevent multiple simultaneous operations
+    let isOperationInProgress = false;
+    
     function submitAddComponent(){
-        document.getElementById('addComponentForm').submit();
+        if (isOperationInProgress) {
+            Swal.fire({
+                title: 'Please wait',
+                text: 'Another operation is in progress. Please wait for it to complete.',
+                icon: 'info'
+            });
+            return;
+        }
+        
+        isOperationInProgress = true;
+        const form = document.getElementById('addComponentForm');
+        const submitBtn = form.querySelector('button[onclick="submitAddComponent()"]');
+        const originalText = submitBtn.innerHTML;
+        
+        // Show loading state
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
+        submitBtn.disabled = true;
+        
+        const formData = new FormData(form);
+        
+        fetch(form.action, {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Show success message
+                Swal.fire({
+                    title: 'Success!',
+                    text: data.message || 'Component added successfully!',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                
+                // Close modal and reset form
+                closeModal('addComponentModal');
+                form.reset();
+                
+                // Reload the page to show updated data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                throw new Error(data.message || 'Failed to add component');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                title: 'Error!',
+                text: error.message || 'Failed to add component. Please try again.',
+                icon: 'error'
+            });
+        })
+        .finally(() => {
+            // Reset button state and operation flag
+            submitBtn.innerHTML = originalText;
+            submitBtn.disabled = false;
+            isOperationInProgress = false;
+        });
     }
 
     // Custom Room Toggle Functions
@@ -2733,20 +2801,50 @@
     
     // Print Barcode Function
     function printBarcode(id) {
-        const barcodeContainer = document.getElementById('barcode-' + id);
-        if (barcodeContainer) {
-            const printContent = `<div style="text-align:center; padding:20px;">` +
-                `<div style="font-weight:bold; font-size:14px; margin-bottom:10px;">${barcodeContainer.querySelector('.barcode-text').textContent}</div>` +
-                `<img src="${barcodeContainer.querySelector('img').src}" style="width:150px; height:50px; display:block; margin:0 auto;" />` +
-                `</div>`;
-            const printWindow = window.open('', '', 'height=400,width=600');
-            printWindow.document.write('<html><head><title>Print Barcode</title>');
-            printWindow.document.write('</head><body>');
-            printWindow.document.write(printContent);
-            printWindow.document.close();
-            printWindow.focus();
-            printWindow.print();
-        }
+        const container = document.getElementById('barcode-' + id);
+        if (!container) return;
+        const labelEl = container.querySelector('.barcode-text');
+        const imgEl = container.querySelector('img');
+        if (!imgEl) return;
+
+        const label = labelEl ? labelEl.textContent : '';
+        const src = imgEl.src;
+
+        let html = '' +
+            '<html><head><title>Print Barcode</title>' +
+            '<style>' +
+            '@page { size: A4; margin: 12mm; }' +
+            'body { margin: 0; padding: 0; font-family: Arial, sans-serif; }' +
+            '.page { width: 100%; height: 273mm; page-break-after: auto; display: flex; flex-direction: column; }' +
+            '.pc-section { flex: 0 0 calc(50% - 8mm); display: flex; flex-direction: column; margin: 4mm 0; border: 1px solid #ccc; padding: 2.5mm; }' +
+            '.pc-header { font-weight: bold; font-size: 11px; text-align: center; margin-bottom: 2mm; background: #f7f7f7; padding: 1.8mm; }' +
+            '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 2.5mm; }' +
+            '.barcode-card { border: 1px dashed #999; padding: 1.5mm; text-align: center; background: #fff; }' +
+            '.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
+            '.barcode-img { width: 42mm; height: 14mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+            '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
+            '</style></head><body>';
+
+        html += '<div class="page">';
+        html += '<div class="pc-section">';
+        html += '<div class="pc-header">Barcode</div>';
+        html += '<div class="barcode-grid">';
+        html += '<div class="barcode-card">' +
+                    '<div class="barcode-label">' + (label || '') + '</div>' +
+                    '<img class="barcode-img" src="' + src + '" />' +
+                '</div>';
+        html += '</div></div>';
+        html += '</div>';
+
+        html += '</body></html>';
+
+        const w = window.open('', '', 'height=800,width=1000');
+        if (!w) return;
+        w.document.open();
+        w.document.write(html);
+        w.document.close();
+        w.focus();
+        w.onload = function(){ w.print(); };
     }
 
     // Print all barcodes on a single page (grouped by Room and PC)
@@ -2800,16 +2898,16 @@
         let html = '' +
             '<html><head><title>Print All Barcodes - 3 PC per Page</title>' +
             '<style>' +
-            '@page { size: A4; margin: 0.5in; }' +
-            'body { margin: 0; padding: 0; font-family: Arial, sans-serif; font-size: 10px; }' +
-            '.page { width: 100%; height: 11in; page-break-after: always; display: flex; flex-direction: column; }' +
-            '.page:last-child { page-break-after: avoid; }' +
-            '.pc-section { flex: 1; display: flex; flex-direction: column; margin-bottom: 12px; border: 1px solid #ccc; padding: 6px; }' +
-            '.pc-header { font-weight: bold; font-size: 11px; text-align: center; margin-bottom: 6px; background: #f0f0f0; padding: 3px; }' +
-            '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 6px; }' +
-            '.barcode-card { border: 1px solid #000; padding: 3px; text-align: center; background: #fff; }' +
-            '.barcode-label { font-weight: bold; font-size: 7px; margin-bottom: 3px; font-family: monospace; color: #000; word-break: break-all; }' +
-            '.barcode-img { width: 80px; height: 25px; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; border: 1px solid #000; }' +
+            '@page { size: A4; margin: 12mm; }' +
+            'body { margin: 0; padding: 0; font-family: Arial, sans-serif; }' +
+            '.page { width: 100%; height: 273mm; page-break-after: always; display: flex; flex-direction: column; }' +
+            '.page:last-child { page-break-after: auto; }' +
+            '.pc-section { flex: 0 0 calc(50% - 8mm); display: flex; flex-direction: column; margin: 4mm 0; border: 1px solid #ccc; padding: 2.5mm; }' +
+            '.pc-header { font-weight: bold; font-size: 11px; text-align: center; margin-bottom: 2mm; background: #f7f7f7; padding: 1.8mm; }' +
+            '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 2.5mm; }' +
+            '.barcode-card { border: 1px dashed #999; padding: 1.5mm; text-align: center; background: #fff; }' +
+            '.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
+            '.barcode-img { width: 42mm; height: 14mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
             '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
             '</style></head><body>';
 
@@ -3072,6 +3170,15 @@
     }
 
     function confirmDeleteItem(itemId) {
+        if (isOperationInProgress) {
+            Swal.fire({
+                title: 'Please wait',
+                text: 'Another operation is in progress. Please wait for it to complete.',
+                icon: 'info'
+            });
+            return;
+        }
+        
         // Use Sweet Alert for confirmation
         Swal.fire({
             title: 'Are you sure?',
@@ -3084,16 +3191,72 @@
             cancelButtonText: 'Cancel'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Find the form and submit it
-                const form = document.querySelector(`form[action="/manage-room/item/${itemId}"]`);
-                if (form) {
-                    form.submit();
-                }
+                isOperationInProgress = true;
+                // Show loading state
+                Swal.fire({
+                    title: 'Deleting item...',
+                    text: 'Please wait while we delete the item.',
+                    icon: 'info',
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => {
+                        Swal.showLoading();
+                    }
+                });
+                
+                // Use AJAX to delete the item
+                fetch(`/manage-room/item/${itemId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: data.message || 'Item deleted successfully!',
+                            icon: 'success',
+                            timer: 2000,
+                            showConfirmButton: false
+                        });
+                        
+                        // Reload the page to show updated data
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1000);
+                    } else {
+                        throw new Error(data.message || 'Failed to delete item');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    Swal.fire({
+                        title: 'Error!',
+                        text: error.message || 'Failed to delete item. Please try again.',
+                        icon: 'error'
+                    });
+                })
+                .finally(() => {
+                    isOperationInProgress = false;
+                });
             }
         });
     }
 
     function deleteSelectedRoomItems(roomSlug) {
+        if (isOperationInProgress) {
+            Swal.fire({
+                title: 'Please wait',
+                text: 'Another operation is in progress. Please wait for it to complete.',
+                icon: 'info'
+            });
+            return;
+        }
+        
         const roomContainer = document.getElementById(`room-${roomSlug}`);
         const checkboxes = roomContainer.querySelectorAll('.item-checkbox:checked');
         
@@ -3113,42 +3276,70 @@
             cancelButtonText: 'Cancel'
         }).then((result) => {
             if (result.isConfirmed) {
+                isOperationInProgress = true;
                 bulkDeleteItems(itemIds);
             }
         });
     }
 
     function bulkDeleteItems(itemIds) {
-        // Create a form to submit the bulk delete request
-        const form = document.createElement('form');
-        form.method = 'POST';
-        form.action = '{{ route("room-manage.bulk-destroy") }}';
-        
-        // Add CSRF token
-        const csrfToken = document.createElement('input');
-        csrfToken.type = 'hidden';
-        csrfToken.name = '_token';
-        csrfToken.value = '{{ csrf_token() }}';
-        form.appendChild(csrfToken);
-        
-        // Add method override for DELETE
-        const methodField = document.createElement('input');
-        methodField.type = 'hidden';
-        methodField.name = '_method';
-        methodField.value = 'DELETE';
-        form.appendChild(methodField);
-        
-        // Add item IDs
-        itemIds.forEach(id => {
-            const input = document.createElement('input');
-            input.type = 'hidden';
-            input.name = 'item_ids[]';
-            input.value = id;
-            form.appendChild(input);
+        // Show loading state
+        Swal.fire({
+            title: 'Deleting items...',
+            text: 'Please wait while we delete the selected items.',
+            icon: 'info',
+            allowOutsideClick: false,
+            showConfirmButton: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
         });
         
-        document.body.appendChild(form);
-        form.submit();
+        const formData = new FormData();
+        formData.append('_token', '{{ csrf_token() }}');
+        formData.append('_method', 'DELETE');
+        itemIds.forEach(id => {
+            formData.append('item_ids[]', id);
+        });
+        
+        fetch('{{ route("room-manage.bulk-destroy") }}', {
+            method: 'POST',
+            body: formData,
+            headers: {
+                'X-Requested-With': 'XMLHttpRequest',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                Swal.fire({
+                    title: 'Success!',
+                    text: data.message || `${itemIds.length} item(s) deleted successfully!`,
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false
+                });
+                
+                // Reload the page to show updated data
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                throw new Error(data.message || 'Failed to delete items');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            Swal.fire({
+                title: 'Error!',
+                text: error.message || 'Failed to delete items. Please try again.',
+                icon: 'error'
+            });
+        })
+        .finally(() => {
+            isOperationInProgress = false;
+        });
     }
 </script>
 

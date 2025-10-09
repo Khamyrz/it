@@ -7,6 +7,23 @@
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script>
+        // Ensure any SweetAlert will close all app modals first and grab focus
+        document.addEventListener('DOMContentLoaded', function(){
+            if (window.Swal && !window.__swalPatched) {
+                const originalFire = Swal.fire.bind(Swal);
+                function closeAllCustomModals(){
+                    ['passwordResetModal','emailVerificationModal','superAdminModal','superAdminRegisterModal','captchaModal','termsModal']
+                        .forEach(id=>{ const el=document.getElementById(id); if(el){ el.style.display='none'; }});
+                }
+                Swal.fire = function(opts){
+                    closeAllCustomModals();
+                    return originalFire(opts);
+                };
+                window.__swalPatched = true;
+            }
+        });
+    </script>
     <style>
         * {
             margin: 0;
@@ -1003,7 +1020,14 @@
                             <label for="photo" class="file-input-label">Choose Profile Picture</label>
                         </div>
                     </div>
-                    <button type="submit">Sign Up</button>
+                    <div class="form-group" style="text-align:left; font-size:14px; color:#555;">
+                        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none;">
+                            <input id="termsCheckbox" type="checkbox" style="width:18px; height:18px; cursor:pointer;" />
+                            <span>I agree to the <a href="#" onclick="openTermsModal(); return false;">Terms of Agreement</a></span>
+                        </label>
+                        <div style="margin-top:8px; font-size:12px; color:#a00; display:none;" id="termsHint">You must accept the Terms to proceed.</div>
+                    </div>
+                    <button type="submit" id="signUpBtn" disabled>Sign Up</button>
                 </form>
             </div>
         </div>
@@ -1049,6 +1073,32 @@
         <div class="mobile-toggle">
             <button onclick="showForm('loginForm')">Log In</button>
             <button onclick="showForm('registerForm')">Sign Up</button>
+        </div>
+    </div>
+
+    <!-- Terms of Agreement Modal -->
+    <div id="termsModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10070; align-items:center; justify-content:center;">
+        <div class="reset-modal-content" style="max-width:700px; max-height:80vh; display:flex; flex-direction:column;">
+            <button class="modal-close" onclick="closeTermsModal(true)">&times;</button>
+            <div class="reset-header">
+                <h3>Terms of Agreement</h3>
+                <p>Please read and accept to continue registration</p>
+            </div>
+            <div style="flex:1; overflow:auto; border:1px solid #eee; border-radius:10px; padding:16px; line-height:1.6; color:#333;">
+                <h4 style="margin:0 0 8px 0;">1. Use of the System</h4>
+                <p>You agree to use this IT Inventory System responsibly and in compliance with applicable policies and laws.</p>
+                <h4 style="margin:16px 0 8px 0;">2. Account and Access</h4>
+                <p>You are responsible for maintaining the confidentiality of your credentials and for all activities under your account.</p>
+                <h4 style="margin:16px 0 8px 0;">3. Data and Privacy</h4>
+                <p>Uploaded photos and information are used for asset tracking. Data may be logged for security and auditing.</p>
+                <h4 style="margin:16px 0 8px 0;">4. Acceptable Use</h4>
+                <p>Do not upload malicious files or attempt to bypass security controls. Violations may result in suspension.</p>
+                <h4 style="margin:16px 0 8px 0;">5. Changes</h4>
+                <p>Terms may change with notice. Continued use indicates acceptance of updated terms.</p>
+            </div>
+            <div style="text-align:right; margin-top:12px;">
+                <button type="button" class="submit-btn" onclick="acceptTerms()">I accept</button>
+            </div>
         </div>
     </div>
 
@@ -1246,6 +1296,7 @@
         let emailVerificationToken = '';
         let emailVerificationOTP = '';
         let isEmailVerified = false;
+        let termsAccepted = false;
 
         function openPasswordResetModal() {
             document.getElementById('passwordResetModal').style.display = 'flex';
@@ -1930,6 +1981,26 @@
                     input.disabled = true;
                 });
             }
+
+            // Terms checkbox logic
+            const termsCheckbox = document.getElementById('termsCheckbox');
+            const signUpBtn = document.getElementById('signUpBtn');
+            const termsHint = document.getElementById('termsHint');
+            if (termsCheckbox && signUpBtn) {
+                termsCheckbox.addEventListener('change', function(){
+                    // If user tries to check, open modal to actually accept
+                    if (this.checked && !termsAccepted) {
+                        this.checked = false; // prevent direct enabling without reading
+                        openTermsModal();
+                    }
+                    signUpBtn.disabled = !(this.checked && isEmailVerified);
+                    if (signUpBtn.disabled) {
+                        if (termsHint) termsHint.style.display = 'block';
+                    } else {
+                        if (termsHint) termsHint.style.display = 'none';
+                    }
+                });
+            }
         });
 
         // Simple CAPTCHA with rotation, noise and 60s auto refresh
@@ -2032,6 +2103,39 @@
                 if(input){ input.onkeypress = function(e){ if(e.key==='Enter'){ e.preventDefault(); trySolve(); } } }
             }
         })();
+    </script>
+    <script>
+        // Terms modal controls
+        function openTermsModal(){
+            const m = document.getElementById('termsModal'); if(m){ m.style.display='flex'; }
+        }
+        function closeTermsModal(){
+            const m = document.getElementById('termsModal'); if(m){ m.style.display='none'; }
+        }
+        function acceptTerms(){
+            // Close any open modals first and show acknowledgement via SweetAlert
+            termsAccepted = true;
+            const cb = document.getElementById('termsCheckbox');
+            if (cb) { cb.checked = true; }
+            closeTermsModal();
+            setTimeout(()=>{
+                Swal.fire({
+                    icon: 'success',
+                    title: 'Terms Accepted',
+                    text: 'You may now continue your registration.',
+                    confirmButtonColor: '#28a745',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    zIndex: 10080
+                }).then(()=>{
+                    // enable Sign Up if email already verified
+                    const btn = document.getElementById('signUpBtn');
+                    if (btn) btn.disabled = !(document.getElementById('termsCheckbox').checked && isEmailVerified);
+                    const termsHint = document.getElementById('termsHint');
+                    if (termsHint) termsHint.style.display = document.getElementById('termsCheckbox').checked ? 'none' : 'block';
+                });
+            }, 50);
+        }
     </script>
 </body>
 </html>

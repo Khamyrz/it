@@ -37,5 +37,3 @@ class user extends Authenticatable
         return $this->hasMany(RoomItem::class);
     }
 }
-
-

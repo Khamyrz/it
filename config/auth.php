@@ -62,7 +62,7 @@ return [
 'providers' => [
     'users' => [ // don't rename this key!
         'driver' => 'eloquent',
-        'model' => App\Models\user::class, // Force using App\Models\user
+        'model' => App\Models\User::class,
     ],
 ],
 

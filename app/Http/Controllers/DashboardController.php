@@ -13,44 +13,32 @@ class DashboardController extends Controller
     public function index()
     {
         $user = Auth::user();
-        
-        // Check if this is a new user for data isolation
-        $isNewUser = $user->is_new_user;
 
-        // Count items grouped by device category - create fresh query
-        $itemCountsQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id) : 
-            RoomItem::query();
-        $itemCounts = $itemCountsQuery->select('device_category')
+        // Count items grouped by device category (always filter by user)
+        $itemCounts = RoomItem::where('user_id', $user->id)
+            ->select('device_category')
             ->selectRaw('count(*) as total')
             ->groupBy('device_category')
             ->get();
 
-        // Usable and Unusable device count - create fresh queries
-        $usableCountQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id)->where('status', 'Usable') : 
-            RoomItem::where('status', 'Usable');
-        $usableCount = $usableCountQuery->count();
+        // Usable and Unusable device count (always filter by user)
+        $usableCount = RoomItem::where('user_id', $user->id)
+            ->where('status', 'Usable')
+            ->count();
         
-        $unusableCountQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id)->where('status', 'Unusable') : 
-            RoomItem::where('status', 'Unusable');
-        $unusableCount = $unusableCountQuery->count();
+        $unusableCount = RoomItem::where('user_id', $user->id)
+            ->where('status', 'Unusable')
+            ->count();
 
-        // All borrowed items - filter by user's items if new user
-        $borrowQuery = Borrow::where('status', 'Borrowed');
-        if ($isNewUser) {
-            $borrowQuery->whereHas('roomItem', function($query) use ($user) {
+        // All borrowed items (always filter by user's items)
+        $borrowedCount = Borrow::where('status', 'Borrowed')
+            ->whereHas('roomItem', function($query) use ($user) {
                 $query->where('user_id', $user->id);
-            });
-        }
-        $borrowedCount = $borrowQuery->count();
+            })
+            ->count();
 
-        // Get all room items and classify them by device type - create fresh query
-        $allItemsQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id) : 
-            RoomItem::query();
-        $allRoomItems = $allItemsQuery->get();
+        // Get all room items and classify them by device type (always filter by user)
+        $allRoomItems = RoomItem::where('user_id', $user->id)->get();
         
         // Count peripherals and computer units
         $peripheralCount = 0;
@@ -65,14 +53,13 @@ class DashboardController extends Controller
             }
         }
 
-        // Load active borrowed items with related roomItem
-        $activeBorrowedQuery = Borrow::where('status', 'Borrowed')->with('roomItem');
-        if ($isNewUser) {
-            $activeBorrowedQuery->whereHas('roomItem', function($query) use ($user) {
+        // Load active borrowed items with related roomItem (always filter by user)
+        $activeBorrowedRoomItems = Borrow::where('status', 'Borrowed')
+            ->with('roomItem')
+            ->whereHas('roomItem', function($query) use ($user) {
                 $query->where('user_id', $user->id);
-            });
-        }
-        $activeBorrowedRoomItems = $activeBorrowedQuery->get();
+            })
+            ->get();
 
         // Classify borrowed devices using the same logic
         $borrowedPeripheralCount = 0;
@@ -89,22 +76,20 @@ class DashboardController extends Controller
             }
         }
 
-        // Count usable peripherals and computer units
+        // Count usable peripherals and computer units (always filter by user)
         $usablePeripheralCount = 0;
         $usableComputerUnitCount = 0;
         $unusablePeripheralCount = 0;
         $unusableComputerUnitCount = 0;
 
-        // Create separate queries to avoid query object reuse issues
-        $usableItemsQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id)->where('status', 'Usable') : 
-            RoomItem::where('status', 'Usable');
-        $usableItems = $usableItemsQuery->get();
+        // Create separate queries to avoid query object reuse issues (always filter by user)
+        $usableItems = RoomItem::where('user_id', $user->id)
+            ->where('status', 'Usable')
+            ->get();
         
-        $unusableItemsQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id)->where('status', 'Unusable') : 
-            RoomItem::where('status', 'Unusable');
-        $unusableItems = $unusableItemsQuery->get();
+        $unusableItems = RoomItem::where('user_id', $user->id)
+            ->where('status', 'Unusable')
+            ->get();
 
         foreach ($usableItems as $item) {
             $deviceType = $this->getDeviceType($item->device_category);

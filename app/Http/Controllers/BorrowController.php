@@ -13,38 +13,21 @@ class BorrowController extends Controller
     {
         $user = auth()->user();
         
-        // Check if this is a new user
-        $isNewUser = $user->is_new_user;
-        
-        if ($isNewUser) {
-            // New users only see their own items
-            $items = RoomItem::where('user_id', $user->id)->with('latestBorrow')->get();
-            $availableItems = RoomItem::where('user_id', $user->id)
-                ->where('status', 'Usable')
-                ->whereDoesntHave('latestBorrow', function ($query) {
-                    $query->where('status', 'Borrowed');
-                })->get();
-            $activities = Borrow::with('roomItem')
-                ->whereHas('roomItem', function($query) use ($user) {
-                    $query->where('user_id', $user->id);
-                })
-                ->whereMonth('borrow_date', now()->month)
-                ->whereYear('borrow_date', now()->year)
-                ->orderByDesc('borrow_date')
-                ->get();
-        } else {
-            // Old users see all items (backward compatibility)
-            $items = RoomItem::with('latestBorrow')->get();
-            $availableItems = RoomItem::where('status', 'Usable')
-                ->whereDoesntHave('latestBorrow', function ($query) {
-                    $query->where('status', 'Borrowed');
-                })->get();
-            $activities = Borrow::with('roomItem')
-                ->whereMonth('borrow_date', now()->month)
-                ->whereYear('borrow_date', now()->year)
-                ->orderByDesc('borrow_date')
-                ->get();
-        }
+        // Always filter by authenticated user for data isolation
+        $items = RoomItem::where('user_id', $user->id)->with('latestBorrow')->get();
+        $availableItems = RoomItem::where('user_id', $user->id)
+            ->where('status', 'Usable')
+            ->whereDoesntHave('latestBorrow', function ($query) {
+                $query->where('status', 'Borrowed');
+            })->get();
+        $activities = Borrow::with('roomItem')
+            ->whereHas('roomItem', function($query) use ($user) {
+                $query->where('user_id', $user->id);
+            })
+            ->whereMonth('borrow_date', now()->month)
+            ->whereYear('borrow_date', now()->year)
+            ->orderByDesc('borrow_date')
+            ->get();
 
         return view('borrow', [
             'items' => $items,
@@ -63,12 +46,10 @@ class BorrowController extends Controller
 
         $user = auth()->user();
         
-        // Verify the item belongs to the user (for new users) or exists (for old users)
-        $itemQuery = RoomItem::where('id', $request->room_item_id);
-        if ($user->is_new_user) {
-            $itemQuery->where('user_id', $user->id);
-        }
-        $item = $itemQuery->firstOrFail();
+        // Always verify the item belongs to the user
+        $item = RoomItem::where('id', $request->room_item_id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
 
         // Create borrow record
         Borrow::create([
@@ -89,14 +70,13 @@ class BorrowController extends Controller
     {
         $user = auth()->user();
         
-        // Find borrow record and verify user has access to the item
-        $borrowQuery = Borrow::with('roomItem')->where('id', $id);
-        if ($user->is_new_user) {
-            $borrowQuery->whereHas('roomItem', function($query) use ($user) {
+        // Always find borrow record and verify user has access to the item
+        $borrow = Borrow::with('roomItem')
+            ->where('id', $id)
+            ->whereHas('roomItem', function($query) use ($user) {
                 $query->where('user_id', $user->id);
-            });
-        }
-        $borrow = $borrowQuery->firstOrFail();
+            })
+            ->firstOrFail();
         
         $borrow->status = 'Returned';
         $borrow->return_date = now();

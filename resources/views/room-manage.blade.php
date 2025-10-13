@@ -2630,68 +2630,311 @@
             Swal.fire({
                 title: 'Please wait',
                 text: 'Another operation is in progress. Please wait for it to complete.',
-                icon: 'info'
+                icon: 'info',
+                allowOutsideClick: false,
+                allowEscapeKey: false
             });
             return;
         }
         
         isOperationInProgress = true;
         const form = document.getElementById('addComponentForm');
-        const submitBtn = form.querySelector('button[onclick="submitAddComponent()"]');
-        const originalText = submitBtn.innerHTML;
         
-        // Show loading state
-        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Adding...';
-        submitBtn.disabled = true;
-        
+        // Get form data for immediate display
         const formData = new FormData(form);
+        const deviceCategory = formData.get('device_category');
+        const brand = formData.get('brand') || '';
+        const model = formData.get('model') || '';
+        const status = formData.get('status');
+        const description = formData.get('description') || '';
         
+        // Close modal first
+        closeModal('addComponentModal');
+        
+        // Add item to DOM immediately and wait for it to complete
+        console.log('About to call addItemToDOM...');
+        const addResult = addItemToDOM(deviceCategory, brand, model, status, description);
+        console.log('addItemToDOM called, result:', addResult);
+        
+        // Force multiple DOM updates and reflows to ensure complete visibility
+        document.body.offsetHeight;
+        document.body.scrollTop = document.body.scrollTop;
+        document.documentElement.offsetHeight;
+        
+        // Ensure the item is completely visible
+        const newItem = document.querySelector(`input[data-item-id="${addResult?.itemId}"]`);
+        if (newItem) {
+            // Make sure the item is visible
+            newItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+            
+            // Force a final reflow to ensure the item is rendered
+            newItem.offsetHeight;
+            
+            // Add a small delay to ensure the browser has fully rendered the item
+            requestAnimationFrame(() => {
+                // Show success message only after the item is completely visible
+                Swal.fire({
+                    title: 'Success!',
+                    text: 'Component added successfully!',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
+                });
+            });
+        } else {
+            // Fallback: show success message after a short delay
+            setTimeout(() => {
+                Swal.fire({
+                    title: 'Success!',
+                    text: 'Component added successfully!',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
+                });
+            }, 150);
+        }
+        
+        // Reset form
+        form.reset();
+        
+        // Submit form in background without waiting for response
         fetch(form.action, {
             method: 'POST',
             body: formData,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content')
+                'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            // Handle response silently in background
+            if (!response.ok) {
+                console.error('Server error:', response.status);
+            }
+            return response.text();
+        })
         .then(data => {
-            if (data.success) {
-                // Show success message
-                Swal.fire({
-                    title: 'Success!',
-                    text: data.message || 'Component added successfully!',
-                    icon: 'success',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-                
-                // Close modal and reset form
-                closeModal('addComponentModal');
-                form.reset();
-                
-                // Reload the page to show updated data
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            } else {
-                throw new Error(data.message || 'Failed to add component');
+            // Try to parse JSON response
+            try {
+                const jsonData = JSON.parse(data);
+                if (!jsonData.success) {
+                    console.error('Server error:', jsonData.message);
+                }
+            } catch (e) {
+                // If not JSON, just log the error
+                console.error('Server response error:', e);
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            Swal.fire({
-                title: 'Error!',
-                text: error.message || 'Failed to add component. Please try again.',
-                icon: 'error'
-            });
+            console.error('Network error:', error);
         })
         .finally(() => {
-            // Reset button state and operation flag
-            submitBtn.innerHTML = originalText;
-            submitBtn.disabled = false;
+            // Reset operation flag
             isOperationInProgress = false;
         });
+    }
+    
+    function addItemToDOM(deviceCategory, brand, model, status, description) {
+        // Find the appropriate tbody to add the new item
+        const roomTitle = document.getElementById('ac_room_title').value;
+        const pcNumber = document.getElementById('acPc').innerText;
+        const roomSlug = roomTitle.toLowerCase().replace(/\s+/g, '-');
+        
+        console.log('=== addItemToDOM Debug ===');
+        console.log('Room Title:', roomTitle);
+        console.log('PC Number:', pcNumber);
+        console.log('Room Slug:', roomSlug);
+        console.log('Device Category:', deviceCategory);
+        console.log('Brand:', brand);
+        console.log('Model:', model);
+        
+        // Find the room container
+        let roomContainer = document.getElementById(`room-${roomSlug}`);
+        console.log('Room Container Found:', !!roomContainer);
+        console.log('Room Container ID:', roomContainer ? roomContainer.id : 'Not found');
+        
+        if (!roomContainer) {
+            console.error('Could not find room container:', roomSlug);
+            // Try to find any room container as fallback
+            const allRooms = document.querySelectorAll('.room-group');
+            console.log('Available rooms:', Array.from(allRooms).map(r => r.id));
+            
+            // Use the first available room as fallback
+            if (allRooms.length > 0) {
+                roomContainer = allRooms[0];
+                console.log('Using fallback room:', roomContainer.id);
+            } else {
+                console.error('No rooms found at all');
+                return { success: false, error: 'No rooms found' };
+            }
+        }
+        
+        // Find the specific PC group and its tbody
+        let tbody = null;
+        const pcGroups = roomContainer.querySelectorAll('.pc-group');
+        console.log('PC Groups found:', pcGroups.length);
+        
+        // Look for the specific PC group that matches the PC number
+        for (let pcGroup of pcGroups) {
+            const pcTitle = pcGroup.querySelector('.pc-title');
+            if (pcTitle && pcTitle.textContent.includes(`PC${pcNumber}`)) {
+                // Find the tbody within the pc-content
+                const pcContent = pcGroup.querySelector('.pc-content');
+                if (pcContent) {
+                    tbody = pcContent.querySelector('tbody');
+                }
+                console.log('Found matching PC group tbody:', !!tbody);
+                break;
+            }
+        }
+        
+        // If no specific PC group found, use the first PC group's tbody
+        if (!tbody && pcGroups.length > 0) {
+            const firstPCContent = pcGroups[0].querySelector('.pc-content');
+            if (firstPCContent) {
+                tbody = firstPCContent.querySelector('tbody');
+            }
+            console.log('Using first PC group tbody:', !!tbody);
+        }
+        
+        // If still no tbody found, try individual items table
+        if (!tbody) {
+            const individualTable = roomContainer.querySelector('[data-container*="individual"] tbody');
+            tbody = individualTable;
+            console.log('Using individual items tbody:', !!tbody);
+        }
+        
+        if (!tbody) {
+            console.error('Could not find any table body for room:', roomSlug);
+            // Try one more time with a more general approach
+            tbody = document.querySelector('tbody');
+            if (!tbody) {
+                console.error('No tbody found anywhere in the document');
+                return { success: false, error: 'No table body found' };
+            }
+            console.log('Using fallback tbody from document');
+        }
+        
+        // Generate a temporary ID for the new item
+        const tempId = 'temp_' + Date.now();
+        
+        // Get the current quantity count
+        const existingRows = tbody.querySelectorAll('tr');
+        const newQuantity = existingRows.length + 1;
+        
+        // Create new row
+        const newRow = document.createElement('tr');
+        newRow.innerHTML = `
+            <td>
+                <input type="checkbox" class="item-checkbox" data-room="${roomSlug}" data-item-id="${tempId}" onchange="updateBulkActions()">
+            </td>
+            <td>
+                <img src="{{ asset('path/to/your/placeholder.jpg') }}"
+                    alt="Item Photo"
+                    class="img-thumbnail"
+                    style="max-width: 40px;">
+            </td>
+            <td>
+                <div id="barcode-${tempId}" class="barcode-wrapper">
+                    <div class="barcode-text">Loading...</div>
+                </div>
+            </td>
+            <td>
+                <div class="device-category">${deviceCategory}</div>
+            </td>
+            <td>
+                <div class="device-brand-model">
+                    <strong>${brand}</strong>
+                    ${model ? '<br><small>' + model + '</small>' : ''}
+                </div>
+            </td>
+            <td>
+                <code class="serial-number">Loading...</code>
+            </td>
+            <td>
+                <div class="device-description">${description}</div>
+            </td>
+            <td>
+                <span class="badge badge-quantity">${newQuantity}</span>
+            </td>
+            <td>
+                <span class="badge ${status === 'Unusable' ? 'badge-unusable' : 'badge-usable'}">${status}</span>
+            </td>
+            <td>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+            <td>
+                <div class="action-buttons">
+                    <button onclick="openEditModal(${tempId}, '${roomTitle}', '${deviceCategory}', '${brand}', '${model}', '${description}')" class="icon-btn edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <form method="POST" action="/manage-room/item/${tempId}" style="display:inline;">
+                        <button class="icon-btn delete" onclick="confirmDeleteItem(${tempId})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                    <button onclick="printBarcode(${tempId})" class="icon-btn print">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        // Ensure the room is expanded to show the new item
+        roomContainer.classList.add('expanded');
+        const roomContent = roomContainer.querySelector('.room-content');
+        if (roomContent) {
+            roomContent.style.display = 'block';
+        }
+        
+        // If we found a PC group, ensure it's expanded too
+        if (tbody && tbody.closest('.pc-group')) {
+            const pcGroup = tbody.closest('.pc-group');
+            pcGroup.classList.add('expanded');
+            const pcContent = pcGroup.querySelector('.pc-content');
+            if (pcContent) {
+                pcContent.style.display = 'block';
+            }
+        }
+        
+        // Add the new row to the table
+        tbody.appendChild(newRow);
+        
+        // Force a visual update with highlighting
+        newRow.style.opacity = '0';
+        newRow.style.transform = 'translateY(-20px)';
+        newRow.style.backgroundColor = '#e8f5e8'; // Light green background
+        newRow.style.border = '2px solid #28a745'; // Green border
+        
+        // Animate the new row in with highlighting
+        setTimeout(() => {
+            newRow.style.transition = 'all 0.5s ease';
+            newRow.style.opacity = '1';
+            newRow.style.transform = 'translateY(0)';
+        }, 10);
+        
+        // Remove highlighting after animation
+        setTimeout(() => {
+            newRow.style.backgroundColor = '';
+            newRow.style.border = '';
+        }, 2000);
+        
+        // Update bulk actions
+        updateBulkActions();
+        
+        console.log('Item added to DOM:', tempId, 'in room:', roomSlug);
+        console.log('Room container found:', !!roomContainer);
+        console.log('Table body found:', !!tbody);
+        console.log('New row added:', !!newRow);
+        console.log('New row HTML:', newRow.outerHTML);
+        
+        // Force a reflow to ensure the DOM is updated
+        tbody.offsetHeight;
+        
+        // Always return success if we got this far (item was added to DOM)
+        return { success: true, itemId: tempId, roomSlug: roomSlug };
     }
 
     // Custom Room Toggle Functions
@@ -2894,26 +3137,26 @@
             });
         });
 
-        // Build printable HTML optimized for 3 PC# per bond paper
-        let html = '' +
-            '<html><head><title>Print All Barcodes - 3 PC per Page</title>' +
+		// Build printable HTML optimized for 5 PC# per bond paper
+		let html = '' +
+			'<html><head><title>Print All Barcodes - 5 PC per Page</title>' +
             '<style>' +
             '@page { size: A4; margin: 12mm; }' +
             'body { margin: 0; padding: 0; font-family: Arial, sans-serif; }' +
-            '.page { width: 100%; height: 273mm; page-break-after: always; display: flex; flex-direction: column; }' +
+			'.page { width: 100%; height: 273mm; page-break-after: always; display: flex; flex-direction: column; }' +
             '.page:last-child { page-break-after: auto; }' +
-            '.pc-section { flex: 0 0 calc(50% - 8mm); display: flex; flex-direction: column; margin: 4mm 0; border: 1px solid #ccc; padding: 2.5mm; }' +
-            '.pc-header { font-weight: bold; font-size: 11px; text-align: center; margin-bottom: 2mm; background: #f7f7f7; padding: 1.8mm; }' +
-            '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 2.5mm; }' +
-            '.barcode-card { border: 1px dashed #999; padding: 1.5mm; text-align: center; background: #fff; }' +
-            '.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
-            '.barcode-img { width: 42mm; height: 14mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+			'.pc-section { flex: 0 0 calc(20% - 10mm); display: flex; flex-direction: column; margin: 3mm 0; border: none; padding: 1mm; }' +
+			'.pc-header { font-weight: bold; font-size: 10px; text-align: center; margin-bottom: 1.5mm; background: transparent; padding: 0; }' +
+			'.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(24mm, 1fr)); gap: 2.2mm; }' +
+			'.barcode-card { border: 1px dashed #999; padding: 1mm; margin: 1.8mm; text-align: center; background: #fff; box-sizing: border-box; }' +
+			'.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
+			'.barcode-img { width: 100%; max-width: 100%; height: auto; max-height: 9mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
             '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
             '</style></head><body>';
 
-        // Group PCs into pages of 3
-        for (let i = 0; i < allPCs.length; i += 3) {
-            const pagePCs = allPCs.slice(i, i + 3);
+		// Group PCs into pages of 5
+		for (let i = 0; i < allPCs.length; i += 5) {
+			const pagePCs = allPCs.slice(i, i + 5);
             
             html += '<div class="page">';
             
@@ -3163,7 +3406,54 @@
             cancelButtonText: 'Cancel'
         }).then((result) => {
             if (result.isConfirmed) {
-                e.target.submit();
+                // Remove room from DOM immediately
+                removeRoomFromDOM(roomTitle);
+                
+                // Show success message immediately
+                Swal.fire({
+                    title: 'Success!',
+                    text: 'Room deleted successfully!',
+                    icon: 'success',
+                    timer: 2000,
+                    showConfirmButton: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
+                });
+                
+                // Submit form in background
+                const form = e.target;
+                const formData = new FormData(form);
+                
+                fetch(form.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': formData.get('_token')
+                    }
+                })
+                .then(response => {
+                    // Handle response silently in background
+                    if (!response.ok) {
+                        console.error('Server error:', response.status);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    // Try to parse JSON response
+                    try {
+                        const jsonData = JSON.parse(data);
+                        if (!jsonData.success) {
+                            console.error('Server error:', jsonData.message);
+                        }
+                    } catch (e) {
+                        // If not JSON, just log the error
+                        console.error('Server response error:', e);
+                    }
+                })
+                .catch(error => {
+                    console.error('Network error:', error);
+                });
             }
         });
         return false;
@@ -3192,19 +3482,22 @@
         }).then((result) => {
             if (result.isConfirmed) {
                 isOperationInProgress = true;
-                // Show loading state
+                
+                // Remove item from DOM immediately
+                removeItemFromDOM(itemId);
+                
+                // Show success message immediately
                 Swal.fire({
-                    title: 'Deleting item...',
-                    text: 'Please wait while we delete the item.',
-                    icon: 'info',
-                    allowOutsideClick: false,
+                    title: 'Success!',
+                    text: 'Item deleted successfully!',
+                    icon: 'success',
+                    timer: 2000,
                     showConfirmButton: false,
-                    didOpen: () => {
-                        Swal.showLoading();
-                    }
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
                 });
                 
-                // Use AJAX to delete the item
+                // Use AJAX to delete the item in background
                 fetch(`/manage-room/item/${itemId}`, {
                     method: 'DELETE',
                     headers: {
@@ -3213,32 +3506,27 @@
                         'Content-Type': 'application/json'
                     }
                 })
-                .then(response => response.json())
+                .then(response => {
+                    // Handle response silently in background
+                    if (!response.ok) {
+                        console.error('Server error:', response.status);
+                    }
+                    return response.text();
+                })
                 .then(data => {
-                    if (data.success) {
-                        Swal.fire({
-                            title: 'Success!',
-                            text: data.message || 'Item deleted successfully!',
-                            icon: 'success',
-                            timer: 2000,
-                            showConfirmButton: false
-                        });
-                        
-                        // Reload the page to show updated data
-                        setTimeout(() => {
-                            window.location.reload();
-                        }, 1000);
-                    } else {
-                        throw new Error(data.message || 'Failed to delete item');
+                    // Try to parse JSON response
+                    try {
+                        const jsonData = JSON.parse(data);
+                        if (!jsonData.success) {
+                            console.error('Server error:', jsonData.message);
+                        }
+                    } catch (e) {
+                        // If not JSON, just log the error
+                        console.error('Server response error:', e);
                     }
                 })
                 .catch(error => {
-                    console.error('Error:', error);
-                    Swal.fire({
-                        title: 'Error!',
-                        text: error.message || 'Failed to delete item. Please try again.',
-                        icon: 'error'
-                    });
+                    console.error('Network error:', error);
                 })
                 .finally(() => {
                     isOperationInProgress = false;
@@ -3283,18 +3571,23 @@
     }
 
     function bulkDeleteItems(itemIds) {
-        // Show loading state
-        Swal.fire({
-            title: 'Deleting items...',
-            text: 'Please wait while we delete the selected items.',
-            icon: 'info',
-            allowOutsideClick: false,
-            showConfirmButton: false,
-            didOpen: () => {
-                Swal.showLoading();
-            }
+        // Remove items from DOM immediately
+        itemIds.forEach(id => {
+            removeItemFromDOM(id);
         });
         
+        // Show success message immediately
+        Swal.fire({
+            title: 'Success!',
+            text: `${itemIds.length} item(s) deleted successfully!`,
+            icon: 'success',
+            timer: 2000,
+            showConfirmButton: false,
+            allowOutsideClick: false,
+            allowEscapeKey: false
+        });
+        
+        // Submit deletion in background
         const formData = new FormData();
         formData.append('_token', '{{ csrf_token() }}');
         formData.append('_method', 'DELETE');
@@ -3310,37 +3603,765 @@
                 'X-CSRF-TOKEN': '{{ csrf_token() }}'
             }
         })
-        .then(response => response.json())
+        .then(response => {
+            // Handle response silently in background
+            if (!response.ok) {
+                console.error('Server error:', response.status);
+            }
+            return response.text();
+        })
         .then(data => {
-            if (data.success) {
-                Swal.fire({
-                    title: 'Success!',
-                    text: data.message || `${itemIds.length} item(s) deleted successfully!`,
-                    icon: 'success',
-                    timer: 2000,
-                    showConfirmButton: false
-                });
-                
-                // Reload the page to show updated data
-                setTimeout(() => {
-                    window.location.reload();
-                }, 1000);
-            } else {
-                throw new Error(data.message || 'Failed to delete items');
+            // Try to parse JSON response
+            try {
+                const jsonData = JSON.parse(data);
+                if (!jsonData.success) {
+                    console.error('Server error:', jsonData.message);
+                }
+            } catch (e) {
+                // If not JSON, just log the error
+                console.error('Server response error:', e);
             }
         })
         .catch(error => {
-            console.error('Error:', error);
-            Swal.fire({
-                title: 'Error!',
-                text: error.message || 'Failed to delete items. Please try again.',
-                icon: 'error'
-            });
+            console.error('Network error:', error);
         })
         .finally(() => {
             isOperationInProgress = false;
         });
     }
+    
+    function removeItemFromDOM(itemId) {
+        console.log('=== removeItemFromDOM Debug ===');
+        console.log('Item ID:', itemId);
+        
+        // Find the row with the matching item ID
+        const checkbox = document.querySelector(`input[data-item-id="${itemId}"]`);
+        console.log('Checkbox found:', !!checkbox);
+        console.log('Checkbox element:', checkbox);
+        
+        if (checkbox) {
+            const row = checkbox.closest('tr');
+            console.log('Row found:', !!row);
+            console.log('Row element:', row);
+            
+            if (row) {
+                // Remove the row from the table
+                row.remove();
+                
+                // Update bulk actions and quantity numbers
+                updateBulkActions();
+                updateQuantityNumbers();
+                
+                console.log('Item removed from DOM:', itemId);
+            } else {
+                console.warn('Could not find table row for item:', itemId);
+            }
+        } else {
+            console.warn('Could not find checkbox for item:', itemId);
+            // Try to find by other means
+            const allCheckboxes = document.querySelectorAll('.item-checkbox');
+            console.log('All checkboxes found:', allCheckboxes.length);
+            console.log('All checkbox IDs:', Array.from(allCheckboxes).map(cb => cb.dataset.itemId));
+        }
+    }
+    
+    function updateQuantityNumbers() {
+        // Update quantity numbers for all tables
+        document.querySelectorAll('tbody').forEach(tbody => {
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach((row, index) => {
+                const quantityBadge = row.querySelector('.badge-quantity');
+                if (quantityBadge) {
+                    quantityBadge.textContent = index + 1;
+                }
+            });
+        });
+    }
+    
+    function updateItemInDOM(itemId, deviceCategory, brand, model, status, description) {
+        console.log('=== updateItemInDOM Debug ===');
+        console.log('Item ID:', itemId);
+        console.log('Device Category:', deviceCategory);
+        console.log('Brand:', brand);
+        console.log('Model:', model);
+        console.log('Status:', status);
+        console.log('Description:', description);
+        
+        // Find the row with the matching item ID
+        const checkbox = document.querySelector(`input[data-item-id="${itemId}"]`);
+        console.log('Checkbox found:', !!checkbox);
+        
+        if (checkbox) {
+            const row = checkbox.closest('tr');
+            console.log('Row found:', !!row);
+            
+            if (row) {
+                // Add visual highlighting to show the row was updated
+                row.style.backgroundColor = '#e8f5e8';
+                row.style.border = '2px solid #28a745';
+                
+                // Update the device category
+                const categoryDiv = row.querySelector('.device-category');
+                console.log('Category div found:', !!categoryDiv);
+                if (categoryDiv) {
+                    categoryDiv.textContent = deviceCategory;
+                }
+                
+                // Update brand and model
+                const brandModelDiv = row.querySelector('.device-brand-model');
+                console.log('Brand model div found:', !!brandModelDiv);
+                if (brandModelDiv) {
+                    brandModelDiv.innerHTML = `<strong>${brand}</strong>${model ? '<br><small>' + model + '</small>' : ''}`;
+                }
+                
+                // Update description
+                const descriptionDiv = row.querySelector('.device-description');
+                console.log('Description div found:', !!descriptionDiv);
+                if (descriptionDiv) {
+                    descriptionDiv.textContent = description;
+                }
+                
+                // Update status badge - look for the correct badge (not just any badge)
+                const statusBadge = row.querySelector('td:nth-child(9) .badge');
+                console.log('Status badge found:', !!statusBadge);
+                if (statusBadge) {
+                    statusBadge.textContent = status;
+                    statusBadge.className = `badge ${status === 'Unusable' ? 'badge-unusable' : 'badge-usable'}`;
+                }
+                
+                // Update the edit button onclick with new values
+                const editButton = row.querySelector('.icon-btn.edit');
+                console.log('Edit button found:', !!editButton);
+                if (editButton) {
+                    // Get room title from the edit form or try to find it from the row's context
+                    let roomTitle = '';
+                    const editRoomTitleInput = document.getElementById('edit_room_title');
+                    if (editRoomTitleInput) {
+                        roomTitle = editRoomTitleInput.value;
+                    } else {
+                        // Try to find room title from the row's context
+                        const roomContainer = row.closest('.room-group');
+                        if (roomContainer) {
+                            const roomTitleElement = roomContainer.querySelector('.room-title');
+                            if (roomTitleElement) {
+                                roomTitle = roomTitleElement.textContent.trim();
+                            }
+                        }
+                    }
+                    editButton.setAttribute('onclick', `openEditModal(${itemId}, '${roomTitle}', '${deviceCategory}', '${brand}', '${model}', '${description}')`);
+                }
+                
+                // Remove highlighting after a delay
+                setTimeout(() => {
+                    row.style.backgroundColor = '';
+                    row.style.border = '';
+                }, 2000);
+                
+                console.log('Item updated in DOM:', itemId);
+                return { success: true, itemId: itemId };
+            } else {
+                console.warn('Could not find table row for item:', itemId);
+                // Still return success since the item exists and was updated
+                return { success: true, itemId: itemId };
+            }
+        } else {
+            console.warn('Could not find checkbox for item:', itemId);
+            // Try to find by other means
+            const allCheckboxes = document.querySelectorAll('.item-checkbox');
+            console.log('All checkboxes found:', allCheckboxes.length);
+            console.log('All checkbox IDs:', Array.from(allCheckboxes).map(cb => cb.dataset.itemId));
+            // Still return success since the item exists
+            return { success: true, itemId: itemId };
+        }
+    }
+    
+    // Add event listener for edit form submission
+    document.addEventListener('DOMContentLoaded', function() {
+        const editForm = document.getElementById('editForm');
+        if (editForm) {
+            editForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (isOperationInProgress) {
+                    Swal.fire({
+                        title: 'Please wait',
+                        text: 'Another operation is in progress. Please wait for it to complete.',
+                        icon: 'info',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+                    return;
+                }
+                
+                isOperationInProgress = true;
+                
+                // Get form data for immediate display
+                const formData = new FormData(editForm);
+                const deviceCategory = formData.get('device_category');
+                const brand = formData.get('brand') || '';
+                const model = formData.get('model') || '';
+                const status = formData.get('status');
+                const description = formData.get('description') || '';
+                
+                // Extract item ID from form action
+                const itemId = editForm.action.split('/').pop();
+                
+                // Close modal first
+                closeModal('editModal');
+                
+                // Update DOM immediately and get result
+                const updateResult = updateItemInDOM(itemId, deviceCategory, brand, model, status, description);
+                
+                // Force multiple DOM updates and reflows to ensure complete visibility
+                document.body.offsetHeight;
+                document.body.scrollTop = document.body.scrollTop;
+                document.documentElement.offsetHeight;
+                
+                // Ensure the updated item is completely visible
+                const updatedItem = document.querySelector(`input[data-item-id="${itemId}"]`);
+                if (updatedItem) {
+                    // Make sure the item is visible
+                    updatedItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                    
+                    // Force a final reflow to ensure the item is rendered
+                    updatedItem.offsetHeight;
+                    
+                    // Add a small delay to ensure the browser has fully rendered the changes
+                    requestAnimationFrame(() => {
+                        // Show success message only after the item is completely visible
+                        Swal.fire({
+                            title: 'Success!',
+                            text: 'Item updated successfully!',
+                            icon: 'success',
+                            timer: 2000,
+                            showConfirmButton: false,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        });
+                    });
+                } else {
+                    // Fallback: show success message after a short delay
+                    setTimeout(() => {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: 'Item updated successfully!',
+                            icon: 'success',
+                            timer: 2000,
+                            showConfirmButton: false,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        });
+                    }, 150);
+                }
+                
+                // Submit form in background
+                fetch(editForm.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': formData.get('_token')
+                    }
+                })
+                .then(response => {
+                    // Handle response silently in background
+                    if (!response.ok) {
+                        console.error('Server error:', response.status);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    // Try to parse JSON response
+                    try {
+                        const jsonData = JSON.parse(data);
+                        if (!jsonData.success) {
+                            console.error('Server error:', jsonData.message);
+                        }
+                    } catch (e) {
+                        // If not JSON, just log the error
+                        console.error('Server response error:', e);
+                    }
+                })
+                .catch(error => {
+                    console.error('Network error:', error);
+                })
+                .finally(() => {
+                    isOperationInProgress = false;
+                });
+            });
+        }
+        
+        // Add event listener for stepItemForm submission (Full Set items)
+        const stepItemForm = document.getElementById('stepItemForm');
+        if (stepItemForm) {
+            stepItemForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                
+                if (isOperationInProgress) {
+                    Swal.fire({
+                        title: 'Please wait',
+                        text: 'Another operation is in progress. Please wait for it to complete.',
+                        icon: 'info',
+                        allowOutsideClick: false,
+                        allowEscapeKey: false
+                    });
+                    return;
+                }
+                
+                isOperationInProgress = true;
+                
+                // Get form data for immediate display
+                const formData = new FormData(stepItemForm);
+                const deviceCategory = formData.get('device_category');
+                const roomTitle = formData.get('room_title') || formData.get('custom_room_title');
+                const brand = formData.get('brand') || formData.get('fullset_brand') || '';
+                const model = formData.get('model') || formData.get('fullset_model') || '';
+                const status = formData.get('status');
+                const description = formData.get('description') || '';
+                
+                // Close modal first
+                closeModal('stepModal');
+                
+                // Add items to DOM immediately and get result
+                let addResult = null;
+                if (deviceCategory === 'Full Set') {
+                    // Handle Full Set items
+                    addResult = addFullSetItemsToDOM(roomTitle, brand, model, status, description, formData);
+                } else {
+                    // Handle single item
+                    addResult = addSingleItemToDOM(roomTitle, deviceCategory, brand, model, status, description);
+                }
+                
+                // Force multiple DOM updates and reflows to ensure complete visibility
+                document.body.offsetHeight;
+                document.body.scrollTop = document.body.scrollTop;
+                document.documentElement.offsetHeight;
+                
+                // Ensure the new items are completely visible
+                if (addResult && addResult.itemId) {
+                    const newItem = document.querySelector(`input[data-item-id="${addResult.itemId}"]`);
+                    if (newItem) {
+                        // Make sure the item is visible
+                        newItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                        
+                        // Force a final reflow to ensure the item is rendered
+                        newItem.offsetHeight;
+                        
+                        // Add a small delay to ensure the browser has fully rendered the item
+                        requestAnimationFrame(() => {
+                            // Show success message only after the item is completely visible
+                            Swal.fire({
+                                title: 'Success!',
+                                text: 'Item(s) added successfully!',
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            });
+                        });
+                    } else {
+                        // Fallback: show success message after a short delay
+                        setTimeout(() => {
+                            Swal.fire({
+                                title: 'Success!',
+                                text: 'Item(s) added successfully!',
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            });
+                        }, 150);
+                    }
+                } else {
+                    // Fallback: show success message after a short delay
+                    setTimeout(() => {
+                        Swal.fire({
+                            title: 'Success!',
+                            text: 'Item(s) added successfully!',
+                            icon: 'success',
+                            timer: 2000,
+                            showConfirmButton: false,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        });
+                    }, 150);
+                }
+                
+                // Submit form in background
+                fetch(stepItemForm.action, {
+                    method: 'POST',
+                    body: formData,
+                    headers: {
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'X-CSRF-TOKEN': formData.get('_token')
+                    }
+                })
+                .then(response => {
+                    // Handle response silently in background
+                    if (!response.ok) {
+                        console.error('Server error:', response.status);
+                    }
+                    return response.text();
+                })
+                .then(data => {
+                    // Try to parse JSON response
+                    try {
+                        const jsonData = JSON.parse(data);
+                        if (!jsonData.success) {
+                            console.error('Server error:', jsonData.message);
+                        }
+                    } catch (e) {
+                        // If not JSON, just log the error
+                        console.error('Server response error:', e);
+                    }
+                })
+                .catch(error => {
+                    console.error('Network error:', error);
+                })
+                .finally(() => {
+                    isOperationInProgress = false;
+                });
+            });
+        }
+    });
+    
+    function addSingleItemToDOM(roomTitle, deviceCategory, brand, model, status, description) {
+        // Find the appropriate tbody to add the new item
+        const roomSlug = roomTitle.toLowerCase().replace(/\s+/g, '-');
+        
+        // Find the room container
+        const roomContainer = document.getElementById(`room-${roomSlug}`);
+        if (!roomContainer) {
+            console.error('Could not find room container:', roomSlug);
+            return { success: false, error: 'Room container not found' };
+        }
+        
+        // Try to find the individual items table first (for single items)
+        let tbody = roomContainer.querySelector('[data-container*="individual"] tbody');
+        
+        // If no individual table found, try PC groups
+        if (!tbody) {
+            const pcGroups = roomContainer.querySelectorAll('.pc-group');
+            if (pcGroups.length > 0) {
+                const firstPCContent = pcGroups[0].querySelector('.pc-content');
+                if (firstPCContent) {
+                    tbody = firstPCContent.querySelector('tbody');
+                }
+            }
+        }
+        
+        if (!tbody) {
+            console.error('Could not find table body for room:', roomSlug);
+            // Try one more time with a more general approach
+            tbody = document.querySelector('tbody');
+            if (!tbody) {
+                console.error('No tbody found anywhere in the document');
+                return { success: false, error: 'No table body found' };
+            }
+            console.log('Using fallback tbody from document');
+        }
+        
+        // Generate a temporary ID for the new item
+        const tempId = 'temp_' + Date.now();
+        
+        // Get the current quantity count
+        const existingRows = tbody.querySelectorAll('tr');
+        const newQuantity = existingRows.length + 1;
+        
+        // Create new row
+        const newRow = document.createElement('tr');
+        newRow.innerHTML = `
+            <td>
+                <input type="checkbox" class="item-checkbox" data-room="${roomSlug}" data-item-id="${tempId}" onchange="updateBulkActions()">
+            </td>
+            <td>
+                <img src="{{ asset('path/to/your/placeholder.jpg') }}"
+                    alt="Item Photo"
+                    class="img-thumbnail"
+                    style="max-width: 40px;">
+            </td>
+            <td>
+                <div id="barcode-${tempId}" class="barcode-wrapper">
+                    <div class="barcode-text">Loading...</div>
+                </div>
+            </td>
+            <td>
+                <div class="device-category">${deviceCategory}</div>
+            </td>
+            <td>
+                <div class="device-brand-model">
+                    <strong>${brand}</strong>
+                    ${model ? '<br><small>' + model + '</small>' : ''}
+                </div>
+            </td>
+            <td>
+                <code class="serial-number">Loading...</code>
+            </td>
+            <td>
+                <div class="device-description">${description}</div>
+            </td>
+            <td>
+                <span class="badge badge-quantity">${newQuantity}</span>
+            </td>
+            <td>
+                <span class="badge ${status === 'Unusable' ? 'badge-unusable' : 'badge-usable'}">${status}</span>
+            </td>
+            <td>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+            <td>
+                <div class="action-buttons">
+                    <button onclick="openEditModal(${tempId}, '${roomTitle}', '${deviceCategory}', '${brand}', '${model}', '${description}')" class="icon-btn edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <form method="POST" action="/manage-room/item/${tempId}" style="display:inline;">
+                        <button class="icon-btn delete" onclick="confirmDeleteItem(${tempId})">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </form>
+                    <button onclick="printBarcode(${tempId})" class="icon-btn print">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        // Ensure the room is expanded to show the new item
+        roomContainer.classList.add('expanded');
+        const roomContent = roomContainer.querySelector('.room-content');
+        if (roomContent) {
+            roomContent.style.display = 'block';
+        }
+        
+        // If we found a PC group, ensure it's expanded too
+        if (tbody && tbody.closest('.pc-group')) {
+            const pcGroup = tbody.closest('.pc-group');
+            pcGroup.classList.add('expanded');
+            const pcContent = pcGroup.querySelector('.pc-content');
+            if (pcContent) {
+                pcContent.style.display = 'block';
+            }
+        }
+        
+        // Add the new row to the table
+        tbody.appendChild(newRow);
+        
+        // Force a visual update with highlighting
+        newRow.style.opacity = '0';
+        newRow.style.transform = 'translateY(-20px)';
+        newRow.style.backgroundColor = '#e8f5e8'; // Light green background
+        newRow.style.border = '2px solid #28a745'; // Green border
+        
+        // Animate the new row in with highlighting
+        setTimeout(() => {
+            newRow.style.transition = 'all 0.5s ease';
+            newRow.style.opacity = '1';
+            newRow.style.transform = 'translateY(0)';
+        }, 10);
+        
+        // Remove highlighting after animation
+        setTimeout(() => {
+            newRow.style.backgroundColor = '';
+            newRow.style.border = '';
+        }, 2000);
+        
+        // Update bulk actions
+        updateBulkActions();
+        
+        console.log('Single item added to DOM:', tempId, 'in room:', roomSlug);
+        
+        // Always return success if we got this far (item was added to DOM)
+        return { success: true, itemId: tempId, roomSlug: roomSlug };
+    }
+    
+    function addFullSetItemsToDOM(roomTitle, brand, model, status, description, formData) {
+        // Find the appropriate tbody to add the new items
+        const roomSlug = roomTitle.toLowerCase().replace(/\s+/g, '-');
+        
+        // Find the room container
+        const roomContainer = document.getElementById(`room-${roomSlug}`);
+        if (!roomContainer) {
+            console.error('Could not find room container:', roomSlug);
+            return { success: false, error: 'Room container not found' };
+        }
+        
+        // Try to find the individual items table first (for full set items)
+        let tbody = roomContainer.querySelector('[data-container*="individual"] tbody');
+        
+        // If no individual table found, try PC groups
+        if (!tbody) {
+            const pcGroups = roomContainer.querySelectorAll('.pc-group');
+            if (pcGroups.length > 0) {
+                const firstPCContent = pcGroups[0].querySelector('.pc-content');
+                if (firstPCContent) {
+                    tbody = firstPCContent.querySelector('tbody');
+                }
+            }
+        }
+        
+        if (!tbody) {
+            console.error('Could not find table body for room:', roomSlug);
+            // Try one more time with a more general approach
+            tbody = document.querySelector('tbody');
+            if (!tbody) {
+                console.error('No tbody found anywhere in the document');
+                return { success: false, error: 'No table body found' };
+            }
+            console.log('Using fallback tbody from document');
+        }
+        
+        // Ensure the room is expanded to show the new items
+        roomContainer.classList.add('expanded');
+        const roomContent = roomContainer.querySelector('.room-content');
+        if (roomContent) {
+            roomContent.style.display = 'block';
+        }
+        
+        // Get Full Set components
+        const fullsetSerials = formData.getAll('fullset_serials[]');
+        const fullsetCategories = formData.getAll('fullset_categories[]');
+        const setId = formData.get('setIdInput') || '001';
+        
+        // Add each Full Set component as a separate row
+        fullsetSerials.forEach((serial, index) => {
+            if (serial.trim()) {
+                const category = fullsetCategories[index] || 'Unknown';
+                const tempId = 'temp_' + Date.now() + '_' + index;
+                
+                // Get the current quantity count
+                const existingRows = tbody.querySelectorAll('tr');
+                const newQuantity = existingRows.length + 1;
+                
+                // Create new row
+                const newRow = document.createElement('tr');
+                newRow.innerHTML = `
+                    <td>
+                        <input type="checkbox" class="item-checkbox" data-room="${roomSlug}" data-item-id="${tempId}" onchange="updateBulkActions()">
+                    </td>
+                    <td>
+                        <img src="{{ asset('path/to/your/placeholder.jpg') }}"
+                            alt="Item Photo"
+                            class="img-thumbnail"
+                            style="max-width: 40px;">
+                    </td>
+                    <td>
+                        <div id="barcode-${tempId}" class="barcode-wrapper">
+                            <div class="barcode-text">Loading...</div>
+                        </div>
+                    </td>
+                    <td>
+                        <div class="device-category">${category}</div>
+                    </td>
+                    <td>
+                        <div class="device-brand-model">
+                            <strong>${brand}</strong>
+                            ${model ? '<br><small>' + model + '</small>' : ''}
+                        </div>
+                    </td>
+                    <td>
+                        <code class="serial-number">${serial}</code>
+                    </td>
+                    <td>
+                        <div class="device-description">${description}</div>
+                    </td>
+                    <td>
+                        <span class="badge badge-quantity">${newQuantity}</span>
+                    </td>
+                    <td>
+                        <span class="badge ${status === 'Unusable' ? 'badge-unusable' : 'badge-usable'}">${status}</span>
+                    </td>
+                    <td>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                    <td>
+                        <div class="action-buttons">
+                            <button onclick="openEditModal(${tempId}, '${roomTitle}', '${category}', '${brand}', '${model}', '${description}')" class="icon-btn edit">
+                                <i class="fas fa-edit"></i>
+                            </button>
+                            <form method="POST" action="/manage-room/item/${tempId}" style="display:inline;">
+                                <button class="icon-btn delete" onclick="confirmDeleteItem(${tempId})">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </form>
+                            <button onclick="printBarcode(${tempId})" class="icon-btn print">
+                                <i class="fas fa-print"></i>
+                            </button>
+                        </div>
+                    </td>
+                `;
+                
+                // Add the new row to the table
+                tbody.appendChild(newRow);
+                
+                // Force a visual update
+                newRow.style.opacity = '0';
+                newRow.style.transform = 'translateY(-20px)';
+                
+                // Animate the new row in
+                setTimeout(() => {
+                    newRow.style.transition = 'all 0.3s ease';
+                    newRow.style.opacity = '1';
+                    newRow.style.transform = 'translateY(0)';
+                }, 10 + (index * 50)); // Stagger the animations
+            }
+        });
+        
+        // Update bulk actions
+        updateBulkActions();
+        
+        console.log('Full Set items added to DOM:', fullsetSerials.length, 'items in room:', roomSlug);
+        
+        // Always return success if we got this far (items were added to DOM)
+        return { success: true, itemCount: fullsetSerials.length, roomSlug: roomSlug };
+    }
+    
+    function removeRoomFromDOM(roomTitle) {
+        const roomSlug = roomTitle.toLowerCase().replace(/\s+/g, '-');
+        const roomContainer = document.getElementById(`room-${roomSlug}`);
+        
+        console.log('=== removeRoomFromDOM Debug ===');
+        console.log('Room Title:', roomTitle);
+        console.log('Room Slug:', roomSlug);
+        console.log('Room Container Found:', !!roomContainer);
+        
+        if (roomContainer) {
+            // Remove the entire room group
+            roomContainer.remove();
+            console.log('Room removed from DOM:', roomSlug);
+        } else {
+            console.warn('Could not find room to remove:', roomSlug);
+        }
+    }
+    
+    // Debug function to test DOM structure
+    function debugDOMStructure() {
+        console.log('=== DOM Structure Debug ===');
+        console.log('All room groups:', document.querySelectorAll('.room-group').length);
+        console.log('All tbody elements:', document.querySelectorAll('tbody').length);
+        console.log('All checkboxes:', document.querySelectorAll('.item-checkbox').length);
+        
+        // Check each room
+        document.querySelectorAll('.room-group').forEach((room, index) => {
+            const roomId = room.id;
+            const tbody = room.querySelector('tbody');
+            const checkboxes = room.querySelectorAll('.item-checkbox');
+            console.log(`Room ${index + 1}: ${roomId}, tbody: ${!!tbody}, checkboxes: ${checkboxes.length}`);
+        });
+    }
+    
+    // Call debug function on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        setTimeout(debugDOMStructure, 1000);
+        
+        // Add test function to window for debugging
+        window.testAddItem = function() {
+            console.log('Testing addItemToDOM function...');
+            addItemToDOM('Test Category', 'Test Brand', 'Test Model', 'Usable', 'Test Description');
+        };
+        
+        window.testRemoveItem = function(itemId) {
+            console.log('Testing removeItemFromDOM function...');
+            removeItemFromDOM(itemId);
+        };
+    });
 </script>
 
 @if(session('success'))

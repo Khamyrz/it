@@ -16,18 +16,10 @@ class RoomManagementController extends Controller
     {
         $user = auth()->user();
         
-        // Check if this is a new user
-        $isNewUser = $user->is_new_user;
-        
-        if ($isNewUser) {
-            // New users only see their own items
-            $items = RoomItem::where('user_id', $user->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
-        } else {
-            // Old users see all items (backward compatibility)
-            $items = RoomItem::orderBy('created_at', 'desc')->get();
-        }
+        // Always filter by authenticated user for data isolation
+        $items = RoomItem::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         // Process items to add photo URLs
         $items->transform(function ($item) {
@@ -245,7 +237,10 @@ class RoomManagementController extends Controller
      */
     public function update(Request $request, $id)
     {
-        $item = RoomItem::findOrFail($id);
+        $user = auth()->user();
+        $item = RoomItem::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
         
         // Handle photo upload for both single items and full set items
         $photoPath = $item->photo;
@@ -301,21 +296,26 @@ class RoomManagementController extends Controller
      */
     public function updatePhoto(Request $request, $id)
     {
+        $user = auth()->user();
+        
         $request->validate([
             'photo' => 'required|image|max:2048'
         ]);
 
-        $item = RoomItem::findOrFail($id);
+        $item = RoomItem::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
         
         // Handle photo upload
         $photoPath = $request->file('photo')->store('public/photos');
         
         if ($item->is_full_set_item) {
-            // For full set items, update photo for all items in the set
+            // For full set items, update photo for all items in the set (only user's items)
             $oldPhotoPath = $item->photo;
             
-            // Update all items in the full set
+            // Update all items in the full set (only user's items)
             RoomItem::where('full_set_id', $item->full_set_id)
+                ->where('user_id', $user->id)
                 ->update(['photo' => $photoPath]);
             
             // Delete old photo if it exists
@@ -347,14 +347,18 @@ class RoomManagementController extends Controller
      */
     public function removePhoto($id)
     {
-        $item = RoomItem::findOrFail($id);
+        $user = auth()->user();
+        $item = RoomItem::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
         
         if ($item->is_full_set_item) {
-            // For full set items, remove photo from all items in the set
+            // For full set items, remove photo from all items in the set (only user's items)
             $photoPath = $item->photo;
             
-            // Update all items in the full set
+            // Update all items in the full set (only user's items)
             RoomItem::where('full_set_id', $item->full_set_id)
+                ->where('user_id', $user->id)
                 ->update(['photo' => null]);
             
             // Delete the photo file
@@ -383,16 +387,24 @@ class RoomManagementController extends Controller
 
     public function destroy($id)
     {
-        $item = RoomItem::findOrFail($id);
+        $user = auth()->user();
+        $item = RoomItem::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+            
         if ($item->is_full_set_item) {
-            $fullSetItems = RoomItem::where('full_set_id', $item->full_set_id)->get();
+            $fullSetItems = RoomItem::where('full_set_id', $item->full_set_id)
+                ->where('user_id', $user->id)
+                ->get();
             // Delete the shared photo only once
             if ($fullSetItems->isNotEmpty() && $fullSetItems->first()->photo && Storage::exists($fullSetItems->first()->photo)) {
                 Storage::delete($fullSetItems->first()->photo);
             }
 
-            // Delete all items in the full set
-            RoomItem::where('full_set_id', $item->full_set_id)->delete();
+            // Delete all items in the full set (only user's items)
+            RoomItem::where('full_set_id', $item->full_set_id)
+                ->where('user_id', $user->id)
+                ->delete();
         } else {
             if ($item->photo && Storage::exists($item->photo)) {
                 Storage::delete($item->photo);
@@ -417,10 +429,18 @@ class RoomManagementController extends Controller
         $deletedCount = 0;
         $processedFullSets = [];
 
+        $user = auth()->user();
+        
         // Use database transaction for better performance and consistency
-        \DB::transaction(function () use ($itemIds, &$deletedCount, &$processedFullSets) {
+        \DB::transaction(function () use ($itemIds, &$deletedCount, &$processedFullSets, $user) {
             foreach ($itemIds as $itemId) {
-                $item = RoomItem::findOrFail($itemId);
+                $item = RoomItem::where('id', $itemId)
+                    ->where('user_id', $user->id)
+                    ->first();
+                
+                if (!$item) {
+                    continue; // Skip if item doesn't belong to user
+                }
                 
                 if ($item->is_full_set_item) {
                     $fullSetId = $item->full_set_id;
@@ -431,16 +451,22 @@ class RoomManagementController extends Controller
                     }
                     
                     $processedFullSets[] = $fullSetId;
-                    $fullSetItems = RoomItem::where('full_set_id', $fullSetId)->get();
+                    $fullSetItems = RoomItem::where('full_set_id', $fullSetId)
+                        ->where('user_id', $user->id)
+                        ->get();
                     
                     // Delete the shared photo only once
                     if ($fullSetItems->isNotEmpty() && $fullSetItems->first()->photo && Storage::exists($fullSetItems->first()->photo)) {
                         Storage::delete($fullSetItems->first()->photo);
                     }
 
-                    // Delete all items in the full set
-                    $deletedCount += RoomItem::where('full_set_id', $fullSetId)->count();
-                    RoomItem::where('full_set_id', $fullSetId)->delete();
+                    // Delete all items in the full set (only user's items)
+                    $deletedCount += RoomItem::where('full_set_id', $fullSetId)
+                        ->where('user_id', $user->id)
+                        ->count();
+                    RoomItem::where('full_set_id', $fullSetId)
+                        ->where('user_id', $user->id)
+                        ->delete();
                 } else {
                     if ($item->photo && Storage::exists($item->photo)) {
                         Storage::delete($item->photo);
@@ -457,7 +483,6 @@ class RoomManagementController extends Controller
     public function getRoomsList()
     {
         $user = auth()->user();
-        $isNewUser = $user->is_new_user;
         
         $predefinedRooms = [
             'Server',
@@ -468,12 +493,10 @@ class RoomManagementController extends Controller
             'ComLab 5'
         ];
         
-        // Build query for custom rooms with user isolation
-        $customRoomsQuery = RoomItem::whereNotIn('room_title', $predefinedRooms);
-        if ($isNewUser) {
-            $customRoomsQuery->where('user_id', $user->id);
-        }
-        $customRooms = $customRoomsQuery->distinct()
+        // Build query for custom rooms with user isolation (always filter by user)
+        $customRooms = RoomItem::whereNotIn('room_title', $predefinedRooms)
+            ->where('user_id', $user->id)
+            ->distinct()
             ->pluck('room_title')
             ->toArray();
             
@@ -505,20 +528,15 @@ class RoomManagementController extends Controller
     public function searchByBarcode($pattern)
     {
         $user = auth()->user();
-        $isNewUser = $user->is_new_user;
         
         $cleanPattern = str_replace(' ', '', $pattern);
-        $itemsQuery = RoomItem::where(function($query) use ($pattern, $cleanPattern) {
+        $items = RoomItem::where(function($query) use ($pattern, $cleanPattern) {
             $query->where('barcode', 'LIKE', '%' . $pattern . '%')
                   ->orWhere('barcode', 'LIKE', '%' . $cleanPattern . '%');
-        });
-        
-        // Apply user isolation for new users
-        if ($isNewUser) {
-            $itemsQuery->where('user_id', $user->id);
-        }
-        
-        $items = $itemsQuery->orderBy('barcode')->get();
+        })
+        ->where('user_id', $user->id) // Always filter by user
+        ->orderBy('barcode')
+        ->get();
         
         // Add photo URLs to search results
         $items->transform(function ($item) {
@@ -540,6 +558,8 @@ class RoomManagementController extends Controller
      */
     public function updateCustomRoom(Request $request)
     {
+        $user = auth()->user();
+        
         $validatedData = $request->validate([
             'old_room_title' => 'required|string',
             'new_room_title' => [
@@ -555,8 +575,10 @@ class RoomManagementController extends Controller
         $oldRoomTitle = $validatedData['old_room_title'];
         $newRoomTitle = $validatedData['new_room_title'];
 
-        // Find all items with the old room title
-        $itemsToUpdate = RoomItem::where('room_title', $oldRoomTitle)->get();
+        // Find all items with the old room title (only user's items)
+        $itemsToUpdate = RoomItem::where('room_title', $oldRoomTitle)
+            ->where('user_id', $user->id)
+            ->get();
         if ($itemsToUpdate->isEmpty()) {
             return redirect()->back()->with('error', 'No items found for the custom room: ' . $oldRoomTitle);
         }
@@ -600,6 +622,7 @@ class RoomManagementController extends Controller
      */
     private function generateSerialNumber()
     {
+        $user = auth()->user();
         $maxAttempts = 100;
         $attempts = 0;
 
@@ -613,8 +636,10 @@ class RoomManagementController extends Controller
             }
 
             $attempts++;
-            // Check if this serial number already exists
-            $exists = RoomItem::where('serial_number', $serialNumber)->exists();
+            // Check if this serial number already exists (only within user's data)
+            $exists = RoomItem::where('serial_number', $serialNumber)
+                ->where('user_id', $user->id)
+                ->exists();
             if (!$exists) {
                 return $serialNumber;
             }
@@ -698,9 +723,10 @@ class RoomManagementController extends Controller
             strtoupper(substr(str_replace([' ', '-', '_'], '', $roomTitle), 0, 3));
 
         // Find the highest PC number by looking at existing barcodes with the room code
-        // Consider ALL users' items so numbering is continuous across additions
+        // Only consider user's items for PC numbering
+        $user = auth()->user();
         $existingBarcodes = RoomItem::where('room_title', $roomTitle)
-            // consider all items in the room to determine the highest number
+            ->where('user_id', $user->id) // Only user's items
             ->where('barcode', 'LIKE', $roomCode . '-%')
             ->pluck('barcode');
 
@@ -854,16 +880,12 @@ class RoomManagementController extends Controller
         $basePrefix = $roomCode . '-' . $deviceCode;
 
         // Find the highest existing number for this prefix in the same room
-        // For new users, also filter by user_id to prevent conflicts
+        // Always filter by user to prevent conflicts
+        $user = auth()->user();
         $existingItemsQuery = RoomItem::where('barcode', 'LIKE', $basePrefix . '%')
             ->where('room_title', $roomTitle)
-            ->where('is_full_set_item', false); // Exclude full set items from single item counting
-        
-        // For new users, only count items from the same user to prevent conflicts
-        $user = auth()->user();
-        if ($user->is_new_user) {
-            $existingItemsQuery->where('user_id', $user->id);
-        }
+            ->where('is_full_set_item', false) // Exclude full set items from single item counting
+            ->where('user_id', $user->id); // Always filter by user
         
         $existingItems = $existingItemsQuery->orderBy('barcode', 'desc')->first();
             
@@ -897,7 +919,11 @@ class RoomManagementController extends Controller
      */
     public function showPhoto($id)
     {
-        $item = RoomItem::findOrFail($id);
+        $user = auth()->user();
+        $item = RoomItem::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+            
         if (!$item->photo || !Storage::exists($item->photo)) {
             abort(404, 'Photo not found');
         }
@@ -925,6 +951,8 @@ class RoomManagementController extends Controller
      */
     public function destroyRoom(Request $request, $room)
     {
+        $user = auth()->user();
+        
         // Prefer the original room title from the request (non-slug)
         $request->validate([
             'room_title' => 'required|string'
@@ -932,8 +960,10 @@ class RoomManagementController extends Controller
 
         $roomTitle = $request->input('room_title');
 
-        // Collect all items in the room
-        $items = RoomItem::where('room_title', $roomTitle)->get();
+        // Collect all items in the room (only user's items)
+        $items = RoomItem::where('room_title', $roomTitle)
+            ->where('user_id', $user->id)
+            ->get();
         if ($items->isEmpty()) {
             return redirect()->route('room-manage')->with('error', 'No items found for room: ' . $roomTitle);
         }
@@ -947,19 +977,24 @@ class RoomManagementController extends Controller
             ->unique()
             ->values();
 
-        // Delete all full sets (all items sharing the same full_set_id)
+        // Delete all full sets (all items sharing the same full_set_id, only user's items)
         foreach ($fullSetIds as $fullSetId) {
-            $fullSetItems = RoomItem::where('full_set_id', $fullSetId)->get();
+            $fullSetItems = RoomItem::where('full_set_id', $fullSetId)
+                ->where('user_id', $user->id)
+                ->get();
             if ($fullSetItems->isNotEmpty()) {
                 $photo = $fullSetItems->first()->photo;
                 if ($photo) { $photosToDelete[$photo] = true; }
-                RoomItem::where('full_set_id', $fullSetId)->delete();
+                RoomItem::where('full_set_id', $fullSetId)
+                    ->where('user_id', $user->id)
+                    ->delete();
             }
         }
 
-        // Delete remaining single items in the room
+        // Delete remaining single items in the room (only user's items)
         $singleItems = RoomItem::where('room_title', $roomTitle)
             ->where('is_full_set_item', false)
+            ->where('user_id', $user->id)
             ->get();
 
         foreach ($singleItems as $item) {
@@ -982,6 +1017,8 @@ class RoomManagementController extends Controller
      */
     public function addComponent(Request $request, $room, $pc)
     {
+        $user = auth()->user();
+        
         // Validate the request
         $validatedData = $request->validate([
             'room_title' => 'required|string',
@@ -1003,9 +1040,10 @@ class RoomManagementController extends Controller
         $barcode = $this->generateBarcodeForFullSet($validatedData['room_title'], $validatedData['device_category'], $pc);
 
         // Try to find an existing full set id for this room + PC number so the new
-        // component is grouped with the same PC set
+        // component is grouped with the same PC set (only user's items)
         $existingPcItem = RoomItem::where('room_title', $validatedData['room_title'])
             ->where('barcode', 'LIKE', '%-' . $pc)
+            ->where('user_id', $user->id)
             ->orderBy('id', 'desc')
             ->first();
         $fullSetId = $existingPcItem ? $existingPcItem->full_set_id : null;

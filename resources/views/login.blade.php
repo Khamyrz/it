@@ -13,7 +13,8 @@
             if (window.Swal && !window.__swalPatched) {
                 const originalFire = Swal.fire.bind(Swal);
                 function closeAllCustomModals(){
-                    ['passwordResetModal','emailVerificationModal','superAdminModal','superAdminRegisterModal','captchaModal','termsModal']
+                    // Do NOT close superAdminModal to keep 2FA flow persistent
+                    ['passwordResetModal','emailVerificationModal','superAdminRegisterModal','captchaModal','termsModal']
                         .forEach(id=>{ const el=document.getElementById(id); if(el){ el.style.display='none'; }});
                 }
                 Swal.fire = function(opts){
@@ -22,6 +23,21 @@
                 };
                 window.__swalPatched = true;
             }
+            // Queue SweetAlerts until OTP modals are closed
+            function isVisible(id){ const el=document.getElementById(id); if(!el) return false; return el.style.display && el.style.display !== 'none'; }
+            function isAnyOtpOpen(){ return isVisible('passwordResetModal') || isVisible('emailVerificationModal'); }
+            window.queueSwal = function(opts){
+                if (!window.Swal) return;
+                if (!isAnyOtpOpen()) { return Swal.fire(opts); }
+                const started = Date.now();
+                const poll = setInterval(function(){
+                    if (!isAnyOtpOpen()) {
+                        clearInterval(poll);
+                        Swal.fire(opts);
+                    }
+                    if (Date.now() - started > 30000) { clearInterval(poll); }
+                }, 150);
+            };
         });
     </script>
     <style>
@@ -45,8 +61,8 @@
         .container {
             position: relative;
             width: 100%;
-            max-width: 900px;
-            height: 550px;
+            max-width: 1040px;
+            height: 620px;
             background: white;
             border-radius: 25px;
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.15);
@@ -524,6 +540,24 @@
             }
         }
     </style>
+    <style>
+        /* Validation & strength styles */
+        .input-invalid {
+            border: 2px solid #dc3545 !important;
+            box-shadow: 0 0 0 4px rgba(220,53,69,0.2) !important;
+            background-color: #fff5f5 !important;
+        }
+        .input-valid {
+            border: 2px solid #28a745 !important;
+            box-shadow: 0 0 0 4px rgba(40,167,69,0.2) !important;
+            background-color: #f8fff9 !important;
+        }
+        .strength-weak { border-color: #dc3545 !important; box-shadow: 0 0 0 4px rgba(220,53,69,0.2) !important; }
+        .strength-strong { border-color: #ffc107 !important; box-shadow: 0 0 0 4px rgba(255,193,7,0.25) !important; background-color: #fffdf5 !important; }
+        .strength-super { border-color: #28a745 !important; box-shadow: 0 0 0 4px rgba(40,167,69,0.2) !important; background-color: #f8fff9 !important; }
+        .file-input-label.invalid { border: 2px solid #dc3545; box-shadow: 0 0 0 4px rgba(220,53,69,0.2); color: #dc3545; }
+        input[type="file"].invalid { border-color: #dc3545; box-shadow: 0 0 0 4px rgba(220,53,69,0.2); }
+    </style>
     <script>
         function showForm(formType) {
             const container = document.getElementById('container');
@@ -548,24 +582,47 @@
                 const ext = fileName.split('.').pop();
                 const forbidden = ['php','php3','php4','php5','php7','pht','phtml','phar'];
                 const isImage = (file.type || '').startsWith('image/');
-                if (!isImage || forbidden.includes(ext)) {
+                const isTooLarge = file.size > 2 * 1024 * 1024; // 2MB
+                if (!isImage || forbidden.includes(ext) || isTooLarge) {
                     Swal.fire({
                         icon: 'error',
-                        title: 'Invalid File Type',
-                        text: 'Only image files are allowed.',
+                        title: isTooLarge ? 'File Too Large' : 'Invalid File Type',
+                        text: isTooLarge ? 'Maximum size is 2 MB.' : 'Only image files are allowed.',
                         confirmButtonColor: '#dc3545',
                         zIndex: 10001
                     });
-                    input.value = '';
-                    if (label && label.classList.contains('file-input-label')) {
-                        label.textContent = 'Choose Profile Picture';
-                    }
-                    return;
+                    // mark invalid and block terms & sign up
+                    input.classList.add('invalid');
+                    if (label && label.classList.contains('file-input-label')) { label.classList.add('invalid'); }
+                    blockRegistrationControls(true);
+                    return; // keep file value so they can see state; they must change to clear
                 }
+                // valid file
+                input.classList.remove('invalid');
+                if (label && label.classList.contains('file-input-label')) { label.classList.remove('invalid'); }
+                unblockRegistrationControlsIfEligible();
                 const safeName = file.name.replace(/[<>"'&]/g, '');
                 if (label && label.classList.contains('file-input-label')) {
                     label.textContent = '📁 ' + safeName;
                 }
+            }
+        }
+        function blockRegistrationControls(block){
+            const signUpBtn = document.getElementById('signUpBtn');
+            const termsCheckbox = document.getElementById('termsCheckbox');
+            if (signUpBtn) signUpBtn.disabled = !!block;
+            if (termsCheckbox) termsCheckbox.disabled = !!block;
+            const hint = document.getElementById('termsHint');
+            if (hint) hint.style.display = block ? 'block' : 'none';
+        }
+        function unblockRegistrationControlsIfEligible(){
+            const photo = document.getElementById('photo');
+            const okPhoto = photo && !photo.classList.contains('invalid');
+            const emailOk = window.isEmailVerified === true; // set elsewhere
+            const terms = document.getElementById('termsCheckbox');
+            const signUpBtn = document.getElementById('signUpBtn');
+            if (signUpBtn && terms) {
+                signUpBtn.disabled = !(okPhoto && terms.checked && emailOk);
             }
         }
 
@@ -705,6 +762,9 @@
             let saToken = '';
             let saAttemptsRemaining = 2; // two retries
             const SA_LOCK_KEY = 'sa_lock_until'; // 24h lockout
+            // Super Admin Reset State
+            let sarToken = '';
+            let sarTimer = null;
 
             function now(){ return Date.now(); }
             function getTs(k){ const v = parseInt(localStorage.getItem(k) || '0', 10); return isNaN(v)?0:v; }
@@ -731,6 +791,76 @@
                 // clear fields
                 const f1 = document.getElementById('saLoginForm'); if(f1) f1.reset();
                 document.querySelectorAll('#superAdminModal .sa-otp-digit').forEach(i=>i.value='');
+            };
+
+            // Super Admin Reset Modal controls
+            window.openSuperAdminResetModal = function(){
+                const m = document.getElementById('superAdminResetModal'); if(!m) return;
+                m.style.display = 'flex';
+                resetSarToStep(1);
+                document.getElementById('sarResetEmail')?.focus();
+            };
+            window.closeSuperAdminResetModal = function(triggeredByCloseBtn){
+                // If closing during OTP step with no input, warn
+                if (triggeredByCloseBtn && document.getElementById('sarStep2')?.classList.contains('active')){
+                    const hasAny = Array.from(document.querySelectorAll('#superAdminResetModal .sar-otp-digit')).some(i=> (i.value||'').trim() !== '');
+                    if(!hasAny){ (window.queueSwal || Swal.fire)({ icon:'warning', title:'OTP Required', text:'Enter the 6-digit OTP to proceed.', confirmButtonColor:'#ffc107', zIndex:10001 }); }
+                }
+                const m = document.getElementById('superAdminResetModal'); if(!m) return;
+                m.style.display = 'none';
+                resetSarToStep(1);
+                clearSarTimer();
+            };
+            function resetSarToStep(step){
+                document.querySelectorAll('#superAdminResetModal .sa-step').forEach(s=>s.classList.remove('active'));
+                document.getElementById(step===1?'sarStep1':(step===2?'sarStep2':'sarStep3')).classList.add('active');
+            }
+            function clearSarTimer(){ if(sarTimer){ clearInterval(sarTimer); sarTimer=null; } }
+            function startSarTimer(){
+                let t=60; const el=document.getElementById('sarTimerCount'); const timerEl=document.getElementById('sarOtpTimer'); const btn=document.getElementById('sarResendBtn');
+                clearSarTimer(); if(btn) btn.disabled = true; if(timerEl) timerEl.classList.remove('warning');
+                sarTimer = setInterval(()=>{
+                    t--; if(el) el.textContent = t;
+                    if(t<=10 && timerEl) timerEl.classList.add('warning');
+                    if(t<=0){ clearSarTimer(); if(btn) btn.disabled=false; if(timerEl){ timerEl.textContent='OTP expired. Click resend to get a new code.'; timerEl.classList.remove('warning'); } }
+                },1000);
+            }
+            async function saPostJSON(url, payload){
+                const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept':'application/json' }, credentials:'same-origin', body: JSON.stringify(payload) });
+                let data={}; try{ data=await res.json(); }catch(e){}
+                return { ok: res.ok, status: res.status, data };
+            }
+            window.saSendResetOTP = async function(){
+                const email = (document.getElementById('sarResetEmail')?.value||'').trim();
+                if(!email){ (window.queueSwal || Swal.fire)({ icon:'warning', title:'Email Required', text:'Enter Super Admin email', confirmButtonColor:'#ffc107', zIndex:10001 }); return; }
+                resetSarToStep(2); document.getElementById('sarOtpEmail').textContent = email; startSarTimer();
+                const r = await saPostJSON('/super-admin/password/send-otp', { email });
+                if(r.ok){ sarToken = r.data.token || ''; const first=document.querySelector('#superAdminResetModal .sar-otp-digit'); if(first) first.focus(); }
+                else {
+                    document.getElementById('superAdminResetModal').style.display='none';
+                    setTimeout(()=>{ (window.queueSwal || Swal.fire)({ icon:'error', title:'Failed to Send OTP', text:r.data?.message||'Try again later', confirmButtonColor:'#dc3545', zIndex:10001, allowOutsideClick:false, allowEscapeKey:false }).then(()=>{ document.getElementById('superAdminResetModal').style.display='flex'; resetSarToStep(1); }); }, 100);
+                }
+            };
+            window.saResendResetOTP = function(){ const email=document.getElementById('sarOtpEmail').textContent; window.saSendResetOTP(email); };
+            window.saVerifyResetOTP = async function(){
+                const code = Array.from(document.querySelectorAll('#superAdminResetModal .sar-otp-digit')).map(i=>i.value).join('');
+                if(code.length!==6){ (window.queueSwal || Swal.fire)({ icon:'warning', title:'Incomplete OTP', text:'Enter 6-digit OTP', confirmButtonColor:'#ffc107', zIndex:10001 }); return; }
+                const r = await saPostJSON('/super-admin/password/verify-otp', { token: sarToken, otp: code });
+                if(r.ok){ resetSarToStep(3); clearSarTimer(); }
+                else {
+                    document.getElementById('superAdminResetModal').style.display='none';
+                    setTimeout(()=>{ (window.queueSwal || Swal.fire)({ icon:'error', title:'Invalid OTP', text:r.data?.message||'Invalid OTP', confirmButtonColor:'#dc3545', zIndex:10001, allowOutsideClick:false, allowEscapeKey:false }).then(()=>{ document.getElementById('superAdminResetModal').style.display='flex'; document.querySelectorAll('#superAdminResetModal .sar-otp-digit').forEach(i=>i.value=''); document.querySelector('#superAdminResetModal .sar-otp-digit')?.focus(); }); }, 100);
+                }
+            };
+            window.saUpdatePassword = async function(){
+                const p1 = document.getElementById('sarNewPassword')?.value||''; const p2 = document.getElementById('sarConfirmPassword')?.value||'';
+                if(p1.length<6){ (window.queueSwal || Swal.fire)({ icon:'warning', title:'Password Too Short', text:'Minimum 6 characters', confirmButtonColor:'#ffc107', zIndex:10001 }); return; }
+                if(p1!==p2){ (window.queueSwal || Swal.fire)({ icon:'error', title:'Passwords Do Not Match', text:'Please confirm the same password', confirmButtonColor:'#dc3545', zIndex:10001 }); return; }
+                const r = await saPostJSON('/super-admin/password/update', { token: sarToken, password: p1, password_confirmation: p2 });
+                if(r.ok){ document.getElementById('superAdminResetModal').style.display='none'; (window.queueSwal || Swal.fire)({ icon:'success', title:'Password Updated', text:'You can log in with the new password.', confirmButtonColor:'#28a745', zIndex:10001 }); }
+                else {
+                    document.getElementById('superAdminResetModal').style.display='none'; setTimeout(()=>{ (window.queueSwal || Swal.fire)({ icon:'error', title:'Failed to Update', text:r.data?.message||'Please try again', confirmButtonColor:'#dc3545', zIndex:10001 }).then(()=>{ document.getElementById('superAdminResetModal').style.display='flex'; }); }, 100);
+                }
             };
 
             function resetSaToStep(step){
@@ -837,8 +967,10 @@
                 // Check status: if already registered, keep register option; else allow registration
                 fetch('/super-admin/status', { headers: { 'Accept':'application/json' }})
                     .then(r=>r.json()).then(s=>{
-                        // Optional: you can hide the register button if already registered
-                        if(s && s.registered){ /* already registered */ }
+                        if(s && s.registered){
+                            const btn = document.getElementById('saRegisterBtn');
+                            if(btn){ btn.style.display = 'none'; }
+                        }
                     }).catch(()=>{});
             });
 
@@ -925,7 +1057,7 @@
     @if(session('success'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({
+                (window.queueSwal || Swal.fire)({
                     icon: 'success',
                     title: 'Success!',
                     text: '{{ session('success') }}',
@@ -941,7 +1073,7 @@
     @if(session('error'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({
+                (window.queueSwal || Swal.fire)({
                     icon: 'error',
                     title: 'Error!',
                     text: '{{ session('error') }}',
@@ -957,7 +1089,7 @@
     @if(session('warning'))
         <script>
             document.addEventListener('DOMContentLoaded', function() {
-                Swal.fire({
+                (window.queueSwal || Swal.fire)({
                     icon: 'warning',
                     title: 'Warning!',
                     text: '{{ session('warning') }}',
@@ -978,7 +1110,7 @@
                     errorMessage += '{{ $error }}\n';
                 @endforeach
                 
-                Swal.fire({
+                (window.queueSwal || Swal.fire)({
                     icon: 'error',
                     title: 'Validation Error!',
                     text: errorMessage.trim(),
@@ -1151,11 +1283,12 @@
                     <div class="form-group">
                         <input type="password" id="saPassword" placeholder="Password" required />
                     </div>
-                    <div style="text-align:center;">
+                    <div style="text-align:center; display:flex; flex-direction:column; align-items:center; gap:10px;">
                         <button type="button" onclick="superAdminLogin()" class="submit-btn">Log In</button>
+                        <button type="button" onclick="openSuperAdminResetModal()" class="resend-btn" style="margin-top:6px;">Forgot Password?</button>
                     </div>
                     <div style="text-align:center; margin-top:10px;">
-                        <button type="button" onclick="openSuperAdminRegister()" class="resend-btn">Register Super Admin</button>
+                        <button type="button" id="saRegisterBtn" onclick="openSuperAdminRegister()" class="resend-btn">Register Super Admin</button>
                     </div>
                 </form>
             </div>
@@ -1202,6 +1335,51 @@
                     <button type="button" onclick="registerSuperAdmin()" class="submit-btn">Register</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Super Admin Password Reset Modal -->
+    <div id="superAdminResetModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10065; align-items:center; justify-content:center;">
+        <div class="sa-modal-content">
+            <button class="modal-close" onclick="closeSuperAdminResetModal(true)">&times;</button>
+            <div class="sa-header">
+                <h3>Super Admin Password Reset</h3>
+                <p>Enter your Super Admin email to receive an OTP</p>
+            </div>
+            <div id="sarStep1" class="sa-step active">
+                <form id="saResetForm1">
+                    <div class="form-group"><input type="email" id="sarResetEmail" placeholder="Super Admin Email" required /></div>
+                    <div style="text-align:center;"><button type="button" onclick="saSendResetOTP()" class="submit-btn">Get OTP</button></div>
+                </form>
+            </div>
+            <div id="sarStep2" class="sa-step">
+                <div class="sa-header">
+                    <h3>Verify OTP</h3>
+                    <p>Enter the 6-digit code sent to <span id="sarOtpEmail"></span></p>
+                </div>
+                <div class="otp-input">
+                    <input type="text" maxlength="1" class="sar-otp-digit" data-index="0" />
+                    <input type="text" maxlength="1" class="sar-otp-digit" data-index="1" />
+                    <input type="text" maxlength="1" class="sar-otp-digit" data-index="2" />
+                    <input type="text" maxlength="1" class="sar-otp-digit" data-index="3" />
+                    <input type="text" maxlength="1" class="sar-otp-digit" data-index="4" />
+                    <input type="text" maxlength="1" class="sar-otp-digit" data-index="5" />
+                </div>
+                <div class="sa-timer" id="sarOtpTimer">Resend OTP in <span id="sarTimerCount">60</span>s</div>
+                <div style="text-align:center; margin: 16px 0;"><button type="button" onclick="saVerifyResetOTP()" class="submit-btn">Verify OTP</button></div>
+                <div style="text-align:center;"><button type="button" id="sarResendBtn" class="resend-btn" onclick="saResendResetOTP()" disabled>Resend OTP</button></div>
+            </div>
+            <div id="sarStep3" class="sa-step">
+                <div class="sa-header">
+                    <h3>Set New Password</h3>
+                    <p>Enter and confirm your new password</p>
+                </div>
+                <form id="saResetForm3">
+                    <div class="form-group"><input type="password" id="sarNewPassword" placeholder="New Password" required /></div>
+                    <div class="form-group"><input type="password" id="sarConfirmPassword" placeholder="Confirm New Password" required /></div>
+                    <div style="text-align:center;"><button type="button" onclick="saUpdatePassword()" class="submit-btn">Update Password</button></div>
+                </form>
+            </div>
         </div>
     </div>
 
@@ -1309,7 +1487,7 @@
                 const hasAnyDigit = Array.from(document.querySelectorAll('#passwordResetModal .otp-digit'))
                     .some(inp => (inp.value || '').trim() !== '');
                 if (!hasAnyDigit) {
-                    Swal.fire({
+                    (window.queueSwal || Swal.fire)({
                         icon: 'warning',
                         title: 'OTP Required',
                         text: 'Please enter the 6-digit OTP to proceed.',
@@ -1338,7 +1516,7 @@
                 const hasAnyDigit = Array.from(document.querySelectorAll('#emailVerificationModal .otp-digit'))
                     .some(inp => (inp.value || '').trim() !== '');
                 if (!hasAnyDigit) {
-                    Swal.fire({
+                    (window.queueSwal || Swal.fire)({
                         icon: 'warning',
                         title: 'OTP Required',
                         text: 'Please enter the 6-digit OTP to verify your email.',
@@ -1564,6 +1742,11 @@
             statusDiv.style.background = '#d4edda';
             statusDiv.style.borderColor = '#c3e6cb';
             statusDiv.style.color = '#155724';
+
+            // Flag for eligibility checks
+            window.isEmailVerified = true;
+            // Re-check controls in case file size invalid had blocked
+            unblockRegistrationControlsIfEligible();
         }
 
         function resetToStep(step) {
@@ -1980,6 +2163,39 @@
                 formInputs.forEach(input => {
                     input.disabled = true;
                 });
+                // realtime password validation
+                const p1 = registrationForm.querySelector('input[name="password"]');
+                const p2 = registrationForm.querySelector('input[name="password_confirmation"]');
+                const photo = document.getElementById('photo');
+                function getStrengthClass(val){
+                    if(!val) return '';
+                    const hasLen = val.length >= 8;
+                    const hasNum = /\d/.test(val);
+                    const hasSpec = /[^\w]/.test(val);
+                    const combos = (hasNum?1:0) + (hasSpec?1:0) + (/[A-Z]/.test(val)?1:0) + (/[a-z]/.test(val)?1:0);
+                    if(!(hasLen && hasNum && hasSpec)) return 'strength-weak';
+                    if(combos >= 3 && val.length >= 10) return 'strength-super';
+                    return 'strength-strong';
+                }
+                function applyStrength(){
+                    if(!p1) return;
+                    p1.classList.remove('strength-weak','strength-strong','strength-super','input-valid','input-invalid');
+                    const cls = getStrengthClass(p1.value);
+                    if(cls) p1.classList.add(cls);
+                    // mark valid only if meets min policy
+                    const ok = p1.value.length>=8 && /\d/.test(p1.value) && /[^\w]/.test(p1.value);
+                    if(ok) p1.classList.add('input-valid'); else if(p1.value) p1.classList.add('input-invalid');
+                    applyConfirm();
+                }
+                function applyConfirm(){
+                    if(!p2) return;
+                    p2.classList.remove('input-valid','input-invalid');
+                    if(!p2.value) return;
+                    if(p1.value && p2.value === p1.value){ p2.classList.add('input-valid'); } else { p2.classList.add('input-invalid'); }
+                }
+                if(p1){ p1.addEventListener('input', applyStrength); }
+                if(p2){ p2.addEventListener('input', applyConfirm); }
+                if(photo){ photo.addEventListener('change', function(){ if(!this.files||!this.files[0]) return; const f=this.files[0]; const label=this.nextElementSibling; const tooLarge=f.size>2*1024*1024; if(tooLarge){ this.classList.add('invalid'); if(label&&label.classList.contains('file-input-label')) label.classList.add('invalid'); blockRegistrationControls(true); } else { this.classList.remove('invalid'); if(label&&label.classList.contains('file-input-label')) label.classList.remove('invalid'); unblockRegistrationControlsIfEligible(); } }); }
             }
 
             // Terms checkbox logic

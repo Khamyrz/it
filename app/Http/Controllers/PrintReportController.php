@@ -13,21 +13,14 @@ class PrintReportController extends Controller
     {
         $user = auth()->user();
         
-        // Check if this is a new user for data isolation
-        $isNewUser = $user->is_new_user;
-        
         // Get filter from query string; default to 'daily'
         $filter = $request->input('filter', 'daily');
 
-        // Fetch borrowed items with related room items
-        $borrowQuery = Borrow::with('roomItem');
-        
-        // Apply user-based filtering for new users
-        if ($isNewUser) {
-            $borrowQuery->whereHas('roomItem', function($query) use ($user) {
+        // Fetch borrowed items with related room items (always filter by user)
+        $borrowQuery = Borrow::with('roomItem')
+            ->whereHas('roomItem', function($query) use ($user) {
                 $query->where('user_id', $user->id);
             });
-        }
 
         // Apply date-based filtering
         switch ($filter) {
@@ -49,11 +42,10 @@ class PrintReportController extends Controller
 
         $borrowedItems = $borrowQuery->orderBy('borrow_date', 'desc')->get();
 
-        // Fetch room items based on user type
-        $roomItemQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id) : 
-            RoomItem::query();
-        $roomItems = $roomItemQuery->orderBy('created_at', 'desc')->get();
+        // Fetch room items (always filter by user)
+        $roomItems = RoomItem::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         // Return both datasets to the view
         return view('print-report', compact('borrowedItems', 'roomItems', 'filter'));

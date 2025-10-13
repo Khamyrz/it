@@ -23,6 +23,9 @@
             max-width: 1400px;
             margin: 0 auto;
             padding: 20px;
+            display: grid;
+            grid-template-columns: 240px 1fr;
+            gap: 20px;
         }
 
         .header {
@@ -33,6 +36,7 @@
             margin-bottom: 30px;
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
+            position: relative;
         }
 
         .header h1 {
@@ -118,6 +122,35 @@
             box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
             border: 1px solid rgba(255, 255, 255, 0.2);
         }
+
+        /* Sidebar */
+        .sidebar {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            height: 100%;
+            align-self: start;
+        }
+        .tab-btn {
+            width: 100%;
+            text-align: left;
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+            background: #fff;
+            margin-bottom: 10px;
+            cursor: pointer;
+            color: #2d3748;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .tab-btn.active { background: #edf2f7; border-color: #cbd5e0; }
+        .content-area { display: none; }
+        .content-area.active { display: block; }
 
         .card h2 {
             font-size: 1.5rem;
@@ -232,6 +265,39 @@
             from { transform: rotate(0deg); }
             to { transform: rotate(360deg); }
         }
+
+        .logout-btn {
+            background: #e53e3e;
+            color: #fff;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .logout-btn:hover { filter: brightness(0.95); }
+        .logout-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+        }
+
+        /* Pending Accounts */
+        .action-btn {
+            border: none;
+            padding: 8px 12px;
+            border-radius: 6px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 0.85rem;
+        }
+        .btn-approve { background: #38a169; }
+        .btn-decline { background: #e53e3e; }
+        .btn-approve:hover { filter: brightness(0.95); }
+        .btn-decline:hover { filter: brightness(0.95); }
 
         .popup-content {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -370,7 +436,22 @@
 </head>
 <body>
     <div class="dashboard-container">
+        <div class="sidebar">
+            <button class="tab-btn active" id="tab-dashboard" onclick="switchTab('dashboard')"><i class="fas fa-tachometer-alt"></i> Dashboard</button>
+            <button class="tab-btn" id="tab-pending" onclick="switchTab('pending')"><i class="fas fa-user-clock"></i> Pending Accounts</button>
+            <button class="tab-btn" id="tab-accepted" onclick="switchTab('accepted')"><i class="fas fa-user-check"></i> Accepted Accounts</button>
+            <button class="tab-btn" id="tab-share" onclick="switchTab('share')"><i class="fas fa-share-alt"></i> Share Activity</button>
+        </div>
+        <div>
         <div class="header">
+            <div class="logout-container">
+                <form method="POST" action="/logout" onsubmit="setTimeout(()=>{ window.location.href='/login'; }, 150);">
+                    @csrf
+                    <button type="submit" class="logout-btn">
+                        <i class="fas fa-sign-out-alt"></i> Logout
+                    </button>
+                </form>
+            </div>
             <h1><i class="fas fa-shield-alt"></i> IT Inventory Security Dashboard</h1>
             <p>Real-time monitoring of user access patterns, login attempts, and geographic distribution</p>
             <div style="margin-top: 15px;">
@@ -380,7 +461,7 @@
                 <span id="lastUpdate" style="margin-left: 15px; color: #718096; font-size: 0.9rem;"></span>
             </div>
         </div>
-
+        <div class="content-area active" id="content-dashboard">
         <div class="stats-grid" id="statsGrid">
             <div class="stat-card visits">
                 <div class="icon"><i class="fas fa-eye"></i></div>
@@ -434,8 +515,96 @@
                 </div>
             </div>
         </div>
+        </div>
+
+        <div class="content-area" id="content-pending">
+            <div class="card">
+                <h2><i class="fas fa-user-clock"></i> Pending Account Approvals</h2>
+                <div class="table-container">
+                    <table id="pendingTable">
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Email</th>
+                                <th>Requested</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" class="loading" id="pendingLoading">
+                                    <i class="fas fa-spinner"></i> Loading pending accounts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area" id="content-accepted">
+            <div class="card">
+                <h2><i class="fas fa-user-check"></i> Accepted Accounts</h2>
+                <div class="table-container">
+                    <table id="acceptedTable">
+                        <thead>
+                            <tr>
+                                <th>Photo</th>
+                                <th>Full Name</th>
+                                <th>Email</th>
+                                <th>Password</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" class="loading" id="acceptedLoading">
+                                    <i class="fas fa-spinner"></i> Loading accepted accounts...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="content-area" id="content-share">
+            <div class="card">
+                <h2><i class="fas fa-share-alt"></i> Share Activity (Token Generators)</h2>
+                <div class="table-container">
+                    <table id="shareTable">
+                        <thead>
+                            <tr>
+                                <th>User</th>
+                                <th>Email</th>
+                                <th>Tokens Generated</th>
+                                <th>Shared With</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td colspan="4" class="loading" id="shareLoading">
+                                    <i class="fas fa-spinner"></i> Loading share activity...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        </div>
     </div>
     <script>
+        function switchTab(tab){
+            ['dashboard','pending','accepted','share'].forEach(t=>{
+                const btn=document.getElementById('tab-'+t);
+                const content=document.getElementById('content-'+t);
+                if(btn) btn.classList.toggle('active', t===tab);
+                if(content) content.classList.toggle('active', t===tab);
+            });
+            if(tab==='pending') fetchPending();
+            if(tab==='accepted') fetchAccepted();
+            if(tab==='share') fetchShare();
+        }
         let map;
         let markers = [];
 
@@ -458,7 +627,16 @@
                     return [];
                 }
                 
-                return data.ips;
+                // Deduplicate by IP and use latest stats to avoid inflated totals
+                const mapByIp = new Map();
+                data.ips.forEach(row => {
+                    if(!row || !row.ip) return;
+                    const prev = mapByIp.get(row.ip);
+                    if(!prev || new Date(row.last_seen||0) > new Date(prev.last_seen||0)){
+                        mapByIp.set(row.ip, row);
+                    }
+                });
+                return Array.from(mapByIp.values());
             } catch (error) {
                 console.error('Error fetching metrics:', error);
                 return [];
@@ -599,16 +777,24 @@
                         const size = getMarkerSize(row.accuracy);
                         const icon = createCustomIcon(color, size, row.accuracy);
                         
-                        const marker = L.marker([parseFloat(row.latitude), parseFloat(row.longitude)], { icon })
+                        const lat = parseFloat(row.latitude), lng = parseFloat(row.longitude);
+                        const marker = L.marker([lat, lng], { icon })
                             .addTo(map);
                         
                         marker.bindPopup(createPopupContent(row), {
                             maxWidth: 350,
                             className: 'custom-popup'
                         });
+                        // Add accuracy circle if accuracy provided as meters or percentage
+                        if(row.accuracy_m){
+                            const radius = Math.min(Math.max(parseFloat(row.accuracy_m)||50, 20), 2000);
+                            const circle = L.circle([lat, lng], { radius, color: '#667eea', fillColor: '#667eea', fillOpacity: 0.08, weight: 1 });
+                            circle.addTo(map);
+                            markers.push(circle);
+                        }
                         
                         markers.push(marker);
-                        bounds.push([parseFloat(row.latitude), parseFloat(row.longitude)]);
+                        bounds.push([lat, lng]);
                     } else {
                         console.log(`Skipping marker for IP ${row.ip} - no valid coordinates`);
                     }
@@ -750,6 +936,10 @@
                 updateStats(ips);
                 updateTable(ips);
                 addMarkersToMap(ips);
+                fetchPending();
+                // Preload accepted/share quietly
+                fetchAccepted();
+                fetchShare();
                 
                 console.log('Dashboard initialization completed successfully');
 
@@ -769,8 +959,11 @@
         }
 
         // Manual refresh function
+        let refreshInFlight = false;
         async function refreshData() {
             console.log('Manual refresh triggered');
+            if(refreshInFlight) { console.log('Refresh already in flight'); return; }
+            refreshInFlight = true;
             try {
                 const ips = await fetchMetrics();
                 updateStats(ips);
@@ -782,6 +975,8 @@
             } catch (error) {
                 console.error('Error refreshing data:', error);
                 alert('Error refreshing data. Please check console for details.');
+            } finally {
+                refreshInFlight = false;
             }
         }
 
@@ -805,18 +1000,97 @@
             }
         }, 10000); // 10 second timeout
 
-        // Auto-refresh every 30 seconds
-        setInterval(async () => {
-            try {
-                const ips = await fetchMetrics();
-                updateStats(ips);
-                updateTable(ips);
-                addMarkersToMap(ips);
-                document.getElementById('lastUpdate').textContent = 'Last updated: ' + new Date().toLocaleTimeString();
-            } catch (error) {
-                console.error('Error refreshing data:', error);
+        // Auto-refresh every 30 seconds with guard
+        let autoRefreshId = null;
+        function startAutoRefresh(){
+            if(autoRefreshId) clearInterval(autoRefreshId);
+            autoRefreshId = setInterval(refreshData, 30000);
+        }
+        startAutoRefresh();
+
+        // Pending accounts
+        async function fetchPending(){
+            try{
+                const res = await fetch('/admin/pending-users', { headers:{ 'Accept':'application/json' } });
+                const body = await res.json().catch(()=>({}));
+                if(!res.ok) throw new Error(body.message||'Failed to fetch pending');
+                renderPending(body.users||[]);
+            }catch(e){
+                const tbody = document.querySelector('#pendingTable tbody');
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#718096; padding: 20px;">No pending data available.</td></tr>`;
             }
-        }, 30000);
+        }
+        function renderPending(users){
+            const tbody = document.querySelector('#pendingTable tbody');
+            if(!users.length){
+                tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#718096; padding: 20px;">No pending accounts.</td></tr>`;
+                return;
+            }
+            tbody.innerHTML = '';
+            users.forEach(u=>{
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${u.name||'-'}</td><td>${u.email||'-'}</td><td>${u.created_at||'-'}</td><td><button class="action-btn btn-approve" onclick="approveUser('${u.id}')"><i class=\"fas fa-check\"></i> Approve</button> <button class="action-btn btn-decline" onclick="declineUser('${u.id}')"><i class=\"fas fa-times\"></i> Decline</button></td>`;
+                tbody.appendChild(tr);
+            });
+        }
+        async function approveUser(id){ await actUser(id, true); }
+        async function declineUser(id){ await actUser(id, false); }
+        async function actUser(id, approve){
+            try{
+                const res = await fetch(approve?'/admin/pending-users/approve':'/admin/pending-users/decline', { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept':'application/json' }, body: JSON.stringify({ id }) });
+                const body = await res.json().catch(()=>({}));
+                if(!res.ok) throw new Error(body.message||'Action failed');
+                fetchPending();
+            }catch(e){ alert(e.message||'Action failed'); }
+        }
+
+        // Accepted accounts (login-eligible users)
+        async function fetchAccepted(){
+            try{
+                const res = await fetch('/admin/login-eligible-users', { headers:{ 'Accept':'application/json' } });
+                const body = await res.json().catch(()=>({}));
+                if(!res.ok) throw new Error(body.message||'Failed to fetch login-eligible users');
+                renderAccepted(body.users||[]);
+            }catch(e){
+                const tbody = document.querySelector('#acceptedTable tbody');
+                tbody.innerHTML = `<tr><td colspan="4" style=\"text-align:center; color:#718096; padding: 20px;\">No login-eligible account data.</td></tr>`;
+            }
+        }
+        function renderAccepted(users){
+            const tbody = document.querySelector('#acceptedTable tbody');
+            if(!users.length){ tbody.innerHTML = `<tr><td colspan=\"4\" style=\"text-align:center; color:#718096; padding:20px;\">No login-eligible accounts.</td></tr>`; return; }
+            tbody.innerHTML='';
+            users.forEach(u=>{
+                const photo = u.photo_url ? `<img src=\"${u.photo_url}\" alt=\"${u.name||''}\" style=\"width:36px; height:36px; border-radius:50%; object-fit:cover;\">` : '<div style="width:36px; height:36px; border-radius:50%; background:#e2e8f0;"></div>';
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${photo}</td><td>${u.name||'-'}</td><td>${u.email||'-'}</td><td>${u.password_mask||'••••••••'}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
+
+        // Share activity
+        async function fetchShare(){
+            try{
+                const res = await fetch('/admin/share-activity', { headers:{ 'Accept':'application/json' } });
+                const body = await res.json().catch(()=>({}));
+                if(!res.ok) throw new Error(body.message||'Failed to fetch share activity');
+                renderShare(body.items||[]);
+            }catch(e){
+                const tbody = document.querySelector('#shareTable tbody');
+                tbody.innerHTML = `<tr><td colspan=\"4\" style=\"text-align:center; color:#718096; padding:20px;\">No share activity data.</td></tr>`;
+            }
+        }
+        function renderShare(items){
+            const tbody = document.querySelector('#shareTable tbody');
+            if(!items.length){ tbody.innerHTML = `<tr><td colspan=\"4\" style=\"text-align:center; color:#718096; padding:20px;\">No share activity.</td></tr>`; return; }
+            tbody.innerHTML='';
+            items.forEach(it=>{
+                const sharedWith = (it.shared_with||[]).map(e=>`<span class=\"badge badge-info\" style=\"margin:2px;\">${e}</span>`).join('');
+                const tr = document.createElement('tr');
+                tr.innerHTML = `<td>${it.user_name||'-'}</td><td>${it.user_email||'-'}</td><td>${it.tokens||0}</td><td>${sharedWith||'-'}</td>`;
+                tbody.appendChild(tr);
+            });
+        }
     </script>
 </body>
 </html>

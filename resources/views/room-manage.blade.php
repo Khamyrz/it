@@ -1978,12 +1978,6 @@
                                                                 <button onclick="openEditModal({{ $item->id }}, '{{ htmlspecialchars($item->room_title, ENT_QUOTES) }}', '{{ htmlspecialchars($item->device_category, ENT_QUOTES) }}', '{{ htmlspecialchars($item->brand ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->model ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->description ?? '', ENT_QUOTES) }}')" class="icon-btn edit">
                                                                     <i class="fas fa-edit"></i>
                                                                 </button>
-                                                                <form method="POST" action="/manage-room/item/{{ $item->id }}" style="display:inline;">
-                                                                    @csrf @method('DELETE')
-                                                                    <button class="icon-btn delete" onclick="confirmDeleteItem({{ $item->id }})">
-                                                                        <i class="fas fa-trash"></i>
-                                                                    </button>
-                                                                </form>
                                                                 <button onclick="printBarcode({{ $item->id }})" class="icon-btn print">
                                                                     <i class="fas fa-print"></i>
                                                                 </button>
@@ -2086,12 +2080,6 @@
                                                     <button onclick="openEditModal({{ $item->id }}, '{{ htmlspecialchars($item->room_title, ENT_QUOTES) }}', '{{ htmlspecialchars($item->device_category, ENT_QUOTES) }}', '{{ htmlspecialchars($item->brand ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->model ?? '', ENT_QUOTES) }}', '{{ htmlspecialchars($item->description ?? '', ENT_QUOTES) }}')" class="icon-btn edit">
                                                         <i class="fas fa-edit"></i>
                                                     </button>
-                                                    <form method="POST" action="/manage-room/item/{{ $item->id }}" style="display:inline;">
-                                                        @csrf @method('DELETE')
-                                                        <button class="icon-btn delete" onclick="confirmDeleteItem({{ $item->id }})">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
-                                                    </form>
                                                     <button onclick="printBarcode({{ $item->id }})" class="icon-btn print">
                                                         <i class="fas fa-print"></i>
                                                     </button>
@@ -2870,11 +2858,6 @@
                     <button onclick="openEditModal(${tempId}, '${roomTitle}', '${deviceCategory}', '${brand}', '${model}', '${description}')" class="icon-btn edit">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <form method="POST" action="/manage-room/item/${tempId}" style="display:inline;">
-                        <button class="icon-btn delete" onclick="confirmDeleteItem(${tempId})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
                     <button onclick="printBarcode(${tempId})" class="icon-btn print">
                         <i class="fas fa-print"></i>
                     </button>
@@ -3064,7 +3047,7 @@
             '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 2.5mm; }' +
             '.barcode-card { border: 1px dashed #999; padding: 1.5mm; text-align: center; background: #fff; }' +
             '.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
-            '.barcode-img { width: 42mm; height: 14mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+            '.barcode-img { width: 50mm; height: 18mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
             '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
             '</style></head><body>';
 
@@ -3150,7 +3133,7 @@
 			'.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(24mm, 1fr)); gap: 2.2mm; }' +
 			'.barcode-card { border: 1px dashed #999; padding: 1mm; margin: 1.8mm; text-align: center; background: #fff; box-sizing: border-box; }' +
 			'.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
-			'.barcode-img { width: 100%; max-width: 100%; height: auto; max-height: 9mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+			'.barcode-img { width: 100%; max-width: 100%; height: auto; max-height: 18mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
             '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
             '</style></head><body>';
 
@@ -3795,66 +3778,67 @@
                 
                 isOperationInProgress = true;
                 
-                // Get form data for immediate display
+                // Build form data and preserve unchanged values
                 const formData = new FormData(editForm);
-                const deviceCategory = formData.get('device_category');
-                const brand = formData.get('brand') || '';
-                const model = formData.get('model') || '';
-                const status = formData.get('status');
+                let deviceCategory = formData.get('device_category');
+                const brandInput = formData.get('brand');
+                const modelInput = formData.get('model');
+                const statusInput = formData.get('status');
                 const description = formData.get('description') || '';
                 
                 // Extract item ID from form action
                 const itemId = editForm.action.split('/').pop();
                 
+                // Read current values from DOM for fallbacks
+                let currentBrand = '';
+                let currentModel = '';
+                let currentStatus = '';
+                let currentDeviceCategory = '';
+                const checkbox = document.querySelector(`input.item-checkbox[data-item-id="${itemId}"]`);
+                if (checkbox) {
+                    const row = checkbox.closest('tr');
+                    if (row) {
+                        const brandModelDiv = row.querySelector('.device-brand-model');
+                        if (brandModelDiv) {
+                            const strong = brandModelDiv.querySelector('strong');
+                            currentBrand = strong ? strong.textContent.trim() : '';
+                            const small = brandModelDiv.querySelector('small');
+                            currentModel = small ? small.textContent.trim() : '';
+                        }
+                        const statusBadge = row.querySelector('.badge');
+                        if (statusBadge) {
+                            currentStatus = (statusBadge.textContent || '').trim();
+                        }
+                        const categoryCell = row.querySelector('td:nth-child(3)');
+                        if (categoryCell) {
+                            currentDeviceCategory = categoryCell.textContent.trim();
+                        }
+                    }
+                }
+                
+                if (!deviceCategory || deviceCategory === '') {
+                    deviceCategory = currentDeviceCategory || deviceCategory;
+                }
+                
+                // Determine effective values to display and send
+                const effectiveBrand = brandInput && brandInput.trim() !== '' ? brandInput : currentBrand;
+                const effectiveModel = modelInput && modelInput.trim() !== '' ? modelInput : currentModel;
+                const effectiveStatus = statusInput && String(statusInput).trim() !== '' ? statusInput : currentStatus;
+                
+                // Ensure backend receives effective values (avoid validation failures)
+                formData.set('brand', effectiveBrand || '');
+                formData.set('model', effectiveModel || '');
+                if (effectiveStatus) formData.set('status', effectiveStatus);
+                if (deviceCategory) formData.set('device_category', deviceCategory);
+                // Laravel update validation requires quantity; default to 1 for single edits
+                if (!formData.get('quantity')) {
+                    formData.set('quantity', '1');
+                }
+                
                 // Close modal first
                 closeModal('editModal');
                 
-                // Update DOM immediately and get result
-                const updateResult = updateItemInDOM(itemId, deviceCategory, brand, model, status, description);
-                
-                // Force multiple DOM updates and reflows to ensure complete visibility
-                document.body.offsetHeight;
-                document.body.scrollTop = document.body.scrollTop;
-                document.documentElement.offsetHeight;
-                
-                // Ensure the updated item is completely visible
-                const updatedItem = document.querySelector(`input[data-item-id="${itemId}"]`);
-                if (updatedItem) {
-                    // Make sure the item is visible
-                    updatedItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
-                    
-                    // Force a final reflow to ensure the item is rendered
-                    updatedItem.offsetHeight;
-                    
-                    // Add a small delay to ensure the browser has fully rendered the changes
-                    requestAnimationFrame(() => {
-                        // Show success message only after the item is completely visible
-                        Swal.fire({
-                            title: 'Success!',
-                            text: 'Item updated successfully!',
-                            icon: 'success',
-                            timer: 2000,
-                            showConfirmButton: false,
-                            allowOutsideClick: false,
-                            allowEscapeKey: false
-                        });
-                    });
-                } else {
-                    // Fallback: show success message after a short delay
-                    setTimeout(() => {
-                        Swal.fire({
-                            title: 'Success!',
-                            text: 'Item updated successfully!',
-                            icon: 'success',
-                            timer: 2000,
-                            showConfirmButton: false,
-                            allowOutsideClick: false,
-                            allowEscapeKey: false
-                        });
-                    }, 150);
-                }
-                
-                // Submit form in background
+                // Submit form and update DOM after success
                 fetch(editForm.action, {
                     method: 'POST',
                     body: formData,
@@ -3864,26 +3848,54 @@
                     }
                 })
                 .then(response => {
-                    // Handle response silently in background
-                    if (!response.ok) {
-                        console.error('Server error:', response.status);
+                    // Treat 2xx and 3xx (redirect) as success to match Laravel behavior
+                    if (!(response.status >= 200 && response.status < 400)) {
+                        throw new Error('Update failed');
                     }
-                    return response.text();
+                    return true; // treat any 2xx as success
                 })
-                .then(data => {
-                    // Try to parse JSON response
-                    try {
-                        const jsonData = JSON.parse(data);
-                        if (!jsonData.success) {
-                            console.error('Server error:', jsonData.message);
-                        }
-                    } catch (e) {
-                        // If not JSON, just log the error
-                        console.error('Server response error:', e);
+                .then(() => {
+                    const updateResult = updateItemInDOM(itemId, deviceCategory, effectiveBrand, effectiveModel, effectiveStatus, description);
+                    // Ensure visibility and show success
+                    document.body.offsetHeight;
+                    document.body.scrollTop = document.body.scrollTop;
+                    document.documentElement.offsetHeight;
+                    const updatedItem = document.querySelector(`input[data-item-id="${itemId}"]`);
+                    if (updatedItem) {
+                        updatedItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
+                        updatedItem.offsetHeight;
+                        requestAnimationFrame(() => {
+                            Swal.fire({
+                                title: 'Success!',
+                                text: 'Item updated successfully!',
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            });
+                        });
+                    } else {
+                        setTimeout(() => {
+                            Swal.fire({
+                                title: 'Success!',
+                                text: 'Item updated successfully!',
+                                icon: 'success',
+                                timer: 2000,
+                                showConfirmButton: false,
+                                allowOutsideClick: false,
+                                allowEscapeKey: false
+                            });
+                        }, 150);
                     }
                 })
                 .catch(error => {
-                    console.error('Network error:', error);
+                    console.error('Update error:', error);
+                    Swal.fire({
+                        title: 'Update failed',
+                        text: 'Could not save changes. Please try again.',
+                        icon: 'error'
+                    });
                 })
                 .finally(() => {
                     isOperationInProgress = false;
@@ -4114,11 +4126,6 @@
                     <button onclick="openEditModal(${tempId}, '${roomTitle}', '${deviceCategory}', '${brand}', '${model}', '${description}')" class="icon-btn edit">
                         <i class="fas fa-edit"></i>
                     </button>
-                    <form method="POST" action="/manage-room/item/${tempId}" style="display:inline;">
-                        <button class="icon-btn delete" onclick="confirmDeleteItem(${tempId})">
-                            <i class="fas fa-trash"></i>
-                        </button>
-                    </form>
                     <button onclick="printBarcode(${tempId})" class="icon-btn print">
                         <i class="fas fa-print"></i>
                     </button>
@@ -4276,11 +4283,6 @@
                             <button onclick="openEditModal(${tempId}, '${roomTitle}', '${category}', '${brand}', '${model}', '${description}')" class="icon-btn edit">
                                 <i class="fas fa-edit"></i>
                             </button>
-                            <form method="POST" action="/manage-room/item/${tempId}" style="display:inline;">
-                                <button class="icon-btn delete" onclick="confirmDeleteItem(${tempId})">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </form>
                             <button onclick="printBarcode(${tempId})" class="icon-btn print">
                                 <i class="fas fa-print"></i>
                             </button>

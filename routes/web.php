@@ -18,11 +18,22 @@ Route::get('/', function () {
     return view('login');
 });
 
+// CSRF token endpoint for refreshing tokens
+Route::get('/csrf-token', function () {
+    return response()->json(['csrf_token' => csrf_token()]);
+});
+
+// Test email system endpoint
+Route::get('/test-email-system', [AuthController::class, 'testEmailSystem']);
+
 // AUTHENTICATION ROUTES
 Route::get('/register', [AuthController::class, 'showRegisterForm']);
 Route::post('/register', [AuthController::class, 'register']);
 Route::get('/login', [AuthController::class, 'showLoginForm'])->name('login');
 Route::post('/login', [AuthController::class, 'login']);
+// Access token activation during signup
+Route::post('/access-token/resend', [AuthController::class, 'resendAccessToken'])->name('access-token.resend');
+Route::post('/access-token/verify', [AuthController::class, 'verifyAccessToken'])->name('access-token.verify');
 Route::get('/logout', [AuthController::class, 'logout']);
 // Email verification during registration (OTP)
 Route::post('/email-verification/send-otp', [AuthController::class, 'sendEmailVerificationOTP']);

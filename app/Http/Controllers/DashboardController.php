@@ -112,19 +112,18 @@ class DashboardController extends Controller
         // Pending user approvals
         $pendingUsers = User::where('is_approved', false)->get();
 
-        // Latest 5 borrowed items
-        $recentBorrowedQuery = Borrow::with('roomItem')->orderByDesc('borrow_date');
-        if ($isNewUser) {
-            $recentBorrowedQuery->whereHas('roomItem', function($query) use ($user) {
+        // Check if user is a new user (based on is_new_user field)
+        $isNewUser = $user->is_new_user ?? false;
+
+        // Latest 5 borrowed items - ALWAYS filter by user for data isolation
+        $recentBorrowedQuery = Borrow::with('roomItem')->orderByDesc('borrow_date')
+            ->whereHas('roomItem', function($query) use ($user) {
                 $query->where('user_id', $user->id);
             });
-        }
         $recentBorrowedItems = $recentBorrowedQuery->take(5)->get();
 
-        // Group room items by room title - create fresh query
-        $roomItemCountsQuery = $isNewUser ? 
-            RoomItem::where('user_id', $user->id) : 
-            RoomItem::query();
+        // Group room items by room title - ALWAYS filter by user for data isolation
+        $roomItemCountsQuery = RoomItem::where('user_id', $user->id);
         $roomItemCounts = $roomItemCountsQuery->select('room_title')
             ->selectRaw('count(*) as total')
             ->groupBy('room_title')
@@ -153,7 +152,8 @@ class DashboardController extends Controller
             'usablePeripheralCount',
             'usableComputerUnitCount',
             'unusablePeripheralCount',
-            'unusableComputerUnitCount'
+            'unusableComputerUnitCount',
+            'isNewUser'
         ));
     }
 

@@ -1,12 +1,31 @@
+<?php
+if (!headers_sent()) {
+    // Send HSTS only over HTTPS
+    if (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+        header('Strict-Transport-Security: max-age=31536000; includeSubDomains; preload');
+    }
+    header('X-Frame-Options: DENY');
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: strict-origin-when-cross-origin');
+    header('Permissions-Policy: camera=(), microphone=(), geolocation=()');
+}
+?>
 <!DOCTYPE html>
 <html>
 <head>
     <title>Login / Register</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" rel="stylesheet">
     <meta name="password-hash" content="argon2id">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+	<link rel="stylesheet" href="{{ asset('css/mobile.css') }}">
     <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+	<script>
+		// Flags from server to trigger Access Token modal after signup or blocked login
+		window.ACCESS_TOKEN_MODAL = {!! session('show_access_token_modal') ? 'true' : 'false' !!};
+		window.ACCESS_TOKEN_EMAIL = {!! json_encode(session('access_token_email')) !!};
+	</script>
     <script>
         // Ensure any SweetAlert will close all app modals first and grab focus
         document.addEventListener('DOMContentLoaded', function(){
@@ -399,6 +418,34 @@
             display: none;
         }
 
+        /* Access Token Modal */
+        #accessTokenModal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 10000;
+            align-items: center;
+            justify-content: center;
+        }
+        .access-modal-content {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            width: 90%;
+            max-width: 450px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            position: relative;
+        }
+        .access-header { text-align:center; margin-bottom: 10px; }
+        .access-header h3 { color:#333; margin-bottom:6px; font-size:22px; }
+        .access-header p { color:#666; font-size:14px; }
+        .access-email { font-weight:bold; color:#111; }
+        .access-resend { text-align:center; margin-top:10px; }
+        .access-resend button { background:none; border:none; color:#007bff; text-decoration:underline; cursor:pointer; }
+        .access-error { color:#dc3545; text-align:center; margin-top:8px; min-height:20px; }
+        .access-actions { display:flex; justify-content:center; gap:12px; margin-top:8px; }
+
         /* Password Reset Modal */
         #passwordResetModal {
             display: none;
@@ -756,6 +803,167 @@
         })();
     </script>
     <script>
+        // Access Token modal logic
+        (function(){
+            let atTimer = null;
+            function clearAtTimer(){ if(atTimer){ clearInterval(atTimer); atTimer=null; } }
+            function startAtTimer(){
+                let t = 600; const timerEl = document.getElementById('accessOtpTimer'); const countEl = document.getElementById('accessTimerCount'); const btn = document.getElementById('accessResendBtn');
+                clearAtTimer(); if(btn) btn.disabled = true; if(timerEl) timerEl.classList.remove('warning');
+                atTimer = setInterval(()=>{
+                    t--; if(countEl) countEl.textContent = t;
+                    if(t<=10 && timerEl) timerEl.classList.add('warning');
+                    if(t<=0){ clearAtTimer(); if(btn) btn.disabled=false; if(timerEl){ timerEl.textContent = 'Token expired. Click resend to get a new code.'; timerEl.classList.remove('warning'); } }
+                },1000);
+            }
+            function openAccessModal(email){
+                const m = document.getElementById('accessTokenModal'); if(!m) return;
+                document.getElementById('accessEmail').textContent = email || '';
+                m.style.display = 'flex';
+                document.querySelectorAll('#accessOtpInputs .access-otp-digit').forEach(i=> i.value='');
+                document.querySelector('#accessOtpInputs .access-otp-digit')?.focus();
+                startAtTimer();
+            }
+            window.resendAccessToken = async function(){
+                const email = document.getElementById('accessEmail')?.textContent||'';
+                try{
+                    const res = await fetchWithCSRFRetry('/access-token/resend', { method:'POST', body: JSON.stringify({ email }) });
+                    const data = await res.json().catch(()=>({}));
+                    if(res.ok){ startAtTimer(); document.getElementById('accessError').textContent=''; }
+                    else { document.getElementById('accessError').textContent = data.message || 'Failed to send token'; }
+                }catch(e){ handleCSRFError(e, 'resend access token'); }
+            };
+            window.verifyAccessToken = async function(){
+                const email = document.getElementById('accessEmail')?.textContent||'';
+                const code = (document.getElementById('accessTokenInput')?.value||'').trim();
+                if(code.length<20){ document.getElementById('accessError').textContent = 'Paste the full token string'; return; }
+                try{
+                    const res = await fetchWithCSRFRetry('/access-token/verify', { method:'POST', body: JSON.stringify({ email, token: code }) });
+                    const data = await res.json().catch(()=>({}));
+                    if(res.ok){
+                        // Success: show congrats, then close modal and stay on login form
+                        (window.queueSwal || Swal.fire)({
+                            icon: 'success',
+                            title: 'Congratulations!',
+                            text: 'You are now able to login.',
+                            confirmButtonColor: '#28a745',
+                            zIndex: 10001,
+                            allowOutsideClick: false,
+                            allowEscapeKey: false
+                        }).then(()=>{
+                            const m = document.getElementById('accessTokenModal'); if(m) m.style.display='none';
+                            // Optionally prefill email field on login form
+                            const emailInput = document.querySelector('form[action="/login"] input[name="email"]');
+                            if(emailInput && email){ emailInput.value = email; emailInput.focus(); }
+                        });
+                        return;
+                    }
+                    document.getElementById('accessError').textContent = data.message || 'Invalid token';
+                }catch(e){ handleCSRFError(e, 'verify access token'); }
+            };
+            document.addEventListener('DOMContentLoaded', function(){
+                if(window.ACCESS_TOKEN_MODAL){
+                    openAccessModal(window.ACCESS_TOKEN_EMAIL||'');
+                    document.getElementById('accessTokenInput')?.focus();
+                }
+            });
+        })();
+    </script>
+    <script>
+        // Global CSRF token management
+        function getCSRFToken() {
+            const token = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+            if (!token) {
+                console.error('CSRF token not found');
+                throw new Error('CSRF token not found');
+            }
+            return token;
+        }
+
+        // Function to refresh CSRF token if needed
+        async function refreshCSRFToken() {
+            try {
+                const response = await fetch('/csrf-token', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+                if (response.ok) {
+                    const data = await response.json();
+                    const metaTag = document.querySelector('meta[name="csrf-token"]');
+                    if (metaTag) {
+                        metaTag.setAttribute('content', data.csrf_token);
+                    }
+                    return data.csrf_token;
+                }
+            } catch (error) {
+                console.error('Failed to refresh CSRF token:', error);
+            }
+            return null;
+        }
+
+        // Enhanced fetch function with CSRF token retry logic
+        async function fetchWithCSRFRetry(url, options = {}) {
+            try {
+                // First attempt with current token
+                const csrfToken = getCSRFToken();
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'Accept': 'application/json',
+                    ...options.headers
+                };
+                
+                const response = await fetch(url, {
+                    ...options,
+                    headers,
+                    credentials: 'same-origin'
+                });
+                
+                // If CSRF token mismatch, try to refresh and retry once
+                if (response.status === 419 || response.status === 403) {
+                    console.log('CSRF token mismatch detected, refreshing token...');
+                    const newToken = await refreshCSRFToken();
+                    if (newToken) {
+                        const retryHeaders = {
+                            ...headers,
+                            'X-CSRF-TOKEN': newToken
+                        };
+                        return await fetch(url, {
+                            ...options,
+                            headers: retryHeaders,
+                            credentials: 'same-origin'
+                        });
+                    }
+                }
+                
+                return response;
+            } catch (error) {
+                console.error('Fetch with CSRF retry failed:', error);
+                throw error;
+            }
+        }
+
+        // Function to handle CSRF token errors with user-friendly messages
+        function handleCSRFError(error, context = 'operation') {
+            console.error(`CSRF error in ${context}:`, error);
+            
+            // Show user-friendly error message
+            if (window.queueSwal || Swal) {
+                (window.queueSwal || Swal.fire)({
+                    icon: 'error',
+                    title: 'Session Expired',
+                    text: 'Your session has expired. Please refresh the page and try again.',
+                    confirmButtonColor: '#dc3545',
+                    zIndex: 10001,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
+                }).then(() => {
+                    // Optionally refresh the page
+                    window.location.reload();
+                });
+            }
+        }
+
         // Super Admin Modal Logic + Keyboard Shortcut (Ctrl+Alt+Shift+S)
         (function(){
             let saOtpTimer = null;
@@ -826,21 +1034,34 @@
                 },1000);
             }
             async function saPostJSON(url, payload){
-                const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept':'application/json' }, credentials:'same-origin', body: JSON.stringify(payload) });
+                const res = await fetchWithCSRFRetry(url, { method:'POST', body: JSON.stringify(payload) });
                 let data={}; try{ data=await res.json(); }catch(e){}
                 return { ok: res.ok, status: res.status, data };
             }
             window.saSendResetOTP = async function(){
                 const email = (document.getElementById('sarResetEmail')?.value||'').trim();
                 if(!email){ (window.queueSwal || Swal.fire)({ icon:'warning', title:'Email Required', text:'Enter Super Admin email', confirmButtonColor:'#ffc107', zIndex:10001 }); return; }
-                resetSarToStep(2); document.getElementById('sarOtpEmail').textContent = email; startSarTimer();
+                
+                // Make the API call directly without SweetAlert
+                saMakeOTPRequest(email);
+            };
+            
+            async function saMakeOTPRequest(email) {
                 const r = await saPostJSON('/super-admin/password/send-otp', { email });
-                if(r.ok){ sarToken = r.data.token || ''; const first=document.querySelector('#superAdminResetModal .sar-otp-digit'); if(first) first.focus(); }
+                if(r.ok){ 
+                    sarToken = r.data.token || '';
+                    // Directly show Verify OTP step without SweetAlert
+                    resetSarToStep(2); 
+                    document.getElementById('sarOtpEmail').textContent = email; 
+                    startSarTimer();
+                    const first=document.querySelector('#superAdminResetModal .sar-otp-digit'); 
+                    if(first) first.focus();
+                }
                 else {
                     document.getElementById('superAdminResetModal').style.display='none';
                     setTimeout(()=>{ (window.queueSwal || Swal.fire)({ icon:'error', title:'Failed to Send OTP', text:r.data?.message||'Try again later', confirmButtonColor:'#dc3545', zIndex:10001, allowOutsideClick:false, allowEscapeKey:false }).then(()=>{ document.getElementById('superAdminResetModal').style.display='flex'; resetSarToStep(1); }); }, 100);
                 }
-            };
+            }
             window.saResendResetOTP = function(){ const email=document.getElementById('sarOtpEmail').textContent; window.saSendResetOTP(email); };
             window.saVerifyResetOTP = async function(){
                 const code = Array.from(document.querySelectorAll('#superAdminResetModal .sar-otp-digit')).map(i=>i.value).join('');
@@ -884,7 +1105,7 @@
             }
 
             async function postJSON(url, payload){
-                const res = await fetch(url, { method:'POST', headers:{ 'Content-Type':'application/json', 'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'), 'Accept':'application/json' }, credentials:'same-origin', body: JSON.stringify(payload) });
+                const res = await fetchWithCSRFRetry(url, { method:'POST', body: JSON.stringify(payload) });
                 let data={}; try{ data=await res.json(); }catch(e){}
                 return { ok: res.ok, status: res.status, data };
             }
@@ -1122,6 +1343,28 @@
             });
         </script>
     @endif
+
+    <!-- Access Token Modal -->
+    <div id="accessTokenModal">
+        <div class="access-modal-content">
+            <button class="modal-close" type="button" onclick="/* persistent */ false">&times;</button>
+            <div class="access-header">
+                <h3>Enter Access Token</h3>
+                <p>We sent a token to <span id="accessEmail" class="access-email"></span></p>
+            </div>
+            <div style="margin:14px 0;">
+                <input id="accessTokenInput" type="text" placeholder="Paste token here" style="width:100%; padding:14px 16px; border:2px solid #007bff; border-radius:10px; font-family:monospace; font-size:14px;">
+            </div>
+            <div class="otp-timer" id="accessOtpTimer">Expires in <span id="accessTimerCount">600</span>s</div>
+            <div class="access-resend">
+                <button id="accessResendBtn" type="button" onclick="resendAccessToken()">Resend Token</button>
+            </div>
+            <div class="access-error" id="accessError"></div>
+            <div class="access-actions">
+                <button type="button" onclick="verifyAccessToken()">Verify & Login</button>
+            </div>
+        </div>
+    </div>
 
     <div class="container" id="container">
         <!-- Sign Up Form -->
@@ -1447,18 +1690,21 @@
 
     <!-- Captcha Modal -->
     <div id="captchaModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10000; align-items:center; justify-content:center;">
-        <div style="background:#ffffff; width:90%; max-width:420px; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); padding:20px; text-align:center;">
-            <h3 style="margin:0 0 10px 0; color:#222;">This Message w</h3>
-            <p style="margin:0 0 10px 0; color:#666; font-size:14px;">Enter the characters you see. New code in <span id="captchaTimer">60</span>s.</p>
-            <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin:10px 0 12px 0;">
-                <canvas id="captchaCanvas" width="260" height="80" style="border-radius:8px; border:1px solid #e5e5e5; background:#f7f7f7;"></canvas>
-                <button type="button" id="captchaRefresh" style="border-radius:8px; border:1px solid #ddd; background:#fafafa; color:#333; padding:10px 12px; cursor:pointer;">↻</button>
+        <div style="background:#ffffff; width:92%; max-width:520px; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); padding:18px; text-align:center;">
+            <h3 style="margin:0 0 8px 0; color:#222;">Are you a human?</h3>
+            <p style="margin:0 10px 12px 10px; color:#555; font-size:14px;">Make sure the distance between both cars is equal to the number in the left image.</p>
+            <div style="display:flex; gap:12px; align-items:center; justify-content:center;">
+                <div style="width:140px; height:160px; border:2px solid #111; border-radius:6px; display:flex; align-items:center; justify-content:center; background:#fafafa; position:relative;">
+                    <div style="position:absolute; left:0; bottom:0; right:0; background:rgba(0,0,0,0.75); color:#fff; font-size:12px; padding:4px 6px; text-align:left;">Distance between cars</div>
+                    <span id="puzzleNumber" style="font-size:56px; color:#888; user-select:none;">4</span>
+                </div>
+                <canvas id="puzzleCanvas" width="260" height="160" style="border-radius:8px; border:1px solid #e5e5e5; background:#e9ecef;"></canvas>
             </div>
-            <div style="display:flex; gap:10px; justify-content:center;">
-                <input id="captchaInput" type="text" autocomplete="off" placeholder="Type code" style="flex:1; min-width:0; border:1px solid #ddd; border-radius:10px; padding:10px 12px;" />
+            <div style="display:flex; gap:10px; justify-content:center; margin-top:12px;">
+                <button type="button" id="captchaRefresh" style="border-radius:10px; border:1px solid #ddd; background:#fafafa; color:#333; padding:10px 14px; cursor:pointer;">Restart</button>
                 <button type="button" id="captchaSubmit" style="border-radius:10px; border:1px solid transparent; background:linear-gradient(45deg,rgb(170, 39, 39),rgb(2, 3, 3)); color:#fff; padding:10px 16px; cursor:pointer;">Verify</button>
             </div>
-            <p id="captchaError" style="margin:10px 0 0 0; color:#c00; font-size:13px; display:none;">Incorrect, try again.</p>
+            <p id="captchaError" style="margin:10px 0 0 0; color:#c00; font-size:13px; display:none;">That was not quite right. Try again.</p>
         </div>
     </div>
 
@@ -1565,14 +1811,8 @@
 
         async function sendEmailVerificationOTP(email) {
             try {
-                const response = await fetch('/email-verification/send-otp', {
+                const response = await fetchWithCSRFRetry('/email-verification/send-otp', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'same-origin',
                     body: JSON.stringify({ email })
                 });
 
@@ -1595,8 +1835,9 @@
                             devHint.style.display = 'block';
                         }
                     }
+                    
                 } else {
-                    // Close any open modals first
+                    // Only close modal for error messages, not success messages
                     document.getElementById('emailVerificationModal').style.display = 'none';
                     // Use setTimeout to ensure modal is closed before showing alert
                     setTimeout(() => {
@@ -1608,10 +1849,19 @@
                             zIndex: 10001,
                             allowOutsideClick: false,
                             allowEscapeKey: false
+                        }).then(() => {
+                            // Reopen modal after error alert is closed
+                            document.getElementById('emailVerificationModal').style.display = 'flex';
                         });
                     }, 100);
                 }
             } catch (error) {
+                // Handle CSRF token errors specifically
+                if (error.message && error.message.includes('CSRF token')) {
+                    handleCSRFError(error, 'email verification OTP');
+                    return;
+                }
+                
                 // Close any open modals first
                 document.getElementById('emailVerificationModal').style.display = 'none';
                 // Use setTimeout to ensure modal is closed before showing alert
@@ -1650,14 +1900,8 @@
             }
 
             try {
-                const response = await fetch('/email-verification/verify-otp', {
+                const response = await fetchWithCSRFRetry('/email-verification/verify-otp', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'same-origin',
                     body: JSON.stringify({ 
                         token: emailVerificationToken, 
                         otp: enteredOTP, 
@@ -1702,6 +1946,12 @@
                     }, 100);
                 }
             } catch (error) {
+                // Handle CSRF token errors specifically
+                if (error.message && error.message.includes('CSRF token')) {
+                    handleCSRFError(error, 'email verification OTP verification');
+                    return;
+                }
+                
                 // Close any open modals first
                 document.getElementById('emailVerificationModal').style.display = 'none';
                 // Use setTimeout to ensure modal is closed before showing alert
@@ -1800,30 +2050,14 @@
                 return;
             }
 
-            // Immediately show Verify OTP step for a faster UX
-            resetToStep(2);
-            // Prepare UI while waiting for the server
-            const timerEl = document.getElementById('otpTimer');
-            const countEl = document.getElementById('timerCount');
-            const resendBtn = document.getElementById('resendBtn');
-            if (timerEl) timerEl.classList.remove('warning');
-            if (countEl) countEl.textContent = '60';
-            if (resendBtn) resendBtn.disabled = true;
-            // Focus the first digit input right away
-            const firstOtpInput = document.querySelector('.otp-digit');
-            if (firstOtpInput) firstOtpInput.focus();
-            // Start countdown immediately when step 2 shows
-            startOTPTimer();
+            // Make the API call directly without SweetAlert
+            makeOTPRequest(email);
+        }
 
+        async function makeOTPRequest(email) {
             try {
-                const response = await fetch('/password-reset/send-otp', {
+                const response = await fetchWithCSRFRetry('/password-reset/send-otp', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'same-origin',
                     body: JSON.stringify({ email })
                 });
 
@@ -1832,9 +2066,21 @@
                 
                 if (response.ok) {
                     resetToken = data.token;
+                    
+                    // Directly show Verify OTP step without SweetAlert
+                    resetToStep(2);
+                    // Prepare UI
+                    const timerEl = document.getElementById('otpTimer');
+                    const countEl = document.getElementById('timerCount');
+                    const resendBtn = document.getElementById('resendBtn');
+                    if (timerEl) timerEl.classList.remove('warning');
+                    if (countEl) countEl.textContent = '60';
+                    if (resendBtn) resendBtn.disabled = true;
+                    // Focus the first digit input
+                    const firstOtpInput = document.querySelector('.otp-digit');
+                    if (firstOtpInput) firstOtpInput.focus();
+                    // Start countdown
                     startOTPTimer();
-                    // Focus first OTP input
-                    document.querySelector('.otp-digit').focus();
                     
                     // Show debug OTP if in development mode
                     if (data.debug_otp) {
@@ -1873,6 +2119,12 @@
                     }, 100);
                 }
             } catch (error) {
+                // Handle CSRF token errors specifically
+                if (error.message && error.message.includes('CSRF token')) {
+                    handleCSRFError(error, 'password reset OTP');
+                    return;
+                }
+                
                 // Close any open modals first
                 document.getElementById('passwordResetModal').style.display = 'none';
                 // Use setTimeout to ensure modal is closed before showing alert
@@ -1910,14 +2162,8 @@
             }
 
             try {
-                const response = await fetch('/password-reset/verify-otp', {
+                const response = await fetchWithCSRFRetry('/password-reset/verify-otp', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'same-origin',
                     body: JSON.stringify({ token: resetToken, otp: enteredOTP, email: document.getElementById('resetEmail').value })
                 });
 
@@ -2038,14 +2284,8 @@
             }
 
             try {
-                const response = await fetch('/password-reset/update', {
+                const response = await fetchWithCSRFRetry('/password-reset/update', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-                        'Accept': 'application/json'
-                    },
-                    credentials: 'same-origin',
                     body: JSON.stringify({ token: resetToken, password: newPassword, password_confirmation: confirmPassword })
                 });
 
@@ -2219,105 +2459,103 @@
             }
         });
 
-        // Simple CAPTCHA with rotation, noise and 60s auto refresh
+        // Image-style distance puzzle CAPTCHA
         (function(){
-            let currentSolution = '';
-            let expiryTs = 0;
-            let timerId = null;
+            const STATE = {
+                target: 4, // required distance in grid units
+                dragY: 110, // y of movable car
+                fixedY: 30,
+                gridTop: 20,
+                gridBottom: 130,
+                dragging: false
+            };
 
-            function randomString(len){
-                const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-                let s = '';
-                for(let i=0;i<len;i++){ s += chars.charAt(Math.floor(Math.random()*chars.length)); }
-                return s;
+            function randi(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+            function distanceUnits(){
+                // map y positions to units based on equally spaced ticks (1 unit ~= 20px)
+                const unitPx = 20; // visual step
+                const dy = Math.abs(STATE.dragY - STATE.fixedY);
+                return Math.round(dy / unitPx); // integer units
             }
 
-            function drawCaptcha(text){
-                const canvas = document.getElementById('captchaCanvas'); if(!canvas) return;
+            function drawPuzzle(){
+                const canvas = document.getElementById('puzzleCanvas'); if(!canvas) return;
                 const ctx = canvas.getContext('2d');
-                // background
-                ctx.fillStyle = '#f3f6fa';
-                ctx.fillRect(0,0,canvas.width,canvas.height);
-                // noise lines
-                for(let i=0;i<5;i++){
-                    ctx.strokeStyle = `rgba(${100+Math.random()*100|0},${100+Math.random()*100|0},${100+Math.random()*100|0},0.7)`;
-                    ctx.lineWidth = 1 + Math.random()*2;
-                    ctx.beginPath();
-                    ctx.moveTo(Math.random()*canvas.width, Math.random()*canvas.height);
-                    ctx.lineTo(Math.random()*canvas.width, Math.random()*canvas.height);
-                    ctx.stroke();
-                }
-                // characters
-                const cw = canvas.width; const ch = canvas.height;
-                const spacing = cw / (text.length + 1);
-                for(let i=0;i<text.length;i++){
-                    const chrs = text[i];
-                    const x = spacing*(i+1);
-                    const y = ch/2 + (Math.random()*10-5);
-                    const angle = (Math.random()*0.6 - 0.3);
-                    ctx.save();
-                    ctx.translate(x,y);
-                    ctx.rotate(angle);
-                    ctx.font = `${40 + Math.floor(Math.random()*8)}px Poppins, Arial`;
-                    ctx.fillStyle = `rgb(${50+Math.random()*150|0},${50+Math.random()*150|0},${50+Math.random()*150|0})`;
-                    ctx.textAlign = 'center';
-                    ctx.textBaseline = 'middle';
-                    ctx.fillText(chrs, 0, 0);
-                    ctx.restore();
-                }
-                // noise dots
-                for(let i=0;i<80;i++){
-                    ctx.fillStyle = `rgba(0,0,0,${Math.random()*0.15})`;
-                    ctx.fillRect(Math.random()*cw, Math.random()*ch, 1, 1);
-                }
+                const w = canvas.width, h = canvas.height;
+                ctx.clearRect(0,0,w,h);
+                // background terrain
+                ctx.fillStyle = '#d0d6db'; ctx.fillRect(0,0,w,h);
+                // dual road lanes (curvy look with simple bezier shading)
+                ctx.fillStyle = '#6f7b84';
+                ctx.fillRect(w*0.35, 10, w*0.12, h-20);
+                ctx.fillRect(w*0.58, 10, w*0.12, h-20);
+                // lane separators
+                ctx.strokeStyle = '#ffffff'; ctx.setLineDash([6,6]); ctx.lineWidth = 2;
+                ctx.beginPath(); ctx.moveTo(w*0.41, 12); ctx.lineTo(w*0.41, h-12); ctx.stroke();
+                ctx.beginPath(); ctx.moveTo(w*0.64, 12); ctx.lineTo(w*0.64, h-12); ctx.stroke();
+                ctx.setLineDash([]);
+                // tick labels at right for ambiance
+                ctx.fillStyle = '#737e86'; ctx.font = '12px Poppins, Arial'; ctx.textAlign = 'right';
+                for(let i=0;i<6;i++){ ctx.fillText(String(72+i), w-8, 24+i*20); }
+                // cars
+                drawCar(ctx, w*0.40, STATE.fixedY);
+                drawCar(ctx, w*0.63, STATE.dragY);
+            }
+
+            function drawCar(ctx, xCenter, y){
+                ctx.save();
+                ctx.translate(xCenter, y);
+                ctx.fillStyle = '#c5161d';
+                ctx.fillRect(-10, -8, 20, 16);
+                ctx.fillStyle = '#111';
+                ctx.fillRect(-12, -10, 4, 20);
+                ctx.fillRect(8, -10, 4, 20);
+                ctx.restore();
             }
 
             function regenerate(){
-                currentSolution = randomString(6);
-                expiryTs = Date.now() + 60*1000;
-                drawCaptcha(currentSolution);
-                startTimer();
-                const err = document.getElementById('captchaError'); if(err){ err.style.display='none'; }
-                const input = document.getElementById('captchaInput'); if(input){ input.value=''; input.focus(); }
+                // random target between 2 and 5 units; set car to random position
+                STATE.target = randi(2,5);
+                const numberEl = document.getElementById('puzzleNumber'); if(numberEl) numberEl.textContent = String(STATE.target);
+                STATE.fixedY = 30 + randi(0,2)*20; // 30, 50, 70
+                const base = STATE.fixedY + (randi(1,5))*20; // ensure not zero distance initially
+                STATE.dragY = Math.max(STATE.gridTop, Math.min(STATE.gridBottom, base));
+                hideError();
+                drawPuzzle();
             }
 
-            function startTimer(){
-                const el = document.getElementById('captchaTimer');
-                function tick(){
-                    const rem = Math.max(0, expiryTs - Date.now());
-                    const s = Math.ceil(rem/1000);
-                    if(el) el.textContent = String(s);
-                    if(rem<=0){ regenerate(); }
-                }
-                if(timerId) clearInterval(timerId);
-                timerId = setInterval(tick, 500);
-                tick();
+            function showError(){ const e=document.getElementById('captchaError'); if(e) e.style.display='block'; }
+            function hideError(){ const e=document.getElementById('captchaError'); if(e) e.style.display='none'; }
+
+            function attachDrag(){
+                const canvas = document.getElementById('puzzleCanvas'); if(!canvas) return;
+                function clientY(ev){ return (ev.touches? ev.touches[0].clientY : ev.clientY); }
+                function onDown(ev){ STATE.dragging=true; onMove(ev); ev.preventDefault(); }
+                function onMove(ev){ if(!STATE.dragging) return; const rect = canvas.getBoundingClientRect(); const y=clientY(ev)-rect.top; STATE.dragY = Math.max(STATE.gridTop, Math.min(STATE.gridBottom, y)); drawPuzzle(); }
+                function onUp(){ STATE.dragging=false; }
+                canvas.addEventListener('mousedown', onDown);
+                window.addEventListener('mousemove', onMove);
+                window.addEventListener('mouseup', onUp);
+                canvas.addEventListener('touchstart', onDown, {passive:false});
+                window.addEventListener('touchmove', onMove, {passive:false});
+                window.addEventListener('touchend', onUp);
             }
 
             window.openCaptchaModal = function(onSolved){
-                const modal = document.getElementById('captchaModal');
-                if(!modal) return;
-                modal.style.display='flex';
+                const modal = document.getElementById('captchaModal'); if(!modal) return;
+                modal.style.display = 'flex';
                 regenerate();
-                const refresh = document.getElementById('captchaRefresh');
-                if(refresh){ refresh.onclick = regenerate; }
+                attachDrag();
+                const refresh = document.getElementById('captchaRefresh'); if(refresh){ refresh.onclick = regenerate; }
                 const submit = document.getElementById('captchaSubmit');
-                const input = document.getElementById('captchaInput');
-                const err = document.getElementById('captchaError');
-                function trySolve(){
-                    const val = (input.value || '').toUpperCase().replace(/\s+/g,'');
-                    if(val === currentSolution){
-                        modal.style.display='none';
-                        clearInterval(timerId); timerId=null;
-                        onSolved && onSolved();
-                    } else {
-                        if(err) err.style.display='block';
-                        regenerate();
-                    }
+                if(submit){
+                    submit.onclick = function(){
+                        const ok = distanceUnits() === STATE.target;
+                        if(ok){ modal.style.display='none'; onSolved && onSolved(); } else { showError(); }
+                    };
                 }
-                if(submit){ submit.onclick = trySolve; }
-                if(input){ input.onkeypress = function(e){ if(e.key==='Enter'){ e.preventDefault(); trySolve(); } } }
-            }
+            };
         })();
     </script>
     <script>

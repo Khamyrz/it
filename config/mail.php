@@ -55,6 +55,7 @@ return [
                     'allow_self_signed' => true,
                 ],
             ],
+            'encryption' => env('MAIL_ENCRYPTION', 'tls'),
         ],
 
         'ses' => [

@@ -10,6 +10,7 @@ use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Cache;
 use App\Models\IpTracking;
 
 class AuthController extends Controller
@@ -57,10 +58,31 @@ class AuthController extends Controller
         // Clear email verification session
         session()->forget(['email_verification_otp', 'email_verification_email', 'email_verification_expires', 'email_verification_verified']);
 
-        // Send approval notification to admin
-        $this->sendAdminApprovalNotification($user);
+        // Generate and send access token to the user's Gmail
+        try {
+            // Generate a long, URL-safe token
+            $accessToken = rtrim(strtr(base64_encode(random_bytes(64)), '+/', '-_'), '=');
+            $cacheKey = 'access_token:' . $user->email;
+            Cache::put($cacheKey, $accessToken, now()->addMinutes(10));
 
-        return redirect('/login')->with('success', 'Registration submitted successfully! Your account is pending approval from the administrator. You will receive an email notification once approved.');
+            Mail::send('emails.access_token', [
+                'token' => $accessToken,
+                'user' => $user
+            ], function ($message) use ($user) {
+                $message->from('iitech.inventory@gmail.com', 'IT Inventory System')
+                        ->to($user->email)
+                        ->subject('Your Access Token - IT Inventory System');
+            });
+        } catch (\Throwable $e) {
+            Log::error('Failed to send access token email: ' . $e->getMessage());
+        }
+
+        // Redirect to login with modal to request access token
+        return redirect('/login')->with([
+            'success' => 'Registration successful! Enter the Access Token sent to your Gmail to activate and login.',
+            'access_token_email' => $user->email,
+            'show_access_token_modal' => true,
+        ]);
     }
 
     public function showLoginForm() {
@@ -90,7 +112,10 @@ class AuthController extends Controller
         if (Auth::attempt($credentials)) {
             if (!Auth::user()->is_approved) {
                 Auth::logout();
-                return back()->withErrors(['email' => 'Your account is pending approval from the administrator. Once approved by iitech.inventory@gmail.com, you can login directly to the IT Inventory System. You will receive an email notification when approved.']);
+                return back()->withErrors(['email' => 'Your account is not yet activated. Please enter the Access Token sent to your Gmail.']).with([
+                    'access_token_email' => $request->email,
+                    'show_access_token_modal' => true,
+                ]);
             }
 
             // Log successful login (don't let this block login if it fails)
@@ -105,6 +130,78 @@ class AuthController extends Controller
         }
 
         return back()->withErrors(['email' => 'Invalid credentials']);
+    }
+
+    /**
+     * Resend access token to the provided Gmail address
+     */
+    public function resendAccessToken(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/'
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            return response()->json(['message' => 'No account found with this email'], 404);
+        }
+
+        if ($user->is_approved) {
+            return response()->json(['message' => 'Account already activated. You can login now.'], 409);
+        }
+
+        try {
+            $accessToken = rtrim(strtr(base64_encode(random_bytes(64)), '+/', '-_'), '=');
+            $cacheKey = 'access_token:' . $user->email;
+            Cache::put($cacheKey, $accessToken, now()->addMinutes(10));
+
+            Mail::send('emails.access_token', [
+                'token' => $accessToken,
+                'user' => (object)['name' => $user->name]
+            ], function ($message) use ($user) {
+                $message->from('iitech.inventory@gmail.com', 'IT Inventory System')
+                        ->to($user->email)
+                        ->subject('Your Access Token - IT Inventory System');
+            });
+        } catch (\Throwable $e) {
+            Log::error('Failed to resend access token email: ' . $e->getMessage());
+            return response()->json(['message' => 'Failed to send access token. Please try again later.'], 500);
+        }
+
+        return response()->json(['message' => 'Access token sent to your Gmail']);
+    }
+
+    /**
+     * Verify access token and activate/login the user
+     */
+    public function verifyAccessToken(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
+            'token' => 'required|string|min:20',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            return response()->json(['message' => 'No account found with this email'], 404);
+        }
+
+        $cacheKey = 'access_token:' . $user->email;
+        $stored = Cache::get($cacheKey);
+        if (!$stored) {
+            return response()->json(['message' => 'Access token expired. Click resend to get a new token.'], 410);
+        }
+
+        if ($stored !== $request->token) {
+            return response()->json(['message' => 'Invalid access token'], 400);
+        }
+
+        // Activate account (do not auto-login)
+        $user->is_approved = true;
+        $user->save();
+        Cache::forget($cacheKey);
+
+        return response()->json(['message' => 'Access token verified. You can now login.']);
     }
 
     public function dashboard() {
@@ -201,6 +298,17 @@ class AuthController extends Controller
         try {
             // Check if Gmail credentials are configured
             $gmailPassword = env('MAIL_PASSWORD');
+            $gmailUsername = env('MAIL_USERNAME');
+            $gmailHost = env('MAIL_HOST');
+            $gmailPort = env('MAIL_PORT');
+            
+            Log::info('Email configuration check:', [
+                'MAIL_PASSWORD' => $gmailPassword ? 'SET' : 'NOT_SET',
+                'MAIL_USERNAME' => $gmailUsername,
+                'MAIL_HOST' => $gmailHost,
+                'MAIL_PORT' => $gmailPort
+            ]);
+            
             if (empty($gmailPassword) || $gmailPassword === 'your-app-password-here') {
                 Log::error('Gmail SMTP password not configured. Please set MAIL_PASSWORD in .env file');
                 
@@ -348,6 +456,17 @@ class AuthController extends Controller
         try {
             // Check if Gmail credentials are configured
             $gmailPassword = env('MAIL_PASSWORD');
+            $gmailUsername = env('MAIL_USERNAME');
+            $gmailHost = env('MAIL_HOST');
+            $gmailPort = env('MAIL_PORT');
+            
+            Log::info('Email verification configuration check:', [
+                'MAIL_PASSWORD' => $gmailPassword ? 'SET' : 'NOT_SET',
+                'MAIL_USERNAME' => $gmailUsername,
+                'MAIL_HOST' => $gmailHost,
+                'MAIL_PORT' => $gmailPort
+            ]);
+            
             if (empty($gmailPassword) || $gmailPassword === 'your-app-password-here') {
                 Log::error('Gmail SMTP password not configured. Please set MAIL_PASSWORD in .env file');
                 

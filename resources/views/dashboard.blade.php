@@ -3,8 +3,10 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title>Dashboard</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="{{ asset('css/mobile.css') }}">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <style>
@@ -272,7 +274,7 @@
             <div class="account">
                 <button onclick="toggleAccountMenu(event)" aria-label="Open menu">&#9660;</button>
                 <div class="dropdown" id="accountDropdown">
-                    <a href="#" onclick="openProfileModal(); return false;">Profile</a><br>
+                    
                     <a href="#" onclick="openProfileModal(); return false;">Settings</a><br>
                     <a href="/logout">Logout</a>
                 </div>

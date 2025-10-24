@@ -358,8 +358,9 @@
         .bwippbarcode img {
             display: block;
             margin: 0 auto;
-            width: auto; /* Use intrinsic width for clarity */
-            height: auto; /* Use intrinsic height for clarity */
+            width: 200px !important; /* Fixed width for consistency */
+            height: 60px !important; /* Fixed height for consistency */
+            object-fit: contain; /* Maintain aspect ratio */
             image-rendering: crisp-edges;
             image-rendering: -webkit-optimize-contrast;
         }
@@ -1945,7 +1946,7 @@
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                                 <div class="barcode-text">{{ $item->barcode }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.6, 40) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; max-width:none; height:auto;">
+                                                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -2062,7 +2063,7 @@
                                                 <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                     <div class="barcode-text">{{ $item->barcode }}</div>
                                                     <div class="bwippbarcode">
-                                                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.6, 40) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; max-width:none; height:auto;">
+                                                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
                                                     </div>
                                                 </div>
                                             </td>
@@ -2126,7 +2127,7 @@
                         </div>
                         <div class="form-group">
                             <label>Room Title</label>
-                            <select name="room_title" id="edit_room_select" onchange="toggleEditCustomRoomInput()" required>
+                            <select name="room_title" id="edit_room_select" onchange="toggleEditCustomRoomInput()">
                                 <option value="">-- Select Room --</option>
                                 <option value="Server">Server</option>
                                 <option value="ComLab 1">ComLab 1</option>
@@ -2140,7 +2141,7 @@
                         </div>
                         <div class="form-group">
                             <label>Device Category</label>
-                            <select name="device_category" id="edit_device_category" onchange="toggleEditFullSet()" required>
+                            <select name="device_category" id="edit_device_category" onchange="toggleEditFullSet()">
                                 <option value="Full Set">🖥️ Full Set (PC + Peripherals)</option>
                                 <option>Keyboard</option>
                                 <option>Mouse</option>
@@ -2726,6 +2727,94 @@
         });
     }
     
+    // Simple fallback function to add items to DOM
+    function addSimpleItemToDOM(roomTitle, deviceCategory, brand, model, status, description) {
+        console.log('=== addSimpleItemToDOM Debug ===');
+        console.log('Room Title:', roomTitle);
+        console.log('Device Category:', deviceCategory);
+        console.log('Brand:', brand);
+        console.log('Model:', model);
+        console.log('Status:', status);
+        console.log('Description:', description);
+        
+        // Find the room container
+        const roomSlug = roomTitle.toLowerCase().replace(/\s+/g, '-');
+        const roomContainer = document.getElementById(`room-${roomSlug}`);
+        
+        if (!roomContainer) {
+            console.error('Could not find room container:', roomSlug);
+            return { success: false, error: 'Room container not found' };
+        }
+        
+        // Find any tbody in the room
+        let tbody = roomContainer.querySelector('tbody');
+        if (!tbody) {
+            console.error('Could not find tbody in room container');
+            return { success: false, error: 'No tbody found' };
+        }
+        
+        // Generate a temporary ID
+        const tempId = 'temp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        
+        // Create a simple row
+        const newRow = document.createElement('tr');
+        newRow.innerHTML = `
+            <td>
+                <input type="checkbox" class="item-checkbox" data-item-id="${tempId}">
+            </td>
+            <td>
+                <div class="device-photo">
+                    <i class="fas fa-image"></i>
+                </div>
+            </td>
+            <td>
+                <div class="device-category">${deviceCategory}</div>
+            </td>
+            <td>
+                <div class="device-brand-model">
+                    <strong>${brand}</strong>${model ? '<br><small>' + model + '</small>' : ''}
+                </div>
+            </td>
+            <td>
+                <span class="serial-code">NEW</span>
+            </td>
+            <td>
+                <div class="device-description">${description}</div>
+            </td>
+            <td>
+                <div class="barcode-wrapper">
+                    <div class="barcode-text">${tempId}</div>
+                    <div class="bwippbarcode">
+                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG('${tempId}', 'C128', 2.0, 50) }}" alt="${tempId}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                    </div>
+                </div>
+            </td>
+            <td>
+                <span class="badge badge-quantity">1</span>
+            </td>
+            <td>
+                <span class="badge ${status === 'Unusable' ? 'badge-unusable' : 'badge-usable'}">${status || 'Usable'}</span>
+            </td>
+            <td>${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+            <td>
+                <div class="action-buttons">
+                    <button onclick="openEditModal(${tempId}, '${roomTitle}', '${deviceCategory}', '${brand}', '${model}', '${description}')" class="icon-btn edit">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button onclick="printBarcode(${tempId})" class="icon-btn print">
+                        <i class="fas fa-print"></i>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        // Add the row to the tbody
+        tbody.appendChild(newRow);
+        
+        console.log('Simple item added to DOM with ID:', tempId);
+        return { success: true, itemId: tempId };
+    }
+
     function addItemToDOM(deviceCategory, brand, model, status, description) {
         // Find the appropriate tbody to add the new item
         const roomTitle = document.getElementById('ac_room_title').value;
@@ -3047,7 +3136,7 @@
             '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 2.5mm; }' +
             '.barcode-card { border: 1px dashed #999; padding: 1.5mm; text-align: center; background: #fff; }' +
             '.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
-            '.barcode-img { width: 50mm; height: 18mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+            '.barcode-img { width: 100mm; height: 45mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
             '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
             '</style></head><body>';
 
@@ -3126,40 +3215,61 @@
             '<style>' +
             '@page { size: A4; margin: 12mm; }' +
             'body { margin: 0; padding: 0; font-family: Arial, sans-serif; }' +
-			'.page { width: 100%; height: 273mm; page-break-after: always; display: flex; flex-direction: column; }' +
+			'.page { width: 100%; height: 273mm; page-break-after: always; display: flex; flex-direction: column; padding: 3mm 0; justify-content: space-between; }' +
             '.page:last-child { page-break-after: auto; }' +
-			'.pc-section { flex: 0 0 calc(20% - 10mm); display: flex; flex-direction: column; margin: 3mm 0; border: none; padding: 1mm; }' +
-			'.pc-header { font-weight: bold; font-size: 10px; text-align: center; margin-bottom: 1.5mm; background: transparent; padding: 0; }' +
-			'.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(24mm, 1fr)); gap: 2.2mm; }' +
-			'.barcode-card { border: 1px dashed #999; padding: 1mm; margin: 1.8mm; text-align: center; background: #fff; box-sizing: border-box; }' +
+			'.pc-section { flex: 1 1 auto; display: flex; flex-direction: column; margin: 2mm 0; border: none; padding: 3mm; min-height: 50mm; }' +
+			'.pc-header { font-weight: bold; font-size: 10px; text-align: center; margin-bottom: 3mm; background: transparent; padding: 1mm 0; }' +
+			'.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(30mm, 1fr)); gap: 2.5mm; }' +
+			'.barcode-card { border: 2px dashed #333; padding: 2mm; margin: 3mm; text-align: center; background: #fff; box-sizing: border-box; }' +
 			'.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
-			'.barcode-img { width: 100%; max-width: 100%; height: auto; max-height: 18mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+			'.barcode-img { width: 100%; max-width: 100%; height: auto; max-height: 28mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
             '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
             '</style></head><body>';
 
-		// Group PCs into pages of 5
+		// Group PCs into pages of 5 with smart barcode distribution
 		for (let i = 0; i < allPCs.length; i += 5) {
 			const pagePCs = allPCs.slice(i, i + 5);
             
             html += '<div class="page">';
             
+            // Smart distribution: allow barcodes to flow into available space
+            let allBarcodes = [];
             pagePCs.forEach(pc => {
+                pc.barcodes.forEach(barcode => {
+                    allBarcodes.push({
+                        ...barcode,
+                        originalPC: pc.roomTitle + ' - ' + pc.pcDisplay
+                    });
+                });
+            });
+            
+            // Distribute barcodes across PC sections
+            let barcodeIndex = 0;
+            const barcodesPerSection = Math.ceil(allBarcodes.length / pagePCs.length);
+            
+            pagePCs.forEach((pc, pcIndex) => {
                 html += '<div class="pc-section">';
                 html += '<div class="pc-header">' + pc.roomTitle + ' - ' + pc.pcDisplay + '</div>';
                 html += '<div class="barcode-grid">';
                 
-                pc.barcodes.forEach(barcode => {
+                // Calculate how many barcodes this section should have
+                const startIndex = barcodeIndex;
+                const endIndex = Math.min(startIndex + barcodesPerSection, allBarcodes.length);
+                const sectionBarcodes = allBarcodes.slice(startIndex, endIndex);
+                
+                sectionBarcodes.forEach(barcode => {
                     html += '<div class="barcode-card">' +
                                 '<div class="barcode-label">' + (barcode.label || '') + '</div>' +
                                 '<img class="barcode-img" src="' + barcode.src + '" />' +
                             '</div>';
                 });
                 
+                barcodeIndex = endIndex;
                 html += '</div></div>';
             });
             
             html += '</div>';
-        }
+		}
 
         html += '</body></html>';
 
@@ -3661,13 +3771,12 @@
         });
     }
     
-    function updateItemInDOM(itemId, deviceCategory, brand, model, status, description) {
+    function updateItemInDOM(itemId, deviceCategory, brand, model, description) {
         console.log('=== updateItemInDOM Debug ===');
         console.log('Item ID:', itemId);
         console.log('Device Category:', deviceCategory);
         console.log('Brand:', brand);
         console.log('Model:', model);
-        console.log('Status:', status);
         console.log('Description:', description);
         
         // Find the row with the matching item ID
@@ -3679,15 +3788,20 @@
             console.log('Row found:', !!row);
             
             if (row) {
-                // Add visual highlighting to show the row was updated
-                row.style.backgroundColor = '#e8f5e8';
-                row.style.border = '2px solid #28a745';
-                
                 // Update the device category
                 const categoryDiv = row.querySelector('.device-category');
                 console.log('Category div found:', !!categoryDiv);
                 if (categoryDiv) {
                     categoryDiv.textContent = deviceCategory;
+                    categoryDiv.style.transition = 'all 0.3s ease';
+                    categoryDiv.style.color = '#28a745';
+                    categoryDiv.style.fontWeight = 'bold';
+                    
+                    // Reset color after animation
+                    setTimeout(() => {
+                        categoryDiv.style.color = '';
+                        categoryDiv.style.fontWeight = '';
+                    }, 1000);
                 }
                 
                 // Update brand and model
@@ -3695,6 +3809,13 @@
                 console.log('Brand model div found:', !!brandModelDiv);
                 if (brandModelDiv) {
                     brandModelDiv.innerHTML = `<strong>${brand}</strong>${model ? '<br><small>' + model + '</small>' : ''}`;
+                    brandModelDiv.style.transition = 'all 0.3s ease';
+                    brandModelDiv.style.color = '#28a745';
+                    
+                    // Reset color after animation
+                    setTimeout(() => {
+                        brandModelDiv.style.color = '';
+                    }, 1000);
                 }
                 
                 // Update description
@@ -3702,15 +3823,15 @@
                 console.log('Description div found:', !!descriptionDiv);
                 if (descriptionDiv) {
                     descriptionDiv.textContent = description;
+                    descriptionDiv.style.transition = 'all 0.3s ease';
+                    descriptionDiv.style.color = '#28a745';
+                    
+                    // Reset color after animation
+                    setTimeout(() => {
+                        descriptionDiv.style.color = '';
+                    }, 1000);
                 }
                 
-                // Update status badge - look for the correct badge (not just any badge)
-                const statusBadge = row.querySelector('td:nth-child(9) .badge');
-                console.log('Status badge found:', !!statusBadge);
-                if (statusBadge) {
-                    statusBadge.textContent = status;
-                    statusBadge.className = `badge ${status === 'Unusable' ? 'badge-unusable' : 'badge-usable'}`;
-                }
                 
                 // Update the edit button onclick with new values
                 const editButton = row.querySelector('.icon-btn.edit');
@@ -3780,24 +3901,24 @@
                 
                 // Build form data and preserve unchanged values
                 const formData = new FormData(editForm);
-                let deviceCategory = formData.get('device_category');
-                const brandInput = formData.get('brand');
-                const modelInput = formData.get('model');
-                const statusInput = formData.get('status');
-                const description = formData.get('description') || '';
                 
                 // Extract item ID from form action
                 const itemId = editForm.action.split('/').pop();
+                console.log('Form action URL:', editForm.action);
+                console.log('Item ID extracted:', itemId);
                 
                 // Read current values from DOM for fallbacks
                 let currentBrand = '';
                 let currentModel = '';
-                let currentStatus = '';
                 let currentDeviceCategory = '';
+                let currentRoomTitle = '';
+                let currentDescription = '';
+                
                 const checkbox = document.querySelector(`input.item-checkbox[data-item-id="${itemId}"]`);
                 if (checkbox) {
                     const row = checkbox.closest('tr');
                     if (row) {
+                        // Get current brand and model
                         const brandModelDiv = row.querySelector('.device-brand-model');
                         if (brandModelDiv) {
                             const strong = brandModelDiv.querySelector('strong');
@@ -3805,97 +3926,211 @@
                             const small = brandModelDiv.querySelector('small');
                             currentModel = small ? small.textContent.trim() : '';
                         }
-                        const statusBadge = row.querySelector('.badge');
-                        if (statusBadge) {
-                            currentStatus = (statusBadge.textContent || '').trim();
-                        }
+                        
+                        
+                        // Get current device category
                         const categoryCell = row.querySelector('td:nth-child(3)');
                         if (categoryCell) {
                             currentDeviceCategory = categoryCell.textContent.trim();
                         }
+                        
+                        // Get current description
+                        const descriptionCell = row.querySelector('.device-description');
+                        if (descriptionCell) {
+                            currentDescription = descriptionCell.textContent.trim();
+                        }
                     }
                 }
                 
-                if (!deviceCategory || deviceCategory === '') {
-                    deviceCategory = currentDeviceCategory || deviceCategory;
+                // Get current room title from the room group
+                const roomContainer = checkbox ? checkbox.closest('.room-group') : null;
+                if (roomContainer) {
+                    const roomTitleElement = roomContainer.querySelector('.room-title');
+                    if (roomTitleElement) {
+                        currentRoomTitle = roomTitleElement.textContent.trim();
+                    }
                 }
                 
-                // Determine effective values to display and send
+                // Get form input values
+                const roomTitleInput = formData.get('room_title') || formData.get('custom_room_title');
+                const deviceCategoryInput = formData.get('device_category');
+                const brandInput = formData.get('brand');
+                const modelInput = formData.get('model');
+                const descriptionInput = formData.get('description');
+                
+                // Use current values if form inputs are empty or unchanged
+                const effectiveRoomTitle = roomTitleInput && roomTitleInput.trim() !== '' ? roomTitleInput : currentRoomTitle;
+                const effectiveDeviceCategory = deviceCategoryInput && deviceCategoryInput.trim() !== '' ? deviceCategoryInput : currentDeviceCategory;
                 const effectiveBrand = brandInput && brandInput.trim() !== '' ? brandInput : currentBrand;
                 const effectiveModel = modelInput && modelInput.trim() !== '' ? modelInput : currentModel;
-                const effectiveStatus = statusInput && String(statusInput).trim() !== '' ? statusInput : currentStatus;
+                const effectiveDescription = descriptionInput && descriptionInput.trim() !== '' ? descriptionInput : currentDescription;
                 
-                // Ensure backend receives effective values (avoid validation failures)
+                // Set effective values in form data
+                formData.set('room_title', effectiveRoomTitle || '');
+                formData.set('device_category', effectiveDeviceCategory || '');
                 formData.set('brand', effectiveBrand || '');
                 formData.set('model', effectiveModel || '');
-                if (effectiveStatus) formData.set('status', effectiveStatus);
-                if (deviceCategory) formData.set('device_category', deviceCategory);
-                // Laravel update validation requires quantity; default to 1 for single edits
+                formData.set('description', effectiveDescription || '');
+                
+                // Ensure quantity is set (Laravel validation requirement)
                 if (!formData.get('quantity')) {
                     formData.set('quantity', '1');
+                }
+                
+                // Ensure we have at least some data to update
+                if (!effectiveRoomTitle && !effectiveDeviceCategory && !effectiveBrand && !effectiveModel && !effectiveStatus && !effectiveDescription) {
+                    console.warn('No changes detected, but proceeding with update...');
+                }
+                
+                // Debug: Log form data to ensure all fields are captured
+                console.log('Form data being sent:');
+                for (let [key, value] of formData.entries()) {
+                    console.log(`${key}: ${value}`);
                 }
                 
                 // Close modal first
                 closeModal('editModal');
                 
-                // Submit form and update DOM after success
+                // Update DOM immediately for instant feedback
+                const updateResult = updateItemInDOM(itemId, effectiveDeviceCategory, effectiveBrand, effectiveModel, effectiveDescription);
+                
+                // Show success message immediately
+                Swal.fire({
+                    title: 'Success!',
+                    text: 'Item updated successfully!',
+                    icon: 'success',
+                    timer: 1500,
+                    showConfirmButton: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
+                });
+                
+                // Add visual feedback immediately
+                const updatedItem = document.querySelector(`input[data-item-id="${itemId}"]`);
+                if (updatedItem) {
+                    // Scroll to the updated item smoothly
+                    updatedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                    
+                    // Add a subtle animation to highlight the updated row
+                    const row = updatedItem.closest('tr');
+                    if (row) {
+                        row.style.transition = 'all 0.5s ease';
+                        row.style.backgroundColor = '#e8f5e8';
+                        row.style.border = '2px solid #28a745';
+                        row.style.transform = 'scale(1.02)';
+                        row.style.boxShadow = '0 4px 8px rgba(40, 167, 69, 0.3)';
+                        
+                        // Add a checkmark icon to show completion
+                        const checkmark = document.createElement('div');
+                        checkmark.innerHTML = '✓';
+                        checkmark.style.cssText = `
+                            position: absolute;
+                            top: 5px;
+                            right: 5px;
+                            background: #28a745;
+                            color: white;
+                            border-radius: 50%;
+                            width: 20px;
+                            height: 20px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            font-size: 12px;
+                            font-weight: bold;
+                            z-index: 1000;
+                            animation: fadeInOut 2s ease-in-out;
+                        `;
+                        
+                        // Add CSS animation
+                        if (!document.getElementById('updateAnimation')) {
+                            const style = document.createElement('style');
+                            style.id = 'updateAnimation';
+                            style.textContent = `
+                                @keyframes fadeInOut {
+                                    0% { opacity: 0; transform: scale(0.5); }
+                                    50% { opacity: 1; transform: scale(1.2); }
+                                    100% { opacity: 0; transform: scale(1); }
+                                }
+                            `;
+                            document.head.appendChild(style);
+                        }
+                        
+                        row.style.position = 'relative';
+                        row.appendChild(checkmark);
+                        
+                        // Remove highlighting and checkmark after 3 seconds
+                        setTimeout(() => {
+                            row.style.backgroundColor = '';
+                            row.style.border = '';
+                            row.style.transform = '';
+                            row.style.boxShadow = '';
+                            if (checkmark.parentNode) {
+                                checkmark.parentNode.removeChild(checkmark);
+                            }
+                        }, 3000);
+                    }
+                }
+                
+                // Submit form in background (fire and forget)
+                console.log('Submitting to URL:', editForm.action);
+                console.log('CSRF Token:', formData.get('_token'));
+                
+                // Add a timeout to prevent hanging requests
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 500); // 0.5 second timeout
+                
                 fetch(editForm.action, {
                     method: 'POST',
                     body: formData,
+                    signal: controller.signal,
                     headers: {
                         'X-Requested-With': 'XMLHttpRequest',
                         'X-CSRF-TOKEN': formData.get('_token')
                     }
                 })
                 .then(response => {
-                    // Treat 2xx and 3xx (redirect) as success to match Laravel behavior
-                    if (!(response.status >= 200 && response.status < 400)) {
-                        throw new Error('Update failed');
-                    }
-                    return true; // treat any 2xx as success
-                })
-                .then(() => {
-                    const updateResult = updateItemInDOM(itemId, deviceCategory, effectiveBrand, effectiveModel, effectiveStatus, description);
-                    // Ensure visibility and show success
-                    document.body.offsetHeight;
-                    document.body.scrollTop = document.body.scrollTop;
-                    document.documentElement.offsetHeight;
-                    const updatedItem = document.querySelector(`input[data-item-id="${itemId}"]`);
-                    if (updatedItem) {
-                        updatedItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
-                        updatedItem.offsetHeight;
-                        requestAnimationFrame(() => {
-                            Swal.fire({
-                                title: 'Success!',
-                                text: 'Item updated successfully!',
-                                icon: 'success',
-                                timer: 2000,
-                                showConfirmButton: false,
-                                allowOutsideClick: false,
-                                allowEscapeKey: false
-                            });
+                    clearTimeout(timeoutId); // Clear the timeout
+                    console.log('Server response status:', response.status);
+                    
+                    // Check if response is successful
+                    if (response.ok) {
+                        return response.text().then(text => {
+                            console.log('Server response body:', text);
+                            return true;
                         });
                     } else {
-                        setTimeout(() => {
-                            Swal.fire({
-                                title: 'Success!',
-                                text: 'Item updated successfully!',
-                                icon: 'success',
-                                timer: 2000,
-                                showConfirmButton: false,
-                                allowOutsideClick: false,
-                                allowEscapeKey: false
-                            });
-                        }, 150);
+                        console.error('Server returned error status:', response.status);
+                        return response.text().then(text => {
+                            console.error('Server error response:', text);
+                            throw new Error(`Update failed: ${response.status} - ${text}`);
+                        });
                     }
                 })
+                .then(() => {
+                    // Server update successful - no additional UI changes needed
+                    console.log('Server update completed successfully');
+                })
                 .catch(error => {
+                    clearTimeout(timeoutId); // Clear the timeout
                     console.error('Update error:', error);
-                    Swal.fire({
-                        title: 'Update failed',
-                        text: 'Could not save changes. Please try again.',
-                        icon: 'error'
-                    });
+                    console.error('Error details:', error.message);
+                    
+                    // Only show error if it's not a timeout (since UI already updated)
+                    if (error.name !== 'AbortError') {
+                        let errorMessage = 'Could not save changes. Please try again.';
+                        if (error.message) {
+                            errorMessage = `Could not save changes: ${error.message}`;
+                        }
+                        
+                        Swal.fire({
+                            title: 'Update failed',
+                            text: errorMessage,
+                            icon: 'error'
+                        });
+                    } else {
+                        // For timeout errors, just log them silently since UI already updated
+                        console.warn('Server update timed out, but UI was already updated');
+                    }
                 })
                 .finally(() => {
                     isOperationInProgress = false;
@@ -3934,72 +4169,120 @@
                 // Close modal first
                 closeModal('stepModal');
                 
-                // Add items to DOM immediately and get result
-                let addResult = null;
-                if (deviceCategory === 'Full Set') {
-                    // Handle Full Set items
-                    addResult = addFullSetItemsToDOM(roomTitle, brand, model, status, description, formData);
-                } else {
-                    // Handle single item
-                    addResult = addSingleItemToDOM(roomTitle, deviceCategory, brand, model, status, description);
-                }
+                // Show success message immediately
+                Swal.fire({
+                    title: 'Success!',
+                    text: 'Item(s) added successfully!',
+                    icon: 'success',
+                    timer: 1000,
+                    showConfirmButton: false,
+                    allowOutsideClick: false,
+                    allowEscapeKey: false
+                });
                 
-                // Force multiple DOM updates and reflows to ensure complete visibility
-                document.body.offsetHeight;
-                document.body.scrollTop = document.body.scrollTop;
-                document.documentElement.offsetHeight;
-                
-                // Ensure the new items are completely visible
-                if (addResult && addResult.itemId) {
-                    const newItem = document.querySelector(`input[data-item-id="${addResult.itemId}"]`);
-                    if (newItem) {
-                        // Make sure the item is visible
-                        newItem.scrollIntoView({ behavior: 'instant', block: 'nearest' });
-                        
-                        // Force a final reflow to ensure the item is rendered
-                        newItem.offsetHeight;
-                        
-                        // Add a small delay to ensure the browser has fully rendered the item
-                        requestAnimationFrame(() => {
-                            // Show success message only after the item is completely visible
-                            Swal.fire({
-                                title: 'Success!',
-                                text: 'Item(s) added successfully!',
-                                icon: 'success',
-                                timer: 2000,
-                                showConfirmButton: false,
-                                allowOutsideClick: false,
-                                allowEscapeKey: false
-                            });
-                        });
+                // Show results after exactly 0.5 seconds
+                setTimeout(() => {
+                    console.log('Adding items to DOM after 0.5 seconds...');
+                    console.log('Device Category:', deviceCategory);
+                    console.log('Room Title:', roomTitle);
+                    console.log('Brand:', brand);
+                    console.log('Model:', model);
+                    console.log('Status:', status);
+                    console.log('Description:', description);
+                    
+                    let addResult = null;
+                    if (deviceCategory === 'Full Set') {
+                        // Handle Full Set items
+                        console.log('Adding Full Set items...');
+                        addResult = addFullSetItemsToDOM(roomTitle, brand, model, status, description, formData);
                     } else {
-                        // Fallback: show success message after a short delay
-                        setTimeout(() => {
-                            Swal.fire({
-                                title: 'Success!',
-                                text: 'Item(s) added successfully!',
-                                icon: 'success',
-                                timer: 2000,
-                                showConfirmButton: false,
-                                allowOutsideClick: false,
-                                allowEscapeKey: false
-                            });
-                        }, 150);
+                        // Handle single item
+                        console.log('Adding single item...');
+                        addResult = addSingleItemToDOM(roomTitle, deviceCategory, brand, model, status, description);
                     }
-                } else {
-                    // Fallback: show success message after a short delay
-                    setTimeout(() => {
-                        Swal.fire({
-                            title: 'Success!',
-                            text: 'Item(s) added successfully!',
-                            icon: 'success',
-                            timer: 2000,
-                            showConfirmButton: false,
-                            allowOutsideClick: false,
-                            allowEscapeKey: false
-                        });
-                    }, 150);
-                }
+                    
+                    console.log('Add result:', addResult);
+                    
+                    // If the complex DOM functions failed, try a simple fallback
+                    if (!addResult || !addResult.success) {
+                        console.log('Complex DOM functions failed, trying simple fallback...');
+                        addResult = addSimpleItemToDOM(roomTitle, deviceCategory, brand, model, status, description);
+                        console.log('Fallback result:', addResult);
+                    }
+                    
+                    // Force multiple DOM updates and reflows to ensure complete visibility
+                    document.body.offsetHeight;
+                    document.body.scrollTop = document.body.scrollTop;
+                    document.documentElement.offsetHeight;
+                    
+                    // Ensure the new items are completely visible
+                    if (addResult && addResult.itemId) {
+                        const newItem = document.querySelector(`input[data-item-id="${addResult.itemId}"]`);
+                        if (newItem) {
+                            // Make sure the item is visible
+                            newItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                            
+                            // Add visual highlighting to the new item
+                            const row = newItem.closest('tr');
+                            if (row) {
+                                row.style.transition = 'all 0.5s ease';
+                                row.style.backgroundColor = '#e8f5e8';
+                                row.style.border = '2px solid #28a745';
+                                row.style.transform = 'scale(1.02)';
+                                row.style.boxShadow = '0 4px 8px rgba(40, 167, 69, 0.3)';
+                                
+                                // Add a checkmark icon to show completion
+                                const checkmark = document.createElement('div');
+                                checkmark.innerHTML = '✓';
+                                checkmark.style.cssText = `
+                                    position: absolute;
+                                    top: 5px;
+                                    right: 5px;
+                                    background: #28a745;
+                                    color: white;
+                                    border-radius: 50%;
+                                    width: 20px;
+                                    height: 20px;
+                                    display: flex;
+                                    align-items: center;
+                                    justify-content: center;
+                                    font-size: 12px;
+                                    font-weight: bold;
+                                    z-index: 1000;
+                                    animation: fadeInOut 2s ease-in-out;
+                                `;
+                                
+                                // Add CSS animation
+                                if (!document.getElementById('addAnimation')) {
+                                    const style = document.createElement('style');
+                                    style.id = 'addAnimation';
+                                    style.textContent = `
+                                        @keyframes fadeInOut {
+                                            0% { opacity: 0; transform: scale(0.5); }
+                                            50% { opacity: 1; transform: scale(1.2); }
+                                            100% { opacity: 0; transform: scale(1); }
+                                        }
+                                    `;
+                                    document.head.appendChild(style);
+                                }
+                                
+                                row.style.position = 'relative';
+                                row.appendChild(checkmark);
+                                
+                                // Remove highlighting and checkmark after 3 seconds
+                                setTimeout(() => {
+                                    row.style.backgroundColor = '';
+                                    row.style.border = '';
+                                    row.style.transform = '';
+                                    row.style.boxShadow = '';
+                                    if (checkmark.parentNode) {
+                                        checkmark.parentNode.removeChild(checkmark);
+                                    }
+                                }, 3000);
+                            }
+                        }
+                    }
+                }, 500); // Exactly 0.5 seconds
                 
                 // Submit form in background
                 fetch(stepItemForm.action, {

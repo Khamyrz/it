@@ -1692,7 +1692,7 @@ if (!headers_sent()) {
     <div id="captchaModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10000; align-items:center; justify-content:center;">
         <div style="background:#ffffff; width:92%; max-width:520px; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); padding:18px; text-align:center;">
             <h3 style="margin:0 0 8px 0; color:#222;">Are you a human?</h3>
-            <p style="margin:0 10px 12px 10px; color:#555; font-size:14px;">Make sure the distance between both cars is equal to the number in the left image.</p>
+            <p style="margin:0 10px 12px 10px; color:#555; font-size:14px;">Make sure the distance between both Object is equal to the number in the left image.</p>
             <div style="display:flex; gap:12px; align-items:center; justify-content:center;">
                 <div style="width:140px; height:160px; border:2px solid #111; border-radius:6px; display:flex; align-items:center; justify-content:center; background:#fafafa; position:relative;">
                     <div style="position:absolute; left:0; bottom:0; right:0; background:rgba(0,0,0,0.75); color:#fff; font-size:12px; padding:4px 6px; text-align:left;">Distance between cars</div>

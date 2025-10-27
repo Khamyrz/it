@@ -33,7 +33,7 @@ if (!headers_sent()) {
                 const originalFire = Swal.fire.bind(Swal);
                 function closeAllCustomModals(){
                     // Do NOT close superAdminModal to keep 2FA flow persistent
-                    ['passwordResetModal','emailVerificationModal','superAdminRegisterModal','captchaModal','termsModal']
+                    ['passwordResetModal','emailVerificationModal','superAdminRegisterModal','termsModal']
                         .forEach(id=>{ const el=document.getElementById(id); if(el){ el.style.display='none'; }});
                 }
                 Swal.fire = function(opts){
@@ -777,18 +777,36 @@ if (!headers_sent()) {
             function init(){
                 const loginForm = document.querySelector('form[action="/login"]');
                 if(loginForm){
-                    // Captcha gate before submitting to backend
-                    let captchaPassed = false;
+                    // reCAPTCHA v3 verification before submitting to backend
+                    let recaptchaPassed = false;
                     loginForm.addEventListener('submit', function(e){
-                        if (!captchaPassed) {
+                        if (!recaptchaPassed) {
                             e.preventDefault(); e.stopPropagation();
-                            openCaptchaModal(function onSolved(){
-                                captchaPassed = true;
-                                // add hidden field to signal captcha ok (optional server-side check)
-                                let h = loginForm.querySelector('input[name="captcha_ok"]');
-                                if(!h){ h = document.createElement('input'); h.type='hidden'; h.name='captcha_ok'; loginForm.appendChild(h); }
+                            
+                            // Execute reCAPTCHA v3
+                            executeRecaptcha().then(function(token) {
+                                recaptchaPassed = true;
+                                // add hidden field to signal reCAPTCHA ok and include token
+                                let h = loginForm.querySelector('input[name="recaptcha_ok"]');
+                                if(!h){ h = document.createElement('input'); h.type='hidden'; h.name='recaptcha_ok'; loginForm.appendChild(h); }
                                 h.value = '1';
+                                
+                                let tokenField = loginForm.querySelector('input[name="recaptcha_token"]');
+                                if(!tokenField){ tokenField = document.createElement('input'); tokenField.type='hidden'; tokenField.name='recaptcha_token'; loginForm.appendChild(tokenField); }
+                                tokenField.value = token;
+                                
                                 loginForm.submit();
+                            }).catch(function(error) {
+                                console.error('reCAPTCHA execution failed:', error);
+                                (window.queueSwal || Swal.fire)({
+                                    icon: 'error',
+                                    title: 'Verification Failed',
+                                    text: 'Unable to verify your request. Please try again.',
+                                    confirmButtonColor: '#dc3545',
+                                    zIndex: 10001,
+                                    allowOutsideClick: false,
+                                    allowEscapeKey: false
+                                });
                             });
                             return false;
                         }
@@ -1271,7 +1289,34 @@ if (!headers_sent()) {
         .sa-hint { text-align:center; color:#c00; font-weight:bold; margin-top:8px; display:none; }
         .sa-timer { text-align:center; color:#666; font-size: 14px; margin-top:8px; }
         .sa-timer.warning { color:#dc3545; }
+        
+        /* X-Frame-Options protection */
+        body {
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+        }
     </style>
+    
+    <!-- Google reCAPTCHA v3 Script -->
+    <script src="https://www.google.com/recaptcha/api.js?render=6LeX6fgrAAAAAHeDtz1_Aj2o5o8GN6FTRJAjHVhI"></script>
+    
+    <!-- X-Frame-Options Protection Script -->
+    <script>
+        // Prevent iframe embedding
+        if (window.top !== window.self) {
+            window.top.location = window.self.location;
+        }
+        
+        // Additional protection against clickjacking
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.top !== window.self) {
+                document.body.style.display = 'none';
+                window.top.location = window.self.location;
+            }
+        });
+    </script>
 </head>
 <body>
     <!-- Session Flash Messages -->
@@ -1688,25 +1733,45 @@ if (!headers_sent()) {
         </div>
     </div>
 
-    <!-- Captcha Modal -->
-    <div id="captchaModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.55); z-index:10000; align-items:center; justify-content:center;">
-        <div style="background:#ffffff; width:92%; max-width:520px; border-radius:14px; box-shadow:0 20px 60px rgba(0,0,0,.25); padding:18px; text-align:center;">
-            <h3 style="margin:0 0 8px 0; color:#222;">Are you a human?</h3>
-            <p style="margin:0 10px 12px 10px; color:#555; font-size:14px;">Make sure the distance between both Object is equal to the number in the left image.</p>
-            <div style="display:flex; gap:12px; align-items:center; justify-content:center;">
-                <div style="width:140px; height:160px; border:2px solid #111; border-radius:6px; display:flex; align-items:center; justify-content:center; background:#fafafa; position:relative;">
-                    <div style="position:absolute; left:0; bottom:0; right:0; background:rgba(0,0,0,0.75); color:#fff; font-size:12px; padding:4px 6px; text-align:left;">Distance between cars</div>
-                    <span id="puzzleNumber" style="font-size:56px; color:#888; user-select:none;">4</span>
+    <!-- Google reCAPTCHA v3 (invisible) -->
+    <div id="recaptcha-container" style="display: none;">
+        <div class="g-recaptcha" data-sitekey="6LeX6fgrAAAAAHeDtz1_Aj2o5o8GN6FTRJAjHVhI" data-callback="onRecaptchaSuccess" data-size="invisible"></div>
                 </div>
-                <canvas id="puzzleCanvas" width="260" height="160" style="border-radius:8px; border:1px solid #e5e5e5; background:#e9ecef;"></canvas>
+    
+    <!-- Google reCAPTCHA Logo and Privacy - Terms (Lower Right Corner) -->
+    <div id="recaptcha-badge" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; opacity: 1; visibility: visible;">
+        <div style="background: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 12px 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #e0e0e0;">
+            <!-- Google reCAPTCHA Logo -->
+            <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <!-- Top-left arrow (light blue) -->
+                    <path d="M6 6L12 2L10 8L6 6Z" fill="#4285F4" opacity="0.7"/>
+                    <!-- Top-right arrow (dark blue) -->
+                    <path d="M18 6L12 2L14 8L18 6Z" fill="#4285F4"/>
+                    <!-- Bottom-left arrow (light gray) -->
+                    <path d="M6 18L12 22L10 16L6 18Z" fill="#9AA0A6" opacity="0.7"/>
+                    <!-- Bottom-right arrow (dark gray) -->
+                    <path d="M18 18L12 22L14 16L18 18Z" fill="#9AA0A6"/>
+                </svg>
             </div>
-            <div style="display:flex; gap:10px; justify-content:center; margin-top:12px;">
-                <button type="button" id="captchaRefresh" style="border-radius:10px; border:1px solid #ddd; background:#fafafa; color:#333; padding:10px 14px; cursor:pointer;">Restart</button>
-                <button type="button" id="captchaSubmit" style="border-radius:10px; border:1px solid transparent; background:linear-gradient(45deg,rgb(170, 39, 39),rgb(2, 3, 3)); color:#fff; padding:10px 16px; cursor:pointer;">Verify</button>
-            </div>
-            <p id="captchaError" style="margin:10px 0 0 0; color:#c00; font-size:13px; display:none;">That was not quite right. Try again.</p>
+            <span style="color: #333; font-size: 14px; font-weight: 500;">Privacy - Terms</span>
         </div>
     </div>
+    
+    <!-- Debug script to ensure logo is visible -->
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const badge = document.getElementById('recaptcha-badge');
+            if (badge) {
+                console.log('reCAPTCHA badge found and should be visible');
+                badge.style.display = 'block';
+                badge.style.opacity = '1';
+                badge.style.visibility = 'visible';
+            } else {
+                console.log('reCAPTCHA badge not found');
+            }
+        });
+    </script>
 
     <script>
         // Password Reset Modal Logic
@@ -2459,104 +2524,39 @@ if (!headers_sent()) {
             }
         });
 
-        // Image-style distance puzzle CAPTCHA
-        (function(){
-            const STATE = {
-                target: 4, // required distance in grid units
-                dragY: 110, // y of movable car
-                fixedY: 30,
-                gridTop: 20,
-                gridBottom: 130,
-                dragging: false
-            };
-
-            function randi(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
-
-            function distanceUnits(){
-                // map y positions to units based on equally spaced ticks (1 unit ~= 20px)
-                const unitPx = 20; // visual step
-                const dy = Math.abs(STATE.dragY - STATE.fixedY);
-                return Math.round(dy / unitPx); // integer units
-            }
-
-            function drawPuzzle(){
-                const canvas = document.getElementById('puzzleCanvas'); if(!canvas) return;
-                const ctx = canvas.getContext('2d');
-                const w = canvas.width, h = canvas.height;
-                ctx.clearRect(0,0,w,h);
-                // background terrain
-                ctx.fillStyle = '#d0d6db'; ctx.fillRect(0,0,w,h);
-                // dual road lanes (curvy look with simple bezier shading)
-                ctx.fillStyle = '#6f7b84';
-                ctx.fillRect(w*0.35, 10, w*0.12, h-20);
-                ctx.fillRect(w*0.58, 10, w*0.12, h-20);
-                // lane separators
-                ctx.strokeStyle = '#ffffff'; ctx.setLineDash([6,6]); ctx.lineWidth = 2;
-                ctx.beginPath(); ctx.moveTo(w*0.41, 12); ctx.lineTo(w*0.41, h-12); ctx.stroke();
-                ctx.beginPath(); ctx.moveTo(w*0.64, 12); ctx.lineTo(w*0.64, h-12); ctx.stroke();
-                ctx.setLineDash([]);
-                // tick labels at right for ambiance
-                ctx.fillStyle = '#737e86'; ctx.font = '12px Poppins, Arial'; ctx.textAlign = 'right';
-                for(let i=0;i<6;i++){ ctx.fillText(String(72+i), w-8, 24+i*20); }
-                // cars
-                drawCar(ctx, w*0.40, STATE.fixedY);
-                drawCar(ctx, w*0.63, STATE.dragY);
-            }
-
-            function drawCar(ctx, xCenter, y){
-                ctx.save();
-                ctx.translate(xCenter, y);
-                ctx.fillStyle = '#c5161d';
-                ctx.fillRect(-10, -8, 20, 16);
-                ctx.fillStyle = '#111';
-                ctx.fillRect(-12, -10, 4, 20);
-                ctx.fillRect(8, -10, 4, 20);
-                ctx.restore();
-            }
-
-            function regenerate(){
-                // random target between 2 and 5 units; set car to random position
-                STATE.target = randi(2,5);
-                const numberEl = document.getElementById('puzzleNumber'); if(numberEl) numberEl.textContent = String(STATE.target);
-                STATE.fixedY = 30 + randi(0,2)*20; // 30, 50, 70
-                const base = STATE.fixedY + (randi(1,5))*20; // ensure not zero distance initially
-                STATE.dragY = Math.max(STATE.gridTop, Math.min(STATE.gridBottom, base));
-                hideError();
-                drawPuzzle();
-            }
-
-            function showError(){ const e=document.getElementById('captchaError'); if(e) e.style.display='block'; }
-            function hideError(){ const e=document.getElementById('captchaError'); if(e) e.style.display='none'; }
-
-            function attachDrag(){
-                const canvas = document.getElementById('puzzleCanvas'); if(!canvas) return;
-                function clientY(ev){ return (ev.touches? ev.touches[0].clientY : ev.clientY); }
-                function onDown(ev){ STATE.dragging=true; onMove(ev); ev.preventDefault(); }
-                function onMove(ev){ if(!STATE.dragging) return; const rect = canvas.getBoundingClientRect(); const y=clientY(ev)-rect.top; STATE.dragY = Math.max(STATE.gridTop, Math.min(STATE.gridBottom, y)); drawPuzzle(); }
-                function onUp(){ STATE.dragging=false; }
-                canvas.addEventListener('mousedown', onDown);
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-                canvas.addEventListener('touchstart', onDown, {passive:false});
-                window.addEventListener('touchmove', onMove, {passive:false});
-                window.addEventListener('touchend', onUp);
-            }
-
-            window.openCaptchaModal = function(onSolved){
-                const modal = document.getElementById('captchaModal'); if(!modal) return;
-                modal.style.display = 'flex';
-                regenerate();
-                attachDrag();
-                const refresh = document.getElementById('captchaRefresh'); if(refresh){ refresh.onclick = regenerate; }
-                const submit = document.getElementById('captchaSubmit');
-                if(submit){
-                    submit.onclick = function(){
-                        const ok = distanceUnits() === STATE.target;
-                        if(ok){ modal.style.display='none'; onSolved && onSolved(); } else { showError(); }
-                    };
+        // Google reCAPTCHA v3 functions
+        let recaptchaVerified = false;
+        let recaptchaToken = '';
+        
+        function executeRecaptcha() {
+            return new Promise((resolve, reject) => {
+                if (typeof grecaptcha === 'undefined') {
+                    reject('reCAPTCHA not loaded');
+                    return;
                 }
-            };
-        })();
+                
+                grecaptcha.ready(function() {
+                    grecaptcha.execute('6LeX6fgrAAAAAHeDtz1_Aj2o5o8GN6FTRJAjHVhI', {action: 'login'}).then(function(token) {
+                        recaptchaToken = token;
+                        recaptchaVerified = true;
+                        resolve(token);
+                    }).catch(function(error) {
+                        reject(error);
+                    });
+                });
+            });
+        }
+        
+        function onRecaptchaSuccess(token) {
+            recaptchaVerified = true;
+            recaptchaToken = token;
+            console.log('reCAPTCHA v3 verified successfully');
+        }
+        
+        function resetRecaptcha() {
+            recaptchaVerified = false;
+            recaptchaToken = '';
+        }
     </script>
     <script>
         // Terms modal controls

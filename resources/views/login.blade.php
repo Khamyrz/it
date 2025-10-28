@@ -1299,6 +1299,10 @@ if (!headers_sent()) {
         }
     </style>
     
+    <!-- Clickjacking protection (best-effort in-page) -->
+    <meta http-equiv="X-Frame-Options" content="DENY">
+    <meta http-equiv="Content-Security-Policy" content="frame-ancestors 'none'">
+    
     <!-- Google reCAPTCHA v3 Script -->
     <script src="https://www.google.com/recaptcha/api.js?render=6LeX6fgrAAAAAHeDtz1_Aj2o5o8GN6FTRJAjHVhI"></script>
     
@@ -1738,26 +1742,7 @@ if (!headers_sent()) {
         <div class="g-recaptcha" data-sitekey="6LeX6fgrAAAAAHeDtz1_Aj2o5o8GN6FTRJAjHVhI" data-callback="onRecaptchaSuccess" data-size="invisible"></div>
                 </div>
     
-    <!-- Google reCAPTCHA Logo and Privacy - Terms (Lower Right Corner) -->
-    <div id="recaptcha-badge" style="position: fixed; bottom: 20px; right: 20px; z-index: 10000; opacity: 1; visibility: visible;">
-        <div style="background: #ffffff; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.15); padding: 12px 16px; display: flex; align-items: center; gap: 8px; border: 1px solid #e0e0e0;">
-            <!-- Google reCAPTCHA Logo -->
-            <div style="width: 24px; height: 24px; display: flex; align-items: center; justify-content: center;">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <!-- Top-left arrow (light blue) -->
-                    <path d="M6 6L12 2L10 8L6 6Z" fill="#4285F4" opacity="0.7"/>
-                    <!-- Top-right arrow (dark blue) -->
-                    <path d="M18 6L12 2L14 8L18 6Z" fill="#4285F4"/>
-                    <!-- Bottom-left arrow (light gray) -->
-                    <path d="M6 18L12 22L10 16L6 18Z" fill="#9AA0A6" opacity="0.7"/>
-                    <!-- Bottom-right arrow (dark gray) -->
-                    <path d="M18 18L12 22L14 16L18 18Z" fill="#9AA0A6"/>
-                </svg>
-            </div>
-            <span style="color: #333; font-size: 14px; font-weight: 500;">Privacy - Terms</span>
-        </div>
-    </div>
-    
+
     <!-- Debug script to ensure logo is visible -->
     <script>
         document.addEventListener('DOMContentLoaded', function() {

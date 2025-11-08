@@ -12,6 +12,11 @@ class Borrow extends Model
     protected $fillable = [
         'room_item_id',
         'borrower_name',
+        'borrower_photo',
+        'position',
+        'department',
+        'latitude',
+        'longitude',
         'borrow_date',
         'return_date',
         'status', // 'Borrowed' or 'Returned'

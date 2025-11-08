@@ -2150,6 +2150,8 @@
                                 <option>Printer</option>
                                 <option>Speakers</option>
                                 <option>Webcam</option>
+                <option>Video Graphics Array (VGA)</option>
+                <option>High-Definition Multimedia Interface (HDMI)</option>
                                 <option>Flash Drive</option>
                                 <option>Hard Disk Drive</option>
                                 <option>Projector</option>
@@ -2199,8 +2201,10 @@
                                 ['Mouse', 'mouse'], 
                                 ['Power Supply Unit', 'psu'], 
                                 ['SSD', 'ssd'], 
-                                ['Motherboard', 'motherboard'], 
+                                ['Motherbimage.pngoard', 'motherboard'], 
                                 ['Graphic Card', 'gpu'], 
+                                ['Video Graphics Array (VGA)', 'vga'], 
+                                ['High-Definition Multimedia Interface (HDMI)', 'hdmi'], 
                                 ['RAM', 'ram'], 
                             ]; @endphp 
                             @foreach ($components as [$label, $id])
@@ -2286,6 +2290,8 @@
                                 <option>Printer</option>
                                 <option>Speakers</option>
                                 <option>Webcam</option>
+                <option>Video Graphics Array (VGA)</option>
+                <option>High-Definition Multimedia Interface (HDMI)</option>
                                 <option>Flash Drive</option>
                                 <option>Projector</option>
                                 <option>Nic</option>
@@ -2334,6 +2340,8 @@
                                     ['SSD', 'ssd'],
                                     ['Motherboard', 'mb'],
                                     ['Graphic Card', 'gpu'],
+                                    ['Video Graphics Array (VGA)', 'vga'],
+                                    ['High-Definition Multimedia Interface (HDMI)', 'hdmi'],
                                     ['RAM', 'ram'],
                                 ];
                             @endphp
@@ -2414,6 +2422,8 @@
                                 <option value="RAM">RAM</option>
                                 <option value="Webcam">Webcam</option>
                                 <option value="Headset">Headset</option>
+                                <option value="Video Graphics Array (VGA)">Video Graphics Array (VGA)</option>
+                                <option value="High-Definition Multimedia Interface (HDMI)">High-Definition Multimedia Interface (HDMI)</option>
                             </select>
                         </div>
                         <div>
@@ -3081,6 +3091,8 @@
             { id: 'step_fullset_ssd', prefix: 'SSD' },
             { id: 'step_fullset_mb', prefix: 'MB' },
             { id: 'step_fullset_gpu', prefix: 'GPU' },
+            { id: 'step_fullset_vga', prefix: 'VGA' },
+            { id: 'step_fullset_hdmi', prefix: 'HDMI' },
             { id: 'step_fullset_ram', prefix: 'RAM' },
         ];
         
@@ -3103,6 +3115,8 @@
             { id: 'edit_fullset_ssd', prefix: 'SSD' },
             { id: 'edit_fullset_motherboard', prefix: 'MB' },
             { id: 'edit_fullset_gpu', prefix: 'GPU' },
+            { id: 'edit_fullset_vga', prefix: 'VGA' },
+            { id: 'edit_fullset_hdmi', prefix: 'HDMI' },
             { id: 'edit_fullset_ram', prefix: 'RAM' },
         ];
         
@@ -3129,18 +3143,19 @@
             '<html><head><title>Print Barcode</title>' +
             '<style>' +
             '@page { size: A4; margin: 12mm; }' +
-            'body { margin: 0; padding: 0; font-family: Arial, sans-serif; }' +
-            '.page { width: 100%; height: 273mm; page-break-after: auto; display: flex; flex-direction: column; }' +
-            '.pc-section { flex: 0 0 calc(50% - 8mm); display: flex; flex-direction: column; margin: 4mm 0; border: 1px solid #ccc; padding: 2.5mm; }' +
-            '.pc-header { font-weight: bold; font-size: 11px; text-align: center; margin-bottom: 2mm; background: #f7f7f7; padding: 1.8mm; }' +
-            '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(32mm, 1fr)); gap: 2.5mm; }' +
-            '.barcode-card { border: 1px dashed #999; padding: 1.5mm; text-align: center; background: #fff; }' +
-            '.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
-            '.barcode-img { width: 100mm; height: 45mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
-            '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
+			'body { margin: 0; padding: 0; font-family: Arial, sans-serif; height: auto; }' +
+            '.page { width: 100%; height: 273mm; page-break-after: auto; display: grid; grid-template-rows: repeat(5, 1fr); row-gap: 3mm; padding: 2mm 0; }' +
+            '.pc-section { display: flex; flex-direction: column; margin: 0; padding: 2mm 3mm; }' +
+            '.pc-header { font-weight: bold; font-size: 10px; text-align: center; margin-bottom: 1.5mm; }' +
+            '.barcode-grid { display: grid; grid-template-columns: repeat(auto-fill, 30mm); justify-content: center; gap: 2mm; }' +
+            '.barcode-card { width: 30mm; border: 1px dashed #333; padding: 1.2mm; margin: 0; text-align: center; background: #fff; box-sizing: border-box; }' +
+            '.barcode-label { font-weight: bold; font-size: 8.5px; margin-bottom: 0.7mm; font-family: monospace; color: #000; }' +
+            '.barcode-img { width: 100%; height: auto; max-height: 12mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+			'@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } body { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }' +
             '</style></head><body>';
 
         html += '<div class="page">';
+        // put the single barcode into first row section
         html += '<div class="pc-section">';
         html += '<div class="pc-header">Barcode</div>';
         html += '<div class="barcode-grid">';
@@ -3215,20 +3230,22 @@
             '<style>' +
             '@page { size: A4; margin: 12mm; }' +
             'body { margin: 0; padding: 0; font-family: Arial, sans-serif; }' +
-			'.page { width: 100%; height: 273mm; page-break-after: always; display: flex; flex-direction: column; padding: 3mm 0; justify-content: space-between; }' +
+			'.page { width: 100%; height: 270mm; page-break-after: always; display: grid; grid-template-rows: repeat(5, 1fr); row-gap: 3mm; padding: 1.5mm 0; }' +
             '.page:last-child { page-break-after: auto; }' +
-			'.pc-section { flex: 1 1 auto; display: flex; flex-direction: column; margin: 2mm 0; border: none; padding: 3mm; min-height: 50mm; }' +
-			'.pc-header { font-weight: bold; font-size: 10px; text-align: center; margin-bottom: 3mm; background: transparent; padding: 1mm 0; }' +
-			'.barcode-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(30mm, 1fr)); gap: 2.5mm; }' +
-			'.barcode-card { border: 2px dashed #333; padding: 2mm; margin: 3mm; text-align: center; background: #fff; box-sizing: border-box; }' +
-			'.barcode-label { font-weight: bold; font-size: 9px; margin-bottom: 1mm; font-family: monospace; color: #000; word-break: break-all; }' +
-			'.barcode-img { width: 100%; max-width: 100%; height: auto; max-height: 28mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
+			'.pc-section { display: flex; flex-direction: column; border: none; margin: 0; padding: 2mm 3mm; min-height: 0; }' +
+			'.pc-header { font-weight: bold; font-size: 10px; text-align: center; margin-bottom: 1.5mm; background: transparent; padding: 0; }' +
+			'.barcode-grid { display: grid; grid-template-columns: repeat(auto-fill, 30mm); justify-content: space-evenly; gap: 2mm; }' +
+			'.barcode-card { width: 30mm; border: 1px dashed #333; padding: 1.2mm; margin: 0; text-align: center; background: #fff; box-sizing: border-box; }' +
+			'.barcode-label { font-weight: bold; font-size: 8.5px; margin-bottom: 0.7mm; font-family: monospace; color: #000; word-break: break-all; }' +
+			'.barcode-img { width: 100%; height: auto; max-height: 12mm; display: block; margin: 0 auto; image-rendering: crisp-edges; image-rendering: -webkit-optimize-contrast; image-rendering: pixelated; }' +
             '@media print { .page { page-break-inside: avoid; } .barcode-card { break-inside: avoid; } }' +
             '</style></head><body>';
 
 		// Group PCs into pages of 5 with smart barcode distribution
 		for (let i = 0; i < allPCs.length; i += 5) {
-			const pagePCs = allPCs.slice(i, i + 5);
+			const pagePCs = allPCs.slice(i, i + 5).filter(pc => pc.barcodes && pc.barcodes.length);
+			// Skip pages with zero PCs containing barcodes
+			if (!pagePCs.length) { continue; }
             
             html += '<div class="page">';
             
@@ -3245,7 +3262,7 @@
             
             // Distribute barcodes across PC sections
             let barcodeIndex = 0;
-            const barcodesPerSection = Math.ceil(allBarcodes.length / pagePCs.length);
+			const barcodesPerSection = pagePCs.length ? Math.ceil(allBarcodes.length / pagePCs.length) : 0;
             
             pagePCs.forEach((pc, pcIndex) => {
                 html += '<div class="pc-section">';
@@ -4166,8 +4183,83 @@
                 const status = formData.get('status');
                 const description = formData.get('description') || '';
                 
-                // Close modal first
-                closeModal('stepModal');
+                // Check for deleted PC#s if this is a Full Set
+                if (deviceCategory === 'Full Set' && roomTitle) {
+                    // Check for deleted PC#s before submitting
+                    fetch(`/api/deleted-pc-numbers/${encodeURIComponent(roomTitle)}`, {
+                        method: 'GET',
+                        headers: {
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'X-CSRF-TOKEN': formData.get('_token')
+                        }
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.has_deleted && data.deleted_pc_numbers && data.deleted_pc_numbers.length > 0) {
+                            // Show SweetAlert dialog with choices
+                            const deletedPcList = data.deleted_pc_numbers.map(pc => `PC#${String(pc).padStart(3, '0')}`).join(', ');
+                            const firstDeletedPc = String(data.deleted_pc_numbers[0]).padStart(3, '0');
+                            
+                            Swal.fire({
+                                title: 'Deleted PC# Found',
+                                html: `
+                                    <p>Found deleted PC#: <strong>${deletedPcList}</strong></p>
+                                    <p style="margin-top: 15px;"><strong>What would you like to do?</strong></p>
+                                    <div style="text-align: left; margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                                        <p style="margin: 5px 0;"><strong>Yes:</strong> The deleted data will be added back and it will deduct from your quantity</p>
+                                        <p style="margin: 5px 0;"><strong>No:</strong> Continue the sequence and the deleted data won't be added back</p>
+                                    </div>
+                                `,
+                                icon: 'question',
+                                showCancelButton: true,
+                                showDenyButton: true,
+                                confirmButtonText: 'Yes, Add Back Deleted PC#',
+                                denyButtonText: 'No, Continue Sequence',
+                                cancelButtonText: 'Cancel',
+                                confirmButtonColor: '#28a745',
+                                denyButtonColor: '#6c757d',
+                                cancelButtonColor: '#dc3545',
+                                reverseButtons: true,
+                                width: '600px'
+                            }).then((result) => {
+                                if (result.isConfirmed) {
+                                    // User chose to restore deleted PC#
+                                    formData.append('use_deleted_pc', '1');
+                                    submitFullSetForm(formData, roomTitle, brand, model, status, description);
+                                } else if (result.isDenied) {
+                                    // User chose to continue sequence
+                                    formData.append('use_deleted_pc', '0');
+                                    submitFullSetForm(formData, roomTitle, brand, model, status, description);
+                                } else {
+                                    // User cancelled
+                                    isOperationInProgress = false;
+                                }
+                            });
+                        } else {
+                            // No deleted PC#s, proceed normally
+                            formData.append('use_deleted_pc', '0');
+                            submitFullSetForm(formData, roomTitle, brand, model, status, description);
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error checking deleted PC#s:', error);
+                        // Proceed normally if check fails
+                        formData.append('use_deleted_pc', '0');
+                        submitFullSetForm(formData, roomTitle, brand, model, status, description);
+                    });
+                } else {
+                    // Not a Full Set, proceed normally
+                    submitFullSetForm(formData, roomTitle, brand, model, status, description);
+                }
+            });
+        }
+        
+        // Function to submit the full set form
+        function submitFullSetForm(formData, roomTitle, brand, model, status, description) {
+            const deviceCategory = formData.get('device_category');
+            
+            // Close modal first
+            closeModal('stepModal');
                 
                 // Show success message immediately
                 Swal.fire({
@@ -4318,7 +4410,6 @@
                 .finally(() => {
                     isOperationInProgress = false;
                 });
-            });
         }
     });
     

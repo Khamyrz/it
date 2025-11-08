@@ -178,12 +178,29 @@ class RoomManagementController extends Controller
 
         // Get the starting PC number for this room
         $quantity = $validatedData['quantity'];
-        $startingPcNumber = $this->getNextPcNumber($roomTitle);
+        $useDeletedPc = $request->has('use_deleted_pc') && $request->use_deleted_pc == '1';
+        
+        // If using deleted PC#, we need to handle it differently
+        $deletedPcNumbers = [];
+        if ($useDeletedPc) {
+            $deletedPcNumbers = $this->getDeletedPcNumbersInternal($roomTitle);
+        }
+        
+        // Get the next available PC number (for continuing sequence after deleted PC#s)
+        $nextAvailablePcNumber = $this->getNextPcNumber($roomTitle, false);
         
         // Create multiple full sets based on quantity
+        $sequenceIndex = 0; // Index for continuing sequence after deleted PC#s
         for ($setIndex = 0; $setIndex < $quantity; $setIndex++) {
-            // Compute initial PC number for this set
-            $pcNumberInt = intval($startingPcNumber) + $setIndex;
+            // If using deleted PC#s and we have deleted ones, use them first
+            if ($useDeletedPc && !empty($deletedPcNumbers) && $setIndex < count($deletedPcNumbers)) {
+                // Use the deleted PC# at this index
+                $pcNumberInt = $deletedPcNumbers[$setIndex];
+            } else {
+                // Continue from the next available PC number
+                $pcNumberInt = intval($nextAvailablePcNumber) + $sequenceIndex;
+                $sequenceIndex++;
+            }
 
             // Retry loop to avoid barcode unique collisions by advancing PC number
             while (true) {
@@ -686,9 +703,93 @@ class RoomManagementController extends Controller
     }
 
     /**
+     * API endpoint to get deleted PC numbers for a room
+     */
+    public function getDeletedPcNumbers($roomTitle)
+    {
+        $deletedPcNumbers = $this->getDeletedPcNumbersInternal($roomTitle);
+        return response()->json([
+            'deleted_pc_numbers' => $deletedPcNumbers,
+            'has_deleted' => !empty($deletedPcNumbers)
+        ]);
+    }
+
+    /**
+     * Get deleted PC numbers (gaps in sequence) for a room
+     */
+    private function getDeletedPcNumbersInternal($roomTitle)
+    {
+        $user = auth()->user();
+        $roomCodes = [
+            'Server' => 'SRV',
+            'ComLab 1' => 'CL1',
+            'ComLab 2' => 'CL2',
+            'ComLab 3' => 'CL3',
+            'ComLab 4' => 'CL4',
+            'ComLab 5' => 'CL5',
+            'Computer Lab 1' => 'CL1',
+            'Computer Lab 2' => 'CL2',
+            'Computer Lab 3' => 'CL3',
+            'Computer Lab 4' => 'CL4',
+            'Computer Lab 5' => 'CL5',
+            'Lab 1' => 'L1',
+            'Lab 2' => 'L2',
+            'Lab 3' => 'L3',
+            'Lab 4' => 'L4',
+            'Lab 5' => 'L5',
+            'Office' => 'OFF',
+            'Library' => 'LIB',
+            'Classroom' => 'CLS',
+            'Conference Room' => 'CFR',
+            'Storage' => 'STG',
+            'Maintenance' => 'MNT',
+            'IT Room' => 'ITR',
+            'Network Room' => 'NET',
+            'Data Center' => 'DC',
+        ];
+        
+        $roomCode = $roomCodes[$roomTitle] ??
+            strtoupper(substr(str_replace([' ', '-', '_'], '', $roomTitle), 0, 3));
+        
+        // Get all existing PC numbers for this room
+        $existingBarcodes = RoomItem::where('room_title', $roomTitle)
+            ->where('user_id', $user->id)
+            ->where('barcode', 'LIKE', $roomCode . '-%')
+            ->pluck('barcode');
+        
+        $usedPcNumbers = [];
+        $escapedRoomCode = preg_quote($roomCode, '/');
+        foreach ($existingBarcodes as $barcode) {
+            if (preg_match('/^' . $escapedRoomCode . '-[A-Z]+(\d+)$/i', $barcode, $matches)) {
+                $num = intval($matches[1]);
+                if (!in_array($num, $usedPcNumbers)) {
+                    $usedPcNumbers[] = $num;
+                }
+            }
+        }
+        
+        sort($usedPcNumbers);
+        
+        // Find gaps (deleted PC numbers)
+        $deletedPcNumbers = [];
+        if (!empty($usedPcNumbers)) {
+            $minPc = min($usedPcNumbers);
+            $maxPc = max($usedPcNumbers);
+            
+            for ($i = $minPc; $i <= $maxPc; $i++) {
+                if (!in_array($i, $usedPcNumbers)) {
+                    $deletedPcNumbers[] = $i;
+                }
+            }
+        }
+        
+        return $deletedPcNumbers;
+    }
+
+    /**
      * Get the next available PC number for a room
      */
-    private function getNextPcNumber($roomTitle)
+    private function getNextPcNumber($roomTitle, $useDeletedPc = false)
     {
         // Get room code - comprehensive mapping for all room types
         $roomCodes = [
@@ -743,6 +844,14 @@ class RoomManagementController extends Controller
             }
         }
 
+        // If we should use deleted PC numbers, get the first deleted one
+        if ($useDeletedPc) {
+            $deletedPcNumbers = $this->getDeletedPcNumbersInternal($roomTitle);
+            if (!empty($deletedPcNumbers)) {
+                return str_pad($deletedPcNumbers[0], 3, '0', STR_PAD_LEFT);
+            }
+        }
+        
         $nextPcNumber = $maxPcNumber + 1;
 
         return str_pad($nextPcNumber, 3, '0', STR_PAD_LEFT);
@@ -799,6 +908,8 @@ class RoomManagementController extends Controller
             'Speaker' => 'SP',
             'Webcam' => 'WC',
             'Headset' => 'HS',
+            'High-Definition Multimedia Interface' => 'HDMI',
+            'Video Graphics Array' => 'VGA',
         ];
 
         $deviceCode = $deviceCodes[$deviceCategory] ??
@@ -865,7 +976,9 @@ class RoomManagementController extends Controller
             'RAM' => 'RAM',
             'Webcam' => 'WC',
             'Headset' => 'HS',
-            'Full Set' => 'FS',
+            'High-Definition Multimedia Interface' => 'HDMI',
+            'Video Graphics Array' => 'VGA',
+            
         ];
         
         // Get room code

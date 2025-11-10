@@ -14,7 +14,7 @@ return [
     |
     */
 
-    'default' => env('MAIL_MAILER', 'smtp'),
+    'default' => env('MAIL_MAILER', 'gmail'),
 
     /*
     |--------------------------------------------------------------------------
@@ -43,19 +43,29 @@ return [
             'url' => env('MAIL_URL'),
             'host' => env('MAIL_HOST', 'smtp.gmail.com'),
             'port' => env('MAIL_PORT', 587),
-            'username' => env('MAIL_USERNAME', 'iitech.inventory@gmail.com'),
-            'password' => env('MAIL_PASSWORD'),
+            'username' => env('MAIL_USERNAME', 'ojtmonitoring71@gmail.com'),
+            'password' => env('MAIL_PASSWORD', 'zfth lhql kukx ejmp'),
             'timeout' => null,
             'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
-            'verify_peer' => false,
+        ],
+
+        'gmail' => [
+            'transport' => 'smtp',
+            'host' => 'smtp.gmail.com',
+            'port' => 587,
+            'encryption' => 'tls',
+            'username' => env('MAIL_USERNAME', 'ojtmonitoring71@gmail.com'),
+            'password' => env('MAIL_PASSWORD', 'zfth lhql kukx ejmp'),
+            'timeout' => 60,
+            'local_domain' => env('MAIL_EHLO_DOMAIN', parse_url(env('APP_URL', 'http://localhost'), PHP_URL_HOST)),
+            // Relax TLS verification to avoid Windows/OpenSSL issues during local dev
             'stream' => [
                 'ssl' => [
+                    'allow_self_signed' => true,
                     'verify_peer' => false,
                     'verify_peer_name' => false,
-                    'allow_self_signed' => true,
                 ],
             ],
-            'encryption' => env('MAIL_ENCRYPTION', 'tls'),
         ],
 
         'ses' => [
@@ -91,7 +101,7 @@ return [
         'failover' => [
             'transport' => 'failover',
             'mailers' => [
-                'smtp',
+                'gmail',
                 'log',
             ],
             'retry_after' => 60,
@@ -120,8 +130,8 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'iitech.inventory@gmail.com'),
-        'name' => env('MAIL_FROM_NAME', 'IT Inventory System'),
+        'address' => env('MAIL_FROM_ADDRESS', 'ojtmonitoring71@gmail.com'),
+        'name' => env('MAIL_FROM_NAME', 'OJT-MONITORING'),
     ],
 
 ];

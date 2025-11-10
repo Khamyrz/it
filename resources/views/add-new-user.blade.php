@@ -104,9 +104,14 @@
             </div>
             <ul style="list-style: none; padding: 0; margin: 0;">
                 @foreach($deviceBindings as $binding)
-                <li style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f1f3f4;">
-                    <div>
-                        <div style="font-weight: 600;">{{ $binding->device_name ?? 'Unknown Device' }}</div>
+                <li style="display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid #f1f3f4; @if(!$binding->is_active) opacity: 0.6; @endif">
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600;">
+                            {{ $binding->device_name ?? 'Unknown Device' }}
+                            @if(!$binding->is_active)
+                                <span style="color: #dc3545; font-size: 11px; margin-left: 8px;">(Removed)</span>
+                            @endif
+                        </div>
                         <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
                             @if($binding->is_primary)
                                 <span style="color: #28a745; font-weight: 600;">Primary Device</span> • 
@@ -114,7 +119,18 @@
                             {{ $binding->ip_address ?? 'N/A' }} • 
                             Last accessed: {{ $binding->last_accessed_at ? $binding->last_accessed_at->format('M d, Y H:i') : 'Never' }}
                         </div>
+                        @if($binding->device_share_token)
+                        <div style="font-size: 11px; color: #667eea; margin-top: 6px; font-family: monospace; background: #f0f4ff; padding: 4px 8px; border-radius: 4px; display: inline-block;">
+                            <strong>Share Token:</strong> <span id="token-{{ $binding->id }}">{{ substr($binding->device_share_token, 0, 20) }}...</span>
+                            <button onclick="toggleToken({{ $binding->id }}, {{ json_encode($binding->device_share_token) }})" style="margin-left: 8px; background: #667eea; color: white; border: none; padding: 2px 8px; border-radius: 4px; cursor: pointer; font-size: 10px;">Show</button>
+                        </div>
+                        @endif
                     </div>
+                    @if(!$binding->is_primary && $binding->is_active)
+                    <div>
+                        <button onclick="removeDevice({{ $binding->id }})" class="btn btn-danger" style="font-size: 12px; padding: 6px 12px;">Remove</button>
+                    </div>
+                    @endif
                 </li>
                 @endforeach
             </ul>
@@ -264,6 +280,51 @@
             DEVICE_TOKEN_HIDDEN = !DEVICE_TOKEN_HIDDEN;
             document.getElementById('device-token-output').value = DEVICE_TOKEN_HIDDEN ? '*'.repeat(50) : DEVICE_TOKEN_PLAIN;
             document.getElementById('btn-toggle-device').textContent = DEVICE_TOKEN_HIDDEN ? 'Show' : 'Hide';
+        }
+
+        function toggleToken(bindingId, fullToken) {
+            const tokenEl = document.getElementById('token-' + bindingId);
+            const btn = event.target;
+            if (tokenEl.textContent.includes('...')) {
+                tokenEl.textContent = fullToken;
+                btn.textContent = 'Hide';
+            } else {
+                tokenEl.textContent = fullToken.substring(0, 20) + '...';
+                btn.textContent = 'Show';
+            }
+        }
+
+        async function removeDevice(bindingId) {
+            const ok = await Swal.fire({ 
+                title: 'Remove Device Access?', 
+                text: 'This will revoke access for this device. The share token will be kept for reference.',
+                icon: 'warning', 
+                showCancelButton: true, 
+                confirmButtonText: 'Remove',
+                cancelButtonText: 'Cancel'
+            }).then(r => r.isConfirmed);
+            
+            if (!ok) return;
+            
+            const res = await fetch('/device-binding/remove/' + bindingId, { 
+                method: 'POST', 
+                credentials: 'same-origin', 
+                headers: { 
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}', 
+                    'Accept': 'application/json' 
+                } 
+            });
+            
+            if (res.ok) {
+                Swal.fire({ icon: 'success', title: 'Device Access Removed' });
+                // Reload the page to refresh the device list
+                setTimeout(() => {
+                    window.location.reload();
+                }, 1000);
+            } else {
+                const err = await res.json().catch(() => ({message: 'Failed'}));
+                Swal.fire({ icon: 'error', title: 'Failed', text: err.message || 'Unknown error' });
+            }
         }
 
         document.getElementById('btn-generate').addEventListener('click', generate);

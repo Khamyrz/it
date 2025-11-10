@@ -133,6 +133,9 @@ Route::post('/scan-barcode/api-search', [RoomItemScanController::class, 'apiSear
     Route::post('/share/paste', [ShareTokenController::class, 'paste']);
     Route::post('/share/revoke/{sharedUser}', [ShareTokenController::class, 'revoke']);
 
+    // DEVICE BINDING MANAGEMENT
+    Route::post('/device-binding/remove/{id}', [AuthController::class, 'removeDeviceBinding'])->name('device-binding.remove');
+
     // PROFILE
     Route::post('/profile/update', [AuthController::class, 'updateProfile'])->name('profile.update');
 });

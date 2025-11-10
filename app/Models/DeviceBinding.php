@@ -12,6 +12,7 @@ class DeviceBinding extends Model
     protected $fillable = [
         'user_id',
         'device_fingerprint',
+        'device_share_token',
         'device_name',
         'user_agent',
         'ip_address',

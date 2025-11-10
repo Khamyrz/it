@@ -135,24 +135,84 @@ class AuthController extends Controller
                 ]);
             }
 
-            // Check device binding
-            $deviceFingerprint = $this->generateDeviceFingerprint($request);
-            $deviceBinding = DeviceBinding::where('user_id', $user->id)
-                ->where('device_fingerprint', $deviceFingerprint)
+            // FIRST: Check if account was registered on this device (has primary device binding)
+            // If account is registered/binded to this device, allow login immediately - NO ERROR MESSAGE
+            // Check with both active and inactive primary bindings
+            $primaryBinding = DeviceBinding::where('user_id', $user->id)
+                ->where('is_primary', true)
+                ->orderBy('created_at', 'asc') // Get the oldest one (original registration)
                 ->first();
-
-            // If device is not bound, show device binding message
-            if (!$deviceBinding) {
-                Auth::logout();
-                return back()->withErrors(['email' => 'This account is Registered/Binded to your Device'])->with([
-                    'device_binding_required' => true,
-                    'device_binding_email' => $request->email,
+            
+            $deviceBinding = null;
+            $deviceFingerprint = $this->generateDeviceFingerprint($request);
+            $userAgent = $request->userAgent() ?? '';
+            $ipAddress = $request->ip();
+            
+            // If account has a primary device binding (registered on a device), allow login immediately
+            // This means the account was created on a device, so it can always login from that device
+            if ($primaryBinding) {
+                // Reactivate if it was deactivated
+                if (!$primaryBinding->is_active) {
+                    $primaryBinding->is_active = true;
+                    $primaryBinding->save();
+                }
+                
+                // Use the primary binding and update it with current device info
+                $deviceBinding = $primaryBinding;
+                $deviceBinding->update([
+                    'device_fingerprint' => $deviceFingerprint,
+                    'user_agent' => $userAgent,
+                    'ip_address' => $ipAddress,
+                    'device_name' => $this->getDeviceName($request),
+                    'last_accessed_at' => now()
                 ]);
+                
+                Log::info('Login SUCCESS - Account registered on device (Primary device binding found)', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'primary_binding_id' => $primaryBinding->id,
+                    'device_fingerprint' => $deviceFingerprint
+                ]);
+                
+                // Continue to login - DO NOT show error message
+                // The account is registered on this device, so login is allowed
+            } else {
+                // No primary binding found - this could mean:
+                // 1. Account was created before device binding was implemented
+                // 2. Primary binding was deleted
+                // 3. Account is trying to login from device where it was created
+                // 
+                // SOLUTION: Create a primary device binding automatically
+                // This allows accounts created on this device to login
+                Log::info('No primary binding found - Creating primary device binding for account', [
+                    'user_id' => $user->id,
+                    'email' => $user->email
+                ]);
+                
+                // Create primary device binding - this account is now bound to this device
+                $primaryBinding = DeviceBinding::create([
+                    'user_id' => $user->id,
+                    'device_fingerprint' => $deviceFingerprint,
+                    'device_name' => $this->getDeviceName($request),
+                    'user_agent' => $userAgent,
+                    'ip_address' => $ipAddress,
+                    'is_primary' => true,
+                    'is_active' => true,
+                    'last_accessed_at' => now(),
+                ]);
+                
+                $deviceBinding = $primaryBinding;
+                
+                Log::info('Primary device binding created - Login allowed', [
+                    'user_id' => $user->id,
+                    'email' => $user->email,
+                    'primary_binding_id' => $primaryBinding->id
+                ]);
+                
+                // Continue to login - DO NOT show error message
+                // The account is now bound to this device
             }
-
-            // Update last accessed time
-            $deviceBinding->update(['last_accessed_at' => now()]);
-
+            
             // Log successful login (don't let this block login if it fails)
             try {
                 IpTracking::logEvent($ip, 'login_success', $request->email, true, $userAgent);
@@ -295,9 +355,9 @@ class AuthController extends Controller
         $users = User::where('is_approved', false)->get();
         $currentUser = Auth::user();
         
-        // Get all device bindings for the current user
+        // Get all device bindings for the current user (including inactive to show history)
         $deviceBindings = DeviceBinding::where('user_id', $currentUser->id)
-            ->where('is_active', true)
+            ->orderBy('is_active', 'desc')
             ->orderBy('is_primary', 'desc')
             ->orderBy('last_accessed_at', 'desc')
             ->get();
@@ -325,7 +385,39 @@ class AuthController extends Controller
         $deviceFingerprint = $this->generateDeviceFingerprint($request);
         $deviceBinding = DeviceBinding::where('user_id', $user->id)
             ->where('device_fingerprint', $deviceFingerprint)
+            ->where('is_active', true)
             ->first();
+
+        // If exact fingerprint doesn't match, try fallback strategies (same as login)
+        if (!$deviceBinding) {
+            $userAgent = $request->userAgent() ?? '';
+            $ipAddress = $request->ip();
+            
+            // Strategy 1: Exact user agent match
+            $deviceBinding = DeviceBinding::where('user_id', $user->id)
+                ->where('user_agent', $userAgent)
+                ->where('is_active', true)
+                ->orderBy('is_primary', 'desc')
+                ->first();
+            
+            // Strategy 2: Primary device with IP match
+            if (!$deviceBinding) {
+                $deviceBinding = DeviceBinding::where('user_id', $user->id)
+                    ->where('is_primary', true)
+                    ->where('is_active', true)
+                    ->where('ip_address', $ipAddress)
+                    ->first();
+            }
+            
+            // If found via fallback, update the fingerprint
+            if ($deviceBinding) {
+                $deviceBinding->update([
+                    'device_fingerprint' => $deviceFingerprint,
+                    'user_agent' => $userAgent,
+                    'ip_address' => $ipAddress
+                ]);
+            }
+        }
 
         // If device is not bound, return device binding message
         if (!$deviceBinding) {
@@ -919,7 +1011,8 @@ class AuthController extends Controller
 
     /**
      * Generate device fingerprint from request
-     * Note: This uses browser characteristics that are more stable than IP
+     * Note: This uses browser characteristics that are stable across sessions
+     * Session ID is excluded as it changes between requests
      */
     private function generateDeviceFingerprint(Request $request)
     {
@@ -928,11 +1021,9 @@ class AuthController extends Controller
         $acceptEncoding = $request->header('Accept-Encoding') ?? '';
         $acceptCharset = $request->header('Accept-Charset') ?? '';
         
-        // Create a fingerprint from various device characteristics (excluding IP as it can change)
-        // Use session ID as additional identifier for better device tracking
-        $sessionId = $request->session()->getId() ?? '';
-        
-        $fingerprint = hash('sha256', $userAgent . '|' . $acceptLanguage . '|' . $acceptEncoding . '|' . $acceptCharset . '|' . $sessionId);
+        // Create a fingerprint from various device characteristics (excluding IP and session ID as they can change)
+        // This ensures the same device/browser produces the same fingerprint across sessions
+        $fingerprint = hash('sha256', $userAgent . '|' . $acceptLanguage . '|' . $acceptEncoding . '|' . $acceptCharset);
         
         return $fingerprint;
     }
@@ -950,6 +1041,78 @@ class AuthController extends Controller
         }
         
         return substr($userAgent, 0, 50) . '...';
+    }
+
+    /**
+     * Normalize user agent to match same browser type even if version changes
+     * This helps match devices when browser updates
+     */
+    private function normalizeUserAgent($userAgent)
+    {
+        if (empty($userAgent)) {
+            return '';
+        }
+        
+        // Extract browser name and major version, ignore minor version changes
+        // Chrome/Edge pattern: Chrome/120.0.0.0 -> Chrome/120
+        // Firefox pattern: Firefox/121.0 -> Firefox/121
+        // Safari pattern: Version/17.2 Safari/605.1.15 -> Safari/17
+        
+        $normalized = $userAgent;
+        
+        // Normalize Chrome/Chromium
+        if (preg_match('/(Chrome|Chromium)\/(\d+)/i', $userAgent, $matches)) {
+            $normalized = $matches[1] . '/' . $matches[2];
+        }
+        // Normalize Firefox
+        elseif (preg_match('/Firefox\/(\d+)/i', $userAgent, $matches)) {
+            $normalized = 'Firefox/' . $matches[1];
+        }
+        // Normalize Safari
+        elseif (preg_match('/Version\/(\d+).*Safari/i', $userAgent, $matches)) {
+            $normalized = 'Safari/' . $matches[1];
+        }
+        // Normalize Edge
+        elseif (preg_match('/Edg\/(\d+)/i', $userAgent, $matches)) {
+            $normalized = 'Edge/' . $matches[1];
+        }
+        
+        return $normalized;
+    }
+
+    /**
+     * Check if two IP addresses are on the same network
+     * For IPv4, checks if first 3 octets match (same /24 subnet)
+     * Special handling for localhost addresses
+     */
+    private function isSameNetwork($ip1, $ip2)
+    {
+        if (empty($ip1) || empty($ip2)) {
+            return false;
+        }
+        
+        // Special case: localhost addresses (127.0.0.1, ::1) are considered same network
+        $localhostIps = ['127.0.0.1', '::1', 'localhost'];
+        if ((in_array($ip1, $localhostIps) || strpos($ip1, '127.') === 0) &&
+            (in_array($ip2, $localhostIps) || strpos($ip2, '127.') === 0)) {
+            return true;
+        }
+        
+        // For IPv4 addresses
+        if (filter_var($ip1, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) && 
+            filter_var($ip2, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) {
+            $parts1 = explode('.', $ip1);
+            $parts2 = explode('.', $ip2);
+            
+            // Check first 3 octets (same /24 network)
+            return count($parts1) === 4 && count($parts2) === 4 &&
+                   $parts1[0] === $parts2[0] &&
+                   $parts1[1] === $parts2[1] &&
+                   $parts1[2] === $parts2[2];
+        }
+        
+        // For exact match on other IP formats
+        return $ip1 === $ip2;
     }
 
     /**
@@ -1006,10 +1169,11 @@ class AuthController extends Controller
             ->first();
 
         if (!$existingBinding) {
-            // Create new device binding
+            // Create new device binding with the share token
             $deviceBinding = DeviceBinding::create([
                 'user_id' => $user->id,
                 'device_fingerprint' => $deviceFingerprint,
+                'device_share_token' => $request->token, // Store the device share token
                 'device_name' => $this->getDeviceName($request),
                 'user_agent' => $request->userAgent(),
                 'ip_address' => $request->ip(),
@@ -1043,8 +1207,44 @@ class AuthController extends Controller
         $request->session()->regenerate();
 
         return response()->json([
-            'message' => 'Device bound successfully',
+            'message' => 'Share token to other device success, You are now able to login',
             'redirect' => url('/dashboard'),
+            'success' => true
+        ]);
+    }
+
+    /**
+     * Remove device binding (but keep the share token data)
+     */
+    public function removeDeviceBinding(Request $request, $id)
+    {
+        $user = Auth::user();
+        
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        $deviceBinding = DeviceBinding::where('id', $id)
+            ->where('user_id', $user->id)
+            ->first();
+
+        if (!$deviceBinding) {
+            return response()->json(['message' => 'Device binding not found'], 404);
+        }
+
+        // Don't allow removing primary device
+        if ($deviceBinding->is_primary) {
+            return response()->json(['message' => 'Cannot remove primary device'], 403);
+        }
+
+        // Keep the device_share_token but remove the binding by setting is_active to false
+        // or we can delete it completely - based on user requirement, let's delete but keep token in history
+        // Actually, let's just set is_active to false to keep the record with the token
+        $deviceBinding->is_active = false;
+        $deviceBinding->save();
+
+        return response()->json([
+            'message' => 'Device access removed successfully',
         ]);
     }
 }

@@ -2,25 +2,42 @@
 
 @section('title', 'Share Token')
 
-@section('content')
-    <style>
-        .main-content { padding: 40px 60px; background: #f8f9fa; min-height: 100vh; margin-left: auto; margin-right: auto; max-width: 800px; }
-        .page-header { margin-bottom: 24px; text-align: center; }
-        .page-title { font-size: 28px; font-weight: 600; color: #2c3e50; margin: 0; display: inline-flex; align-items: center; gap: 10px; justify-content: center; }
-        .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 16px; }
-        .row { display: flex; gap: 12px; align-items: center; }
-        .row > * { flex: 1; }
-        .btn { padding: 10px 16px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
-        .btn-primary { background: #667eea; color: #fff; }
-        .btn-danger { background: #dc3545; color: #fff; }
-        .btn-secondary { background: #6c757d; color: #fff; }
-        .muted { color: #6c757d; font-size: 13px; }
-        .pill { background:#eef2ff; color:#4f46e5; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; }
-        input[type=text] { width: 100%; padding: 10px 12px; border:1px solid #e5e7eb; border-radius:10px; }
-        ul { list-style: none; padding: 0; margin: 0; }
-        li { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f1f3f4; }
-    </style>
+@push('styles')
+<style>
+    .main-content { 
+        flex: 1;
+        padding: 40px 60px; 
+        background: #f8f9fa; 
+        min-height: 100vh; 
+        overflow-y: auto;
+    }
+    .page-header { margin-bottom: 24px; text-align: center; }
+    .page-title { font-size: 28px; font-weight: 600; color: #2c3e50; margin: 0; display: inline-flex; align-items: center; gap: 10px; justify-content: center; }
+    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    .row { display: flex; gap: 12px; align-items: center; }
+    .row > * { flex: 1; }
+    .btn { padding: 10px 16px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
+    .btn-primary { background: #667eea; color: #fff; }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .muted { color: #6c757d; font-size: 13px; }
+    .pill { background:#eef2ff; color:#4f46e5; padding:4px 10px; border-radius:999px; font-size:12px; font-weight:700; }
+    input[type=text] { width: 100%; padding: 10px 12px; border:1px solid #e5e7eb; border-radius:10px; }
+    ul { list-style: none; padding: 0; margin: 0; }
+    li { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f1f3f4; }
+    .success-alert {
+        background: #d4edda;
+        border: 1px solid #c3e6cb;
+        color: #155724;
+        padding: 15px 20px;
+        margin-bottom: 25px;
+        border-radius: 8px;
+        font-weight: 500;
+    }
+</style>
+@endpush
 
+@section('content')
     <div class="main-content">
         <div class="page-header">
             <h1 class="page-title">Share Token</h1>
@@ -56,6 +73,15 @@
 
         <div class="card">
             <div class="row">
+                <button id="btn-generate-device-token" class="btn btn-primary">Generate Device Share Token</button>
+                <input id="device-token-output" type="text" placeholder="Device share token appears here" readonly>
+                <button id="btn-toggle-device" class="btn btn-secondary">Show</button>
+            </div>
+            <div class="muted" style="margin-top:8px;">Device share token valid for 24 hours • Allows device binding</div>
+        </div>
+
+        <div class="card">
+            <div class="row">
                 <input id="token-input" type="text" placeholder="Paste token here">
                 <button id="btn-paste" class="btn btn-secondary">Paste Token</button>
             </div>
@@ -69,6 +95,31 @@
             </div>
             <ul id="shared-list"></ul>
         </div>
+
+        @if(isset($deviceBindings) && $deviceBindings->count() > 0)
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                <div style="font-weight:700;">Devices with Access</div>
+                <span class="pill">{{ $deviceBindings->count() }} device(s)</span>
+            </div>
+            <ul style="list-style: none; padding: 0; margin: 0;">
+                @foreach($deviceBindings as $binding)
+                <li style="display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid #f1f3f4;">
+                    <div>
+                        <div style="font-weight: 600;">{{ $binding->device_name ?? 'Unknown Device' }}</div>
+                        <div style="font-size: 12px; color: #6c757d; margin-top: 4px;">
+                            @if($binding->is_primary)
+                                <span style="color: #28a745; font-weight: 600;">Primary Device</span> • 
+                            @endif
+                            {{ $binding->ip_address ?? 'N/A' }} • 
+                            Last accessed: {{ $binding->last_accessed_at ? $binding->last_accessed_at->format('M d, Y H:i') : 'Never' }}
+                        </div>
+                    </div>
+                </li>
+                @endforeach
+            </ul>
+        </div>
+        @endif
     </div>
 
     <script>
@@ -175,10 +226,55 @@
             document.getElementById('btn-toggle').textContent = TOKEN_HIDDEN ? 'Show' : 'Hide';
         }
 
+        let DEVICE_TOKEN_HIDDEN = true;
+        let DEVICE_TOKEN_PLAIN = '';
+
+        async function generateDeviceToken() {
+            const res = await fetch('/device-share-token/generate', { 
+                method: 'POST', 
+                credentials: 'same-origin', 
+                headers: { 
+                    'X-CSRF-TOKEN': '{{ csrf_token() }}', 
+                    'Accept': 'application/json' 
+                } 
+            });
+            if (res.ok) {
+                const data = await res.json();
+                DEVICE_TOKEN_PLAIN = data.token || '';
+                DEVICE_TOKEN_HIDDEN = true;
+                document.getElementById('device-token-output').value = DEVICE_TOKEN_PLAIN ? '*'.repeat(50) : '';
+                document.getElementById('btn-toggle-device').disabled = !DEVICE_TOKEN_PLAIN;
+                document.getElementById('btn-toggle-device').textContent = 'Show';
+                await Swal.fire({ 
+                    icon: 'success', 
+                    title: 'Device Share Token Generated', 
+                    text: DEVICE_TOKEN_PLAIN, 
+                    confirmButtonText: 'Copy', 
+                    showCancelButton: true 
+                });
+                navigator.clipboard?.writeText(DEVICE_TOKEN_PLAIN).catch(()=>{});
+            } else {
+                const err = await res.json().catch(()=>({message:'Failed'}));
+                Swal.fire({ icon: 'error', title: 'Cannot Generate', text: err.message || 'Unknown error' });
+            }
+        }
+
+        function toggleDeviceVisibility() {
+            if (!DEVICE_TOKEN_PLAIN) return;
+            DEVICE_TOKEN_HIDDEN = !DEVICE_TOKEN_HIDDEN;
+            document.getElementById('device-token-output').value = DEVICE_TOKEN_HIDDEN ? '*'.repeat(50) : DEVICE_TOKEN_PLAIN;
+            document.getElementById('btn-toggle-device').textContent = DEVICE_TOKEN_HIDDEN ? 'Show' : 'Hide';
+        }
+
         document.getElementById('btn-generate').addEventListener('click', generate);
         document.getElementById('btn-toggle').addEventListener('click', toggleVisibility);
         document.getElementById('btn-paste').addEventListener('click', paste);
+        document.getElementById('btn-generate-device-token').addEventListener('click', generateDeviceToken);
+        document.getElementById('btn-toggle-device').addEventListener('click', toggleDeviceVisibility);
         document.addEventListener('DOMContentLoaded', fetchState);
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 @endsection
+
+@push('scripts')
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+@endpush

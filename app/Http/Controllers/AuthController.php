@@ -12,6 +12,8 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Cache;
 use App\Models\IpTracking;
+use App\Models\DeviceBinding;
+use Illuminate\Support\Str;
 
 class AuthController extends Controller
 {
@@ -54,6 +56,19 @@ class AuthController extends Controller
         } catch (\Throwable $e) {}
 
         $user = User::create($data);
+
+        // Bind device to account on registration
+        $deviceFingerprint = $this->generateDeviceFingerprint($request);
+        DeviceBinding::create([
+            'user_id' => $user->id,
+            'device_fingerprint' => $deviceFingerprint,
+            'device_name' => $this->getDeviceName($request),
+            'user_agent' => $request->userAgent(),
+            'ip_address' => $request->ip(),
+            'is_primary' => true,
+            'is_active' => true,
+            'last_accessed_at' => now(),
+        ]);
 
         // Clear email verification session
         session()->forget(['email_verification_otp', 'email_verification_email', 'email_verification_expires', 'email_verification_verified']);
@@ -110,13 +125,33 @@ class AuthController extends Controller
         }
 
         if (Auth::attempt($credentials)) {
-            if (!Auth::user()->is_approved) {
+            $user = Auth::user();
+            
+            if (!$user->is_approved) {
                 Auth::logout();
                 return back()->withErrors(['email' => 'Your account is not yet activated. Please enter the Access Token sent to your Gmail.']).with([
                     'access_token_email' => $request->email,
                     'show_access_token_modal' => true,
                 ]);
             }
+
+            // Check device binding
+            $deviceFingerprint = $this->generateDeviceFingerprint($request);
+            $deviceBinding = DeviceBinding::where('user_id', $user->id)
+                ->where('device_fingerprint', $deviceFingerprint)
+                ->first();
+
+            // If device is not bound, show device binding message
+            if (!$deviceBinding) {
+                Auth::logout();
+                return back()->withErrors(['email' => 'This account is Registered/Binded to your Device'])->with([
+                    'device_binding_required' => true,
+                    'device_binding_email' => $request->email,
+                ]);
+            }
+
+            // Update last accessed time
+            $deviceBinding->update(['last_accessed_at' => now()]);
 
             // Log successful login (don't let this block login if it fails)
             try {
@@ -258,7 +293,16 @@ class AuthController extends Controller
     // Show list of users pending approval
     public function showPendingAccounts() {
         $users = User::where('is_approved', false)->get();
-        return view('add-new-user', compact('users'));
+        $currentUser = Auth::user();
+        
+        // Get all device bindings for the current user
+        $deviceBindings = DeviceBinding::where('user_id', $currentUser->id)
+            ->where('is_active', true)
+            ->orderBy('is_primary', 'desc')
+            ->orderBy('last_accessed_at', 'desc')
+            ->get();
+        
+        return view('add-new-user', compact('users', 'deviceBindings'));
     }
 
 
@@ -275,6 +319,20 @@ class AuthController extends Controller
 
         if (!$user) {
             return response()->json(['message' => 'No account found with this email'], 404);
+        }
+
+        // Check if device is bound
+        $deviceFingerprint = $this->generateDeviceFingerprint($request);
+        $deviceBinding = DeviceBinding::where('user_id', $user->id)
+            ->where('device_fingerprint', $deviceFingerprint)
+            ->first();
+
+        // If device is not bound, return device binding message
+        if (!$deviceBinding) {
+            return response()->json([
+                'message' => 'This account is Registered/Binded to your Device',
+                'device_binding_required' => true,
+            ], 403);
         }
 
         // Lockout check
@@ -856,6 +914,137 @@ class AuthController extends Controller
                 'email' => $user->email,
                 'photo' => $user->photo,
             ],
+        ]);
+    }
+
+    /**
+     * Generate device fingerprint from request
+     * Note: This uses browser characteristics that are more stable than IP
+     */
+    private function generateDeviceFingerprint(Request $request)
+    {
+        $userAgent = $request->userAgent() ?? '';
+        $acceptLanguage = $request->header('Accept-Language') ?? '';
+        $acceptEncoding = $request->header('Accept-Encoding') ?? '';
+        $acceptCharset = $request->header('Accept-Charset') ?? '';
+        
+        // Create a fingerprint from various device characteristics (excluding IP as it can change)
+        // Use session ID as additional identifier for better device tracking
+        $sessionId = $request->session()->getId() ?? '';
+        
+        $fingerprint = hash('sha256', $userAgent . '|' . $acceptLanguage . '|' . $acceptEncoding . '|' . $acceptCharset . '|' . $sessionId);
+        
+        return $fingerprint;
+    }
+
+    /**
+     * Get device name from request
+     */
+    private function getDeviceName(Request $request)
+    {
+        $userAgent = $request->userAgent() ?? 'Unknown Device';
+        
+        // Try to extract device name from user agent
+        if (preg_match('/(Windows|Mac|Linux|Android|iOS|iPhone|iPad)/i', $userAgent, $matches)) {
+            return $matches[1] . ' Device';
+        }
+        
+        return substr($userAgent, 0, 50) . '...';
+    }
+
+    /**
+     * Generate share token for device binding
+     */
+    public function generateDeviceShareToken(Request $request)
+    {
+        $user = Auth::user();
+        
+        if (!$user) {
+            return response()->json(['message' => 'Unauthorized'], 401);
+        }
+
+        // Generate a share token
+        $shareToken = rtrim(strtr(base64_encode(random_bytes(64)), '+/', '-_'), '=');
+        $cacheKey = 'device_share_token:' . $user->id;
+        Cache::put($cacheKey, $shareToken, now()->addHours(24)); // Token valid for 24 hours
+
+        return response()->json([
+            'token' => $shareToken,
+            'expires_at' => now()->addHours(24)->toIso8601String(),
+        ]);
+    }
+
+    /**
+     * Verify share token and bind device
+     */
+    public function verifyDeviceShareToken(Request $request)
+    {
+        $request->validate([
+            'email' => 'required|email|regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
+            'token' => 'required|string|min:20',
+        ]);
+
+        $user = User::where('email', $request->email)->first();
+        if (!$user) {
+            return response()->json(['message' => 'No account found with this email'], 404);
+        }
+
+        // Verify share token
+        $cacheKey = 'device_share_token:' . $user->id;
+        $storedToken = Cache::get($cacheKey);
+        
+        if (!$storedToken || $storedToken !== $request->token) {
+            return response()->json(['message' => 'Invalid or expired share token'], 400);
+        }
+
+        // Bind device to account
+        $deviceFingerprint = $this->generateDeviceFingerprint($request);
+        
+        // Check if device is already bound
+        $existingBinding = DeviceBinding::where('user_id', $user->id)
+            ->where('device_fingerprint', $deviceFingerprint)
+            ->first();
+
+        if (!$existingBinding) {
+            // Create new device binding
+            $deviceBinding = DeviceBinding::create([
+                'user_id' => $user->id,
+                'device_fingerprint' => $deviceFingerprint,
+                'device_name' => $this->getDeviceName($request),
+                'user_agent' => $request->userAgent(),
+                'ip_address' => $request->ip(),
+                'is_primary' => false,
+                'is_active' => true,
+                'last_accessed_at' => now(),
+            ]);
+
+            // Send email notification to owner
+            try {
+                Mail::send('emails.device_access_granted', [
+                    'user' => $user,
+                    'deviceName' => $this->getDeviceName($request),
+                    'ipAddress' => $request->ip(),
+                    'userAgent' => $request->userAgent(),
+                ], function ($message) use ($user) {
+                    $message->from('iitech.inventory@gmail.com', 'IT Inventory System')
+                            ->to($user->email)
+                            ->subject('New Device Access - IT Inventory System');
+                });
+            } catch (\Throwable $e) {
+                Log::error('Failed to send device access notification: ' . $e->getMessage());
+            }
+        }
+
+        // Clear the share token
+        Cache::forget($cacheKey);
+
+        // Login the user
+        Auth::login($user);
+        $request->session()->regenerate();
+
+        return response()->json([
+            'message' => 'Device bound successfully',
+            'redirect' => url('/dashboard'),
         ]);
     }
 }

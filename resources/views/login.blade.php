@@ -25,6 +25,9 @@ if (!headers_sent()) {
 		// Flags from server to trigger Access Token modal after signup or blocked login
 		window.ACCESS_TOKEN_MODAL = {!! session('show_access_token_modal') ? 'true' : 'false' !!};
 		window.ACCESS_TOKEN_EMAIL = {!! json_encode(session('access_token_email')) !!};
+		// Device binding flags
+		window.DEVICE_BINDING_REQUIRED = {!! session('device_binding_required') ? 'true' : 'false' !!};
+		window.DEVICE_BINDING_EMAIL = {!! json_encode(session('device_binding_email')) !!};
 	</script>
     <script>
         // Ensure any SweetAlert will close all app modals first and grab focus
@@ -884,7 +887,124 @@ if (!headers_sent()) {
                     openAccessModal(window.ACCESS_TOKEN_EMAIL||'');
                     document.getElementById('accessTokenInput')?.focus();
                 }
+                
+                // Handle device binding required
+                if(window.DEVICE_BINDING_REQUIRED){
+                    const email = window.DEVICE_BINDING_EMAIL || '';
+                    showDeviceBindingMessage(email);
+                }
             });
+            
+            // Function to show device binding message
+            function showDeviceBindingMessage(email){
+                Swal.fire({
+                    title: 'Device Binding Required',
+                    html: `
+                        <p style="margin-bottom: 15px;">This account is Registered/Binded to your Device</p>
+                        <p style="margin-bottom: 20px; color: #6c757d; font-size: 14px;">You need the owner's access token to access this account from this device.</p>
+                    `,
+                    icon: 'warning',
+                    showCancelButton: false,
+                    showDenyButton: true,
+                    confirmButtonText: 'Okay',
+                    denyButtonText: 'I have the Owner\'s Access token',
+                    confirmButtonColor: '#6c757d',
+                    denyButtonColor: '#007bff',
+                    reverseButtons: true,
+                    width: '600px',
+                    allowOutsideClick: false,
+                    allowEscapeKey: false,
+                    customClass: {
+                        confirmButton: 'swal2-confirm-custom',
+                        denyButton: 'swal2-deny-custom',
+                    },
+                    buttonsStyling: true,
+                    didOpen: () => {
+                        setTimeout(() => {
+                            const confirmBtn = document.querySelector('.swal2-confirm-custom');
+                            const denyBtn = document.querySelector('.swal2-deny-custom');
+                            if (confirmBtn && denyBtn) {
+                                const buttonStyles = {
+                                    minWidth: '250px',
+                                    width: '250px',
+                                    maxWidth: '250px',
+                                    padding: '12px 20px',
+                                    textAlign: 'center',
+                                    whiteSpace: 'normal',
+                                    wordWrap: 'break-word',
+                                    lineHeight: '1.4',
+                                    fontSize: '14px',
+                                    margin: '5px',
+                                    display: 'inline-block',
+                                    boxSizing: 'border-box'
+                                };
+                                Object.assign(confirmBtn.style, buttonStyles);
+                                Object.assign(denyBtn.style, buttonStyles);
+                                
+                                const actionsContainer = confirmBtn.closest('.swal2-actions');
+                                if (actionsContainer) {
+                                    actionsContainer.style.display = 'flex';
+                                    actionsContainer.style.flexDirection = 'column';
+                                    actionsContainer.style.alignItems = 'center';
+                                    actionsContainer.style.gap = '10px';
+                                }
+                            }
+                        }, 100);
+                    }
+                }).then((result) => {
+                    if (result.isDenied) {
+                        // Show access token input modal
+                        Swal.fire({
+                            title: 'Enter Owner\'s Access Token',
+                            html: `
+                                <p style="margin-bottom: 15px; color: #6c757d; font-size: 14px;">Place the Owner's share token to make your device bind</p>
+                                <input type="text" id="deviceShareTokenInput" class="swal2-input" placeholder="Paste share token here" style="width: 100%; padding: 12px; border: 2px solid #007bff; border-radius: 8px; font-family: monospace; font-size: 14px;">
+                                <input type="hidden" id="deviceShareTokenEmail" value="${email}">
+                            `,
+                            icon: 'info',
+                            showCancelButton: true,
+                            confirmButtonText: 'Verify & Bind Device',
+                            cancelButtonText: 'Cancel',
+                            confirmButtonColor: '#007bff',
+                            cancelButtonColor: '#6c757d',
+                            allowOutsideClick: false,
+                            allowEscapeKey: false,
+                            preConfirm: () => {
+                                const token = document.getElementById('deviceShareTokenInput').value.trim();
+                                const email = document.getElementById('deviceShareTokenEmail').value;
+                                
+                                if (!token) {
+                                    Swal.showValidationMessage('Please enter the share token');
+                                    return false;
+                                }
+                                
+                                return fetch('/device-share-token/verify', {
+                                    method: 'POST',
+                                    headers: {
+                                        'Content-Type': 'application/json',
+                                        'X-CSRF-TOKEN': getCSRFToken(),
+                                        'Accept': 'application/json'
+                                    },
+                                    body: JSON.stringify({ email: email, token: token })
+                                })
+                                .then(response => response.json())
+                                .then(data => {
+                                    if (data.redirect) {
+                                        window.location.href = data.redirect;
+                                    } else if (data.message) {
+                                        Swal.showValidationMessage(data.message);
+                                        return false;
+                                    }
+                                })
+                                .catch(error => {
+                                    Swal.showValidationMessage('Failed to verify token. Please try again.');
+                                    return false;
+                                });
+                            }
+                        });
+                    }
+                });
+            }
         })();
     </script>
     <script>

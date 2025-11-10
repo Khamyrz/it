@@ -36,4 +36,14 @@ class user extends Authenticatable
     {
         return $this->hasMany(RoomItem::class);
     }
+
+    public function deviceBindings()
+    {
+        return $this->hasMany(DeviceBinding::class);
+    }
+
+    public function primaryDevice()
+    {
+        return $this->hasOne(DeviceBinding::class)->where('is_primary', true);
+    }
 }

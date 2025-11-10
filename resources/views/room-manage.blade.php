@@ -2201,10 +2201,10 @@
                                 ['Mouse', 'mouse'], 
                                 ['Power Supply Unit', 'psu'], 
                                 ['SSD', 'ssd'], 
-                                ['Motherbimage.pngoard', 'motherboard'], 
+                                ['Motherboard', 'motherboard'], 
                                 ['Graphic Card', 'gpu'], 
-                                ['Video Graphics Array (VGA)', 'vga'], 
-                                ['High-Definition Multimedia Interface (HDMI)', 'hdmi'], 
+                                ['Video Graphics Array', 'vga'], 
+                                ['High-Definition Multimedia Interface', 'hdmi'], 
                                 ['RAM', 'ram'], 
                             ]; @endphp 
                             @foreach ($components as [$label, $id])
@@ -2340,8 +2340,8 @@
                                     ['SSD', 'ssd'],
                                     ['Motherboard', 'mb'],
                                     ['Graphic Card', 'gpu'],
-                                    ['Video Graphics Array (VGA)', 'vga'],
-                                    ['High-Definition Multimedia Interface (HDMI)', 'hdmi'],
+                                    ['Video Graphics Array', 'vga'],
+                                    ['High-Definition Multimedia Interface', 'hdmi'],
                                     ['RAM', 'ram'],
                                 ];
                             @endphp
@@ -4177,78 +4177,185 @@
                 // Get form data for immediate display
                 const formData = new FormData(stepItemForm);
                 const deviceCategory = formData.get('device_category');
-                const roomTitle = formData.get('room_title') || formData.get('custom_room_title');
+                // Get room title - check both room_title select and custom_room_title input
+                let roomTitle = formData.get('room_title');
+                const customRoomTitle = formData.get('custom_room_title');
+                
+                // If room_title is 'custom', use custom_room_title instead
+                if (roomTitle === 'custom' || !roomTitle) {
+                    roomTitle = customRoomTitle;
+                }
+                
                 const brand = formData.get('brand') || formData.get('fullset_brand') || '';
                 const model = formData.get('model') || formData.get('fullset_model') || '';
                 const status = formData.get('status');
                 const description = formData.get('description') || '';
+                const quantity = parseInt(formData.get('quantity')) || 1;
                 
-                // Check for deleted PC#s if this is a Full Set
+                console.log('Form submission - Device Category:', deviceCategory);
+                console.log('Form submission - Room Title:', roomTitle);
+                console.log('Form submission - Quantity:', quantity);
+                
+                // Always check for deleted PC#s if this is a Full Set
                 if (deviceCategory === 'Full Set' && roomTitle) {
-                    // Check for deleted PC#s before submitting
+                    console.log('Checking for deleted PC#s for room:', roomTitle);
+                    // Always check for deleted PC#s before submitting
                     fetch(`/api/deleted-pc-numbers/${encodeURIComponent(roomTitle)}`, {
                         method: 'GET',
                         headers: {
                             'X-Requested-With': 'XMLHttpRequest',
-                            'X-CSRF-TOKEN': formData.get('_token')
+                            'X-CSRF-TOKEN': formData.get('_token'),
+                            'Accept': 'application/json'
                         }
                     })
-                    .then(response => response.json())
+                    .then(response => {
+                        console.log('API Response status:', response.status);
+                        if (!response.ok) {
+                            throw new Error('Network response was not ok: ' + response.status);
+                        }
+                        return response.json();
+                    })
                     .then(data => {
+                        console.log('Deleted PC numbers check result:', data);
+                        console.log('Has deleted:', data.has_deleted);
+                        console.log('Deleted PC numbers:', data.deleted_pc_numbers);
+                        
+                        // Always check if there are deleted PC#s (sequence isn't followed)
                         if (data.has_deleted && data.deleted_pc_numbers && data.deleted_pc_numbers.length > 0) {
-                            // Show SweetAlert dialog with choices
-                            const deletedPcList = data.deleted_pc_numbers.map(pc => `PC#${String(pc).padStart(3, '0')}`).join(', ');
-                            const firstDeletedPc = String(data.deleted_pc_numbers[0]).padStart(3, '0');
+                            // Show SweetAlert dialog with choices that vary based on quantity
+                            const deletedPcList = data.deleted_pc_numbers.map(pc => `PC${String(pc).padStart(3, '0')}`).join(', ');
+                            const deletedCount = data.deleted_pc_numbers.length;
+                            
+                            // Calculate what will happen based on the choice
+                            // If Yes: Use deleted PC#s first (up to quantity), then continue sequence
+                            // If No: Skip deleted PC#s and continue sequence
+                            const sortedDeletedPcs = [...data.deleted_pc_numbers].sort((a, b) => a - b);
+                            const usedDeletedPcs = sortedDeletedPcs.slice(0, Math.min(quantity, deletedCount));
+                            const remainingQuantity = Math.max(0, quantity - usedDeletedPcs.length);
+                            
+                            // Build example explanation based on quantity
+                            let exampleHtml = '';
+                            if (quantity > 0) {
+                                const yesExample = usedDeletedPcs.length > 0 
+                                    ? `PC${String(usedDeletedPcs[0]).padStart(3, '0')}${remainingQuantity > 0 ? ' (restored), then continue sequence' : ' (restored)'}`
+                                    : 'Continue sequence';
+                                const noExample = `Continue sequence (skip deleted PC#s)`;
+                                
+                                exampleHtml = `
+                                    <div style="text-align: left; margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
+                                        <p style="margin: 5px 0; font-weight: bold;">If you choose <span style="color: #28a745;">Yes</span>:</p>
+                                        <p style="margin: 5px 0; margin-left: 15px;">Deleted PC#s will be restored first (${usedDeletedPcs.map(pc => `PC${String(pc).padStart(3, '0')}`).join(', ')})${remainingQuantity > 0 ? ', then remaining quantity will continue the sequence' : ''}</p>
+                                        <p style="margin: 10px 0; font-weight: bold;">If you choose <span style="color: #6c757d;">No</span>:</p>
+                                        <p style="margin: 5px 0; margin-left: 15px;">Sequence will continue without restoring deleted PC#s (skip ${deletedPcList})</p>
+                                    </div>
+                                `;
+                            }
                             
                             Swal.fire({
                                 title: 'Deleted PC# Found',
                                 html: `
                                     <p>Found deleted PC#: <strong>${deletedPcList}</strong></p>
+                                    <p style="margin-top: 10px;">Quantity to add: <strong>${quantity}</strong></p>
                                     <p style="margin-top: 15px;"><strong>What would you like to do?</strong></p>
-                                    <div style="text-align: left; margin-top: 15px; padding: 10px; background: #f8f9fa; border-radius: 8px;">
-                                        <p style="margin: 5px 0;"><strong>Yes:</strong> The deleted data will be added back and it will deduct from your quantity</p>
-                                        <p style="margin: 5px 0;"><strong>No:</strong> Continue the sequence and the deleted data won't be added back</p>
-                                    </div>
+                                    ${exampleHtml}
                                 `,
                                 icon: 'question',
-                                showCancelButton: true,
+                                showCancelButton: false,
                                 showDenyButton: true,
-                                confirmButtonText: 'Yes, Add Back Deleted PC#',
-                                denyButtonText: 'No, Continue Sequence',
-                                cancelButtonText: 'Cancel',
+                                confirmButtonText: 'Yes, Restore and make the sequence followed and the deleted will be Restored',
+                                denyButtonText: 'No, Continue the current sequence without restoring the deleted data',
                                 confirmButtonColor: '#28a745',
                                 denyButtonColor: '#6c757d',
-                                cancelButtonColor: '#dc3545',
                                 reverseButtons: true,
-                                width: '600px'
+                                width: '750px',
+                                allowOutsideClick: false,
+                                allowEscapeKey: false,
+                                customClass: {
+                                    confirmButton: 'swal2-confirm-custom',
+                                    denyButton: 'swal2-deny-custom',
+                                    popup: 'swal2-popup-custom'
+                                },
+                                buttonsStyling: true,
+                                didOpen: () => {
+                                    // Ensure both buttons have the same width and styling
+                                    setTimeout(() => {
+                                        const confirmBtn = document.querySelector('.swal2-confirm-custom');
+                                        const denyBtn = document.querySelector('.swal2-deny-custom');
+                                        if (confirmBtn && denyBtn) {
+                                            // Set consistent styling for both buttons
+                                            const buttonStyles = {
+                                                minWidth: '350px',
+                                                width: '350px',
+                                                maxWidth: '350px',
+                                                padding: '12px 20px',
+                                                textAlign: 'center',
+                                                whiteSpace: 'normal',
+                                                wordWrap: 'break-word',
+                                                lineHeight: '1.4',
+                                                fontSize: '14px',
+                                                margin: '5px',
+                                                display: 'inline-block',
+                                                boxSizing: 'border-box'
+                                            };
+                                            
+                                            // Apply styles to both buttons
+                                            Object.assign(confirmBtn.style, buttonStyles);
+                                            Object.assign(denyBtn.style, buttonStyles);
+                                            
+                                            // Ensure buttons container is centered
+                                            const actionsContainer = confirmBtn.closest('.swal2-actions');
+                                            if (actionsContainer) {
+                                                actionsContainer.style.display = 'flex';
+                                                actionsContainer.style.flexDirection = 'column';
+                                                actionsContainer.style.alignItems = 'center';
+                                                actionsContainer.style.gap = '10px';
+                                            }
+                                        }
+                                    }, 100);
+                                }
                             }).then((result) => {
                                 if (result.isConfirmed) {
                                     // User chose to restore deleted PC#
+                                    console.log('User chose to restore deleted PC#');
                                     formData.append('use_deleted_pc', '1');
                                     submitFullSetForm(formData, roomTitle, brand, model, status, description);
                                 } else if (result.isDenied) {
                                     // User chose to continue sequence
+                                    console.log('User chose to continue sequence');
                                     formData.append('use_deleted_pc', '0');
                                     submitFullSetForm(formData, roomTitle, brand, model, status, description);
                                 } else {
-                                    // User cancelled
+                                    // User dismissed (shouldn't happen without cancel button, but just in case)
+                                    console.log('User dismissed');
                                     isOperationInProgress = false;
                                 }
                             });
                         } else {
                             // No deleted PC#s, proceed normally
+                            console.log('No deleted PC numbers found, proceeding normally');
                             formData.append('use_deleted_pc', '0');
                             submitFullSetForm(formData, roomTitle, brand, model, status, description);
                         }
                     })
                     .catch(error => {
                         console.error('Error checking deleted PC#s:', error);
-                        // Proceed normally if check fails
-                        formData.append('use_deleted_pc', '0');
-                        submitFullSetForm(formData, roomTitle, brand, model, status, description);
+                        // Show error message but still allow user to proceed
+                        Swal.fire({
+                            title: 'Warning',
+                            text: 'Could not check for deleted PC#s. Proceeding with normal sequence.',
+                            icon: 'warning',
+                            timer: 2000,
+                            showConfirmButton: false
+                        }).then(() => {
+                            // Proceed normally if check fails
+                            formData.append('use_deleted_pc', '0');
+                            submitFullSetForm(formData, roomTitle, brand, model, status, description);
+                        });
                     });
                 } else {
                     // Not a Full Set, proceed normally
+                    console.log('Not a Full Set or no room title, proceeding normally');
+                    formData.append('use_deleted_pc', '0');
                     submitFullSetForm(formData, roomTitle, brand, model, status, description);
                 }
             });
@@ -4260,13 +4367,38 @@
             
             // Close modal first
             closeModal('stepModal');
+            
+            // Submit form to server first
+            fetch(stepItemForm.action, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'X-Requested-With': 'XMLHttpRequest',
+                    'X-CSRF-TOKEN': formData.get('_token')
+                }
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Server error: ' + response.status);
+                }
+                return response.text();
+            })
+            .then(data => {
+                // Try to parse JSON response
+                let jsonData = null;
+                try {
+                    jsonData = JSON.parse(data);
+                } catch (e) {
+                    // If not JSON, assume success (Laravel redirect response)
+                    jsonData = { success: true };
+                }
                 
-                // Show success message immediately
+                // Show success message after form is submitted
                 Swal.fire({
                     title: 'Success!',
                     text: 'Item(s) added successfully!',
                     icon: 'success',
-                    timer: 1000,
+                    timer: 2000,
                     showConfirmButton: false,
                     allowOutsideClick: false,
                     allowEscapeKey: false
@@ -4376,40 +4508,21 @@
                     }
                 }, 500); // Exactly 0.5 seconds
                 
-                // Submit form in background
-                fetch(stepItemForm.action, {
-                    method: 'POST',
-                    body: formData,
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-CSRF-TOKEN': formData.get('_token')
-                    }
-                })
-                .then(response => {
-                    // Handle response silently in background
-                    if (!response.ok) {
-                        console.error('Server error:', response.status);
-                    }
-                    return response.text();
-                })
-                .then(data => {
-                    // Try to parse JSON response
-                    try {
-                        const jsonData = JSON.parse(data);
-                        if (!jsonData.success) {
-                            console.error('Server error:', jsonData.message);
-                        }
-                    } catch (e) {
-                        // If not JSON, just log the error
-                        console.error('Server response error:', e);
-                    }
-                })
-                .catch(error => {
-                    console.error('Network error:', error);
-                })
-                .finally(() => {
-                    isOperationInProgress = false;
+                // Reset operation flag after successful submission
+                isOperationInProgress = false;
+            })
+            .catch(error => {
+                console.error('Error submitting form:', error);
+                isOperationInProgress = false;
+                
+                // Show error message
+                Swal.fire({
+                    title: 'Error!',
+                    text: 'Failed to add item(s). Please try again.',
+                    icon: 'error',
+                    confirmButtonText: 'OK'
                 });
+            });
         }
     });
     

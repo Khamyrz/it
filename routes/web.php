@@ -34,6 +34,9 @@ Route::post('/login', [AuthController::class, 'login']);
 // Access token activation during signup
 Route::post('/access-token/resend', [AuthController::class, 'resendAccessToken'])->name('access-token.resend');
 Route::post('/access-token/verify', [AuthController::class, 'verifyAccessToken'])->name('access-token.verify');
+// Device share token routes
+Route::post('/device-share-token/generate', [AuthController::class, 'generateDeviceShareToken'])->middleware('auth')->name('device-share-token.generate');
+Route::post('/device-share-token/verify', [AuthController::class, 'verifyDeviceShareToken'])->name('device-share-token.verify');
 Route::get('/logout', [AuthController::class, 'logout']);
 // Email verification during registration (OTP)
 Route::post('/email-verification/send-otp', [AuthController::class, 'sendEmailVerificationOTP']);

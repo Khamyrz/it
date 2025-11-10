@@ -184,21 +184,28 @@ class RoomManagementController extends Controller
         $deletedPcNumbers = [];
         if ($useDeletedPc) {
             $deletedPcNumbers = $this->getDeletedPcNumbersInternal($roomTitle);
+            // Sort deleted PC numbers in ascending order to restore sequence properly
+            sort($deletedPcNumbers);
         }
         
         // Get the next available PC number (for continuing sequence after deleted PC#s)
-        $nextAvailablePcNumber = $this->getNextPcNumber($roomTitle, false);
+        $nextAvailablePcNumber = intval($this->getNextPcNumber($roomTitle, false));
         
         // Create multiple full sets based on quantity
+        // When using deleted PC numbers, they count towards the quantity
+        $deletedPcIndex = 0; // Index for iterating through deleted PC numbers
         $sequenceIndex = 0; // Index for continuing sequence after deleted PC#s
+        
         for ($setIndex = 0; $setIndex < $quantity; $setIndex++) {
-            // If using deleted PC#s and we have deleted ones, use them first
-            if ($useDeletedPc && !empty($deletedPcNumbers) && $setIndex < count($deletedPcNumbers)) {
-                // Use the deleted PC# at this index
-                $pcNumberInt = $deletedPcNumbers[$setIndex];
+            // If using deleted PC#s and we have deleted ones, use them first (in ascending order)
+            if ($useDeletedPc && !empty($deletedPcNumbers) && $deletedPcIndex < count($deletedPcNumbers)) {
+                // Use the deleted PC# at this index (counts as 1 in quantity)
+                // This restores the sequence by filling gaps first
+                $pcNumberInt = $deletedPcNumbers[$deletedPcIndex];
+                $deletedPcIndex++;
             } else {
-                // Continue from the next available PC number
-                $pcNumberInt = intval($nextAvailablePcNumber) + $sequenceIndex;
+                // Continue from the next available PC number (skip deleted PC#s)
+                $pcNumberInt = $nextAvailablePcNumber + $sequenceIndex;
                 $sequenceIndex++;
             }
 
@@ -707,6 +714,9 @@ class RoomManagementController extends Controller
      */
     public function getDeletedPcNumbers($roomTitle)
     {
+        // Decode URL-encoded room title
+        $roomTitle = urldecode($roomTitle);
+        
         $deletedPcNumbers = $this->getDeletedPcNumbersInternal($roomTitle);
         return response()->json([
             'deleted_pc_numbers' => $deletedPcNumbers,
@@ -727,16 +737,31 @@ class RoomManagementController extends Controller
             'ComLab 3' => 'CL3',
             'ComLab 4' => 'CL4',
             'ComLab 5' => 'CL5',
+            'ComLab 6' => 'CL6',
+            'ComLab 7' => 'CL7',
+            'ComLab 8' => 'CL8',
+            'ComLab 9' => 'CL9',
+            'ComLab 10' => 'CL10',
             'Computer Lab 1' => 'CL1',
             'Computer Lab 2' => 'CL2',
             'Computer Lab 3' => 'CL3',
             'Computer Lab 4' => 'CL4',
             'Computer Lab 5' => 'CL5',
+            'Computer Lab 6' => 'CL6',
+            'Computer Lab 7' => 'CL7',
+            'Computer Lab 8' => 'CL8',
+            'Computer Lab 9' => 'CL9',
+            'Computer Lab 10' => 'CL10',
             'Lab 1' => 'L1',
             'Lab 2' => 'L2',
             'Lab 3' => 'L3',
             'Lab 4' => 'L4',
             'Lab 5' => 'L5',
+            'Lab 6' => 'L6',
+            'Lab 7' => 'L7',
+            'Lab 8' => 'L8',
+            'Lab 9' => 'L9',
+            'Lab 10' => 'L10',
             'Office' => 'OFF',
             'Library' => 'LIB',
             'Classroom' => 'CLS',
@@ -771,12 +796,13 @@ class RoomManagementController extends Controller
         sort($usedPcNumbers);
         
         // Find gaps (deleted PC numbers)
+        // Check from PC001 (1) up to the maximum PC number to find all gaps
         $deletedPcNumbers = [];
         if (!empty($usedPcNumbers)) {
-            $minPc = min($usedPcNumbers);
             $maxPc = max($usedPcNumbers);
             
-            for ($i = $minPc; $i <= $maxPc; $i++) {
+            // Check from 1 to maxPc to find all gaps (including gaps before the first PC)
+            for ($i = 1; $i <= $maxPc; $i++) {
                 if (!in_array($i, $usedPcNumbers)) {
                     $deletedPcNumbers[] = $i;
                 }
@@ -799,16 +825,31 @@ class RoomManagementController extends Controller
             'ComLab 3' => 'CL3',
             'ComLab 4' => 'CL4',
             'ComLab 5' => 'CL5',
+            'ComLab 6' => 'CL6',
+            'ComLab 7' => 'CL7',
+            'ComLab 8' => 'CL8',
+            'ComLab 9' => 'CL9',
+            'ComLab 10' => 'CL10',
             'Computer Lab 1' => 'CL1',
             'Computer Lab 2' => 'CL2',
             'Computer Lab 3' => 'CL3',
             'Computer Lab 4' => 'CL4',
             'Computer Lab 5' => 'CL5',
+            'Computer Lab 6' => 'CL6',
+            'Computer Lab 7' => 'CL7',
+            'Computer Lab 8' => 'CL8',
+            'Computer Lab 9' => 'CL9',
+            'Computer Lab 10' => 'CL10',
             'Lab 1' => 'L1',
             'Lab 2' => 'L2',
             'Lab 3' => 'L3',
             'Lab 4' => 'L4',
             'Lab 5' => 'L5',
+            'Lab 6' => 'L6',
+            'Lab 7' => 'L7',
+            'Lab 8' => 'L8',
+            'Lab 9' => 'L9',
+            'Lab 10' => 'L10',
             'Office' => 'OFF',
             'Library' => 'LIB',
             'Classroom' => 'CLS',
@@ -870,16 +911,31 @@ class RoomManagementController extends Controller
             'ComLab 3' => 'CL3',
             'ComLab 4' => 'CL4',
             'ComLab 5' => 'CL5',
+            'ComLab 6' => 'CL6',
+            'ComLab 7' => 'CL7',
+            'ComLab 8' => 'CL8',
+            'ComLab 9' => 'CL9',
+            'ComLab 10' => 'CL10',
             'Computer Lab 1' => 'CL1',
             'Computer Lab 2' => 'CL2',
             'Computer Lab 3' => 'CL3',
             'Computer Lab 4' => 'CL4',
             'Computer Lab 5' => 'CL5',
+            'Computer Lab 6' => 'CL6',
+            'Computer Lab 7' => 'CL7',
+            'Computer Lab 8' => 'CL8',
+            'Computer Lab 9' => 'CL9',
+            'Computer Lab 10' => 'CL10',
             'Lab 1' => 'L1',
             'Lab 2' => 'L2',
             'Lab 3' => 'L3',
             'Lab 4' => 'L4',
             'Lab 5' => 'L5',
+            'Lab 6' => 'L6',
+            'Lab 7' => 'L7',
+            'Lab 8' => 'L8',
+            'Lab 9' => 'L9',
+            'Lab 10' => 'L10',
             'Office' => 'OFF',
             'Library' => 'LIB',
             'Classroom' => 'CLS',
@@ -909,7 +965,9 @@ class RoomManagementController extends Controller
             'Webcam' => 'WC',
             'Headset' => 'HS',
             'High-Definition Multimedia Interface' => 'HDMI',
+            'High-Definition Multimedia Interface (HDMI)' => 'HDMI',
             'Video Graphics Array' => 'VGA',
+            'Video Graphics Array (VGA)' => 'VGA',
         ];
 
         $deviceCode = $deviceCodes[$deviceCategory] ??
@@ -935,16 +993,31 @@ class RoomManagementController extends Controller
             'ComLab 3' => 'CL3',
             'ComLab 4' => 'CL4',
             'ComLab 5' => 'CL5',
+            'ComLab 6' => 'CL6',
+            'ComLab 7' => 'CL7',
+            'ComLab 8' => 'CL8',
+            'ComLab 9' => 'CL9',
+            'ComLab 10' => 'CL10',
             'Computer Lab 1' => 'CL1',
             'Computer Lab 2' => 'CL2',
             'Computer Lab 3' => 'CL3',
             'Computer Lab 4' => 'CL4',
             'Computer Lab 5' => 'CL5',
+            'Computer Lab 6' => 'CL6',
+            'Computer Lab 7' => 'CL7',
+            'Computer Lab 8' => 'CL8',
+            'Computer Lab 9' => 'CL9',
+            'Computer Lab 10' => 'CL10',
             'Lab 1' => 'L1',
             'Lab 2' => 'L2',
             'Lab 3' => 'L3',
             'Lab 4' => 'L4',
             'Lab 5' => 'L5',
+            'Lab 6' => 'L6',
+            'Lab 7' => 'L7',
+            'Lab 8' => 'L8',
+            'Lab 9' => 'L9',
+            'Lab 10' => 'L10',
             'Office' => 'OFF',
             'Library' => 'LIB',
             'Classroom' => 'CLS',
@@ -977,7 +1050,9 @@ class RoomManagementController extends Controller
             'Webcam' => 'WC',
             'Headset' => 'HS',
             'High-Definition Multimedia Interface' => 'HDMI',
+            'High-Definition Multimedia Interface (HDMI)' => 'HDMI',
             'Video Graphics Array' => 'VGA',
+            'Video Graphics Array (VGA)' => 'VGA',
             
         ];
         

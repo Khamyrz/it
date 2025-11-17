@@ -158,8 +158,22 @@ class RoomManagementController extends Controller
         
         if ($isUpdate) {
             RoomItem::where('id', $request->route('item'))->update($itemData);
+            $item = RoomItem::find($request->route('item'));
         } else {
-            RoomItem::create($itemData);
+            $item = RoomItem::create($itemData);
+        }
+
+        // Return JSON response for AJAX requests
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Item has been saved!',
+                'item' => [
+                    'id' => $item->id,
+                    'barcode' => $item->barcode,
+                    'serial_number' => $item->serial_number,
+                ]
+            ]);
         }
 
         return redirect()->route('room-manage')->with('success', 'Item has been saved!');
@@ -296,6 +310,15 @@ class RoomManagementController extends Controller
                     throw $e;
                 }
             }
+        }
+
+        // Return JSON response for AJAX requests
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Full set has been saved!',
+                'items' => [] // Full set items can be fetched separately if needed
+            ]);
         }
 
         return redirect()->route('room-manage')->with('success', 'Full set has been saved!');
@@ -1301,5 +1324,37 @@ class RoomManagementController extends Controller
         ]);
 
         return redirect()->route('room-manage')->with('success', 'Component added successfully!');
+    }
+
+    /**
+     * Get item data by ID (for AJAX requests)
+     */
+    public function getItemData($id)
+    {
+        $user = auth()->user();
+        
+        $item = RoomItem::where('id', $id)
+            ->where('user_id', $user->id)
+            ->firstOrFail();
+        
+        // Generate barcode image if barcode exists
+        $barcodeImage = null;
+        if ($item->barcode) {
+            try {
+                if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
+                    $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                }
+            } catch (\Exception $e) {
+                // Barcode generation failed, leave as null
+            }
+        }
+        
+        return response()->json([
+            'id' => $item->id,
+            'barcode' => $item->barcode,
+            'barcode_image' => $barcodeImage ? base64_encode($barcodeImage) : null,
+            'serial_number' => $item->serial_number,
+            'photo' => $item->photo ? Storage::url($item->photo) : null,
+        ]);
     }
 }

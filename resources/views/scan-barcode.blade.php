@@ -605,8 +605,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                                     <span class="status-small {{ $item->status }}">{{ $item->status }}</span>
                                                 </div>
                                                 <div class="barcode-image-small">
-                                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40) }}" alt="Barcode">
-                                                    <div class="barcode-text-small">{{ $item->barcode }}</div>
+                                                    @if($item->barcode)
+                                                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40) }}" alt="Barcode">
+                                                        <div class="barcode-text-small">{{ $item->barcode }}</div>
+                                                    @else
+                                                        <div class="barcode-text-small" style="color: #999;">No barcode</div>
+                                                    @endif
                                                 </div>
                                             </div>
                                         </div>
@@ -655,8 +659,12 @@ document.addEventListener('DOMContentLoaded', function() {
                                 <span class="status {{ $item->status }}">{{ $item->status }}</span>
                             </div>
                             <div class="barcode-image">
-                                <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 2, 60) }}" alt="Barcode">
-                                <div class="barcode-text">{{ $item->barcode }}</div>
+                                @if($item->barcode)
+                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 2, 60) }}" alt="Barcode">
+                                    <div class="barcode-text">{{ $item->barcode }}</div>
+                                @else
+                                    <div class="barcode-text" style="color: #999;">No barcode</div>
+                                @endif
                             </div>
                         </div>
                     </div>

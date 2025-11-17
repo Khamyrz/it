@@ -2827,26 +2827,109 @@
             body: formData,
             headers: {
                 'X-Requested-With': 'XMLHttpRequest',
-                'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value
+                'X-CSRF-TOKEN': form.querySelector('input[name="_token"]').value,
+                'Accept': 'application/json'
             }
         })
         .then(response => {
-            // Handle response silently in background
-            if (!response.ok) {
-                console.error('Server error:', response.status);
+            // Check if response is JSON
+            const contentType = response.headers.get('content-type');
+            if (contentType && contentType.includes('application/json')) {
+                return response.json();
             }
-            return response.text();
+            // If not JSON, try to parse as text
+            return response.text().then(text => {
+                try {
+                    return JSON.parse(text);
+                } catch (e) {
+                    return { html: text };
+                }
+            });
         })
         .then(data => {
-            // Try to parse JSON response
-            try {
-                const jsonData = JSON.parse(data);
-                if (!jsonData.success) {
-                    console.error('Server error:', jsonData.message);
+            // If we got item data from the response, update the barcode
+            if (data.success && data.item && data.item.id) {
+                const itemId = data.item.id;
+                const barcode = data.item.barcode;
+                const serialNumber = data.item.serial_number;
+                
+                // Find the row that was just added (look for the last row with "Loading..." barcode)
+                const barcodeWrappers = document.querySelectorAll('.barcode-wrapper');
+                let targetWrapper = null;
+                
+                // Find the most recently added row with "Loading..." text
+                for (let i = barcodeWrappers.length - 1; i >= 0; i--) {
+                    const wrapper = barcodeWrappers[i];
+                    const textEl = wrapper.querySelector('.barcode-text');
+                    if (textEl && (textEl.textContent === 'Loading...' || textEl.textContent.startsWith('temp_'))) {
+                        targetWrapper = wrapper;
+                        break;
+                    }
                 }
-            } catch (e) {
-                // If not JSON, just log the error
-                console.error('Server response error:', e);
+                
+                // If we found a target, update it
+                if (targetWrapper && barcode) {
+                    const textEl = targetWrapper.querySelector('.barcode-text');
+                    const imgContainer = targetWrapper.querySelector('.bwippbarcode');
+                    
+                    if (textEl) {
+                        textEl.textContent = barcode;
+                    }
+                    
+                    if (imgContainer) {
+                        // Fetch barcode image from server
+                        const dataUrl = '{{ route("room-manage.data", ["id" => "PLACEHOLDER"]) }}'.replace('PLACEHOLDER', itemId);
+                        fetch(dataUrl)
+                            .then(response => response.json())
+                            .then(itemData => {
+                                if (itemData.barcode_image) {
+                                    const barcodeImg = document.createElement('img');
+                                    barcodeImg.src = `data:image/png;base64,${itemData.barcode_image}`;
+                                    barcodeImg.alt = itemData.barcode || 'Barcode';
+                                    barcodeImg.style.cssText = 'display:block; width: 200px; height: 50px; object-fit: contain;';
+                                    barcodeImg.onerror = function() { this.style.display = 'none'; };
+                                    imgContainer.innerHTML = '';
+                                    imgContainer.appendChild(barcodeImg);
+                                } else if (itemData.barcode) {
+                                    // If barcode exists but image generation failed, show text only
+                                    imgContainer.innerHTML = '';
+                                }
+                            })
+                            .catch(err => {
+                                console.error('Error fetching barcode:', err);
+                                // Fallback: reload page after a delay to show updated barcodes
+                                setTimeout(() => {
+                                    window.location.reload();
+                                }, 1000);
+                            });
+                    }
+                    
+                    // Also update serial number if found
+                    const serialEl = targetWrapper.closest('tr')?.querySelector('.serial-number, .serial-code');
+                    if (serialEl && serialNumber) {
+                        serialEl.textContent = serialNumber;
+                    }
+                    
+                    // Update the checkbox data-item-id to use the actual item ID
+                    const checkbox = targetWrapper.closest('tr')?.querySelector('.item-checkbox');
+                    if (checkbox) {
+                        checkbox.setAttribute('data-item-id', itemId);
+                    }
+                } else {
+                    // If we can't find the target, reload the page to show updated barcodes
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
+            } else if (!data.success) {
+                console.error('Server error:', data.message || 'Unknown error');
+            } else {
+                // If response is HTML (redirect), reload page to show updated barcodes
+                if (data.html) {
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 1000);
+                }
             }
         })
         .catch(error => {

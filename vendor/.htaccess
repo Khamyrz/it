@@ -1,4 +1,0 @@
-# Deny all access to vendor folder
-Order deny,allow
-Deny from all
-

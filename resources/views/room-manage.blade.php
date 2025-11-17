@@ -3,11 +3,17 @@
     if (!function_exists('getBarcodePNGSafe')) {
         function getBarcodePNGSafe($barcode, $type = 'C128', $width = 2.0, $height = 50) {
             try {
+                if (empty($barcode)) {
+                    return '';
+                }
                 if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
-                    return \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode ?? '000000000', $type, $width, $height);
+                    $pngData = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode, $type, $width, $height);
+                    // Return base64 encoded string
+                    return base64_encode($pngData);
                 }
             } catch (\Exception $e) {
                 // Return empty string if barcode generation fails
+                \Illuminate\Support\Facades\Log::error('Barcode generation error: ' . $e->getMessage());
             }
             return '';
         }
@@ -2011,9 +2017,20 @@
                                                         </td>
                                                         <td>
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
-                                                                <div class="barcode-text">{{ $item->barcode }}</div>
+                                                                <div class="barcode-text">{{ $item->barcode ?? 'N/A' }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    <img src="data:image/png;base64,{{ getBarcodePNGSafe($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;" onerror="this.style.display='none';">
+                                                                    @if($item->barcode)
+                                                                        @php
+                                                                            $barcodeBase64 = getBarcodePNGSafe($item->barcode, 'C128', 2.0, 50);
+                                                                        @endphp
+                                                                        @if($barcodeBase64)
+                                                                            <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                        @else
+                                                                            <div style="color: #999; font-size: 12px;">Barcode image unavailable</div>
+                                                                        @endif
+                                                                    @else
+                                                                        <div style="color: #999; font-size: 12px;">No barcode</div>
+                                                                    @endif
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -2140,9 +2157,20 @@
                                                     </td>
                                                     <td>
                                                         <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
-                                                            <div class="barcode-text">{{ $item->barcode }}</div>
+                                                            <div class="barcode-text">{{ $item->barcode ?? 'N/A' }}</div>
                                                             <div class="bwippbarcode">
-                                                                <img src="data:image/png;base64,{{ getBarcodePNGSafe($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;" onerror="this.style.display='none';">
+                                                                @if($item->barcode)
+                                                                    @php
+                                                                        $barcodeBase64 = getBarcodePNGSafe($item->barcode, 'C128', 2.0, 50);
+                                                                    @endphp
+                                                                    @if($barcodeBase64)
+                                                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                    @else
+                                                                        <div style="color: #999; font-size: 12px;">Barcode image unavailable</div>
+                                                                    @endif
+                                                                @else
+                                                                    <div style="color: #999; font-size: 12px;">No barcode</div>
+                                                                @endif
                                                             </div>
                                                         </div>
                                                     </td>
@@ -3335,13 +3363,52 @@
     // Print Barcode Function
     function printBarcode(id) {
         const container = document.getElementById('barcode-' + id);
-        if (!container) return;
+        if (!container) {
+            console.error('Barcode container not found for ID:', id);
+            return;
+        }
         const labelEl = container.querySelector('.barcode-text');
         const imgEl = container.querySelector('img');
-        if (!imgEl) return;
-
+        
         const label = labelEl ? labelEl.textContent : '';
-        const src = imgEl.src;
+        let src = '';
+        
+        if (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) {
+            src = imgEl.src;
+        } else if (label) {
+            // If image is not available, try to generate it from the barcode text
+            // We'll need to fetch it from the server
+            fetch(`{{ route('room-manage.data', ['id' => 'PLACEHOLDER']) }}`.replace('PLACEHOLDER', id))
+                .then(response => response.json())
+                .then(itemData => {
+                    if (itemData.barcode_image) {
+                        const barcodeImg = `data:image/png;base64,${itemData.barcode_image}`;
+                        printBarcodeWithData(label, barcodeImg);
+                    } else {
+                        console.error('Barcode image not available for item:', id);
+                        alert('Barcode image not available for this item.');
+                    }
+                })
+                .catch(err => {
+                    console.error('Error fetching barcode:', err);
+                    alert('Error loading barcode. Please try again.');
+                });
+            return;
+        } else {
+            console.error('No barcode label or image found for ID:', id);
+            alert('Barcode not found for this item.');
+            return;
+        }
+        
+        printBarcodeWithData(label, src);
+    }
+    
+    function printBarcodeWithData(label, src) {
+        if (!src || !src.startsWith('data:image')) {
+            console.error('Invalid barcode image source');
+            alert('Barcode image is not available.');
+            return;
+        }
 
         let html = '' +
             '<html><head><title>Print Barcode</title>' +
@@ -3365,7 +3432,7 @@
         html += '<div class="barcode-grid">';
         html += '<div class="barcode-card">' +
                     '<div class="barcode-label">' + (label || '') + '</div>' +
-                    '<img class="barcode-img" src="' + src + '" />' +
+                    '<img class="barcode-img" src="' + src + '" onerror="this.style.display=\'none\'; this.parentElement.innerHTML+=\'<div style=\\\'color:#999; font-size:10px;\\\'>Image failed to load</div>\';" />' +
                 '</div>';
         html += '</div></div>';
         html += '</div>';
@@ -3391,6 +3458,8 @@
 
         // Collect all PC groups with their barcodes
         let allPCs = [];
+        let itemsToFetch = [];
+        
         roomGroups.forEach(room => {
             const roomTitleEl = room.querySelector('.room-title');
             const roomTitle = roomTitleEl ? roomTitleEl.textContent.trim() : 'Room';
@@ -3412,22 +3481,91 @@
                         pcDisplay = any ? ('PC' + any[1].padStart(3, '0')) : 'PC';
                     }
                     
-                    allPCs.push({
-                        roomTitle: roomTitle,
-                        pcDisplay: pcDisplay,
-                        barcodes: Array.from(barcodes).map(node => {
-                            const textEl = node.querySelector('.barcode-text');
-                            const imgEl = node.querySelector('img');
-                            return {
-                                label: textEl ? textEl.textContent : '',
-                                src: imgEl ? imgEl.src : ''
-                            };
-                        }).filter(barcode => barcode.src)
-                    });
+                    const pcBarcodes = Array.from(barcodes).map(node => {
+                        const textEl = node.querySelector('.barcode-text');
+                        const imgEl = node.querySelector('img');
+                        const label = textEl ? textEl.textContent.trim() : '';
+                        let src = '';
+                        const itemIdMatch = node.id.match(/barcode-(\d+)/);
+                        const itemId = itemIdMatch ? itemIdMatch[1] : null;
+                        
+                        if (imgEl && imgEl.src && imgEl.src.startsWith('data:image')) {
+                            src = imgEl.src;
+                        } else if (itemId) {
+                            itemsToFetch.push({ itemId: itemId, label: label });
+                            src = 'FETCH_' + itemId;
+                        }
+                        
+                        return {
+                            label: label,
+                            src: src,
+                            itemId: itemId
+                        };
+                    }).filter(barcode => barcode.label && (barcode.src || barcode.itemId));
+                    
+                    if (pcBarcodes.length > 0) {
+                        allPCs.push({
+                            roomTitle: roomTitle,
+                            pcDisplay: pcDisplay,
+                            barcodes: pcBarcodes
+                        });
+                    }
                 }
             });
         });
+        
+        // If we have items to fetch, fetch them all first
+        if (itemsToFetch.length > 0) {
+            const fetchPromises = itemsToFetch.map(item => {
+                const dataUrl = '{{ route("room-manage.data", ["id" => "PLACEHOLDER"]) }}'.replace('PLACEHOLDER', item.itemId);
+                return fetch(dataUrl)
+                    .then(response => response.json())
+                    .then(itemData => {
+                        return {
+                            itemId: item.itemId,
+                            label: item.label,
+                            src: itemData.barcode_image ? `data:image/png;base64,${itemData.barcode_image}` : null
+                        };
+                    })
+                    .catch(err => {
+                        console.error('Error fetching barcode for item ' + item.itemId + ':', err);
+                        return {
+                            itemId: item.itemId,
+                            label: item.label,
+                            src: null
+                        };
+                    });
+            });
+            
+            Promise.all(fetchPromises).then(fetchedItems => {
+                // Update allPCs with fetched barcode images
+                allPCs.forEach(pc => {
+                    pc.barcodes.forEach(barcode => {
+                        if (barcode.src && barcode.src.startsWith('FETCH_')) {
+                            const fetched = fetchedItems.find(f => f.itemId === barcode.itemId);
+                            if (fetched && fetched.src) {
+                                barcode.src = fetched.src;
+                            }
+                        }
+                    });
+                });
+                
+                // Now print with all barcodes loaded
+                printAllBarcodesWithData(allPCs);
+            });
+        } else {
+            // All barcodes are already loaded, print directly
+            printAllBarcodesWithData(allPCs);
+        }
+    }
+    
+    function printAllBarcodesWithData(allPCs) {
 
+        if (allPCs.length === 0) {
+            alert('No barcodes found to print.');
+            return;
+        }
+        
 		// Build printable HTML optimized for 5 PC# per bond paper
 		let html = '' +
 			'<html><head><title>Print All Barcodes - 5 PC per Page</title>' +
@@ -3479,10 +3617,18 @@
                 const sectionBarcodes = allBarcodes.slice(startIndex, endIndex);
                 
                 sectionBarcodes.forEach(barcode => {
-                    html += '<div class="barcode-card">' +
-                                '<div class="barcode-label">' + (barcode.label || '') + '</div>' +
-                                '<img class="barcode-img" src="' + barcode.src + '" />' +
-                            '</div>';
+                    if (barcode.src && barcode.src.startsWith('data:image')) {
+                        html += '<div class="barcode-card">' +
+                                    '<div class="barcode-label">' + (barcode.label || '') + '</div>' +
+                                    '<img class="barcode-img" src="' + barcode.src + '" onerror="this.style.display=\'none\'; this.parentElement.innerHTML+=\'<div style=\\\'color:#999; font-size:10px;\\\'>Image failed to load</div>\';" />' +
+                                '</div>';
+                    } else if (barcode.label) {
+                        // If we have a label but no image, still show the label
+                        html += '<div class="barcode-card">' +
+                                    '<div class="barcode-label">' + (barcode.label || '') + '</div>' +
+                                    '<div style="color:#999; font-size:10px; padding:5px;">Barcode image unavailable</div>' +
+                                '</div>';
+                    }
                 });
                 
                 barcodeIndex = endIndex;

@@ -2024,9 +2024,9 @@
                                                                             $barcodeBase64 = getBarcodePNGSafe($item->barcode, 'C128', 2.0, 50);
                                                                         @endphp
                                                                         @if($barcodeBase64)
-                                                                            <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                            <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;" onerror="loadBarcodeImage({{ $item->id }}, this);">
                                                                         @else
-                                                                            <div style="color: #999; font-size: 12px;">Barcode image unavailable</div>
+                                                                            <div class="barcode-loading" data-item-id="{{ $item->id }}" style="color: #999; font-size: 12px;">Loading barcode...</div>
                                                                         @endif
                                                                     @else
                                                                         <div style="color: #999; font-size: 12px;">No barcode</div>
@@ -2164,9 +2164,9 @@
                                                                         $barcodeBase64 = getBarcodePNGSafe($item->barcode, 'C128', 2.0, 50);
                                                                     @endphp
                                                                     @if($barcodeBase64)
-                                                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;" onerror="loadBarcodeImage({{ $item->id }}, this);">
                                                                     @else
-                                                                        <div style="color: #999; font-size: 12px;">Barcode image unavailable</div>
+                                                                        <div class="barcode-loading" data-item-id="{{ $item->id }}" style="color: #999; font-size: 12px;">Loading barcode...</div>
                                                                     @endif
                                                                 @else
                                                                     <div style="color: #999; font-size: 12px;">No barcode</div>
@@ -3356,6 +3356,96 @@
             const input = document.getElementById(comp.id);
             if (input) {
                 input.value = `${comp.prefix}${suffix}`;
+            }
+        });
+    }
+    
+    // Load barcode image from server
+    function loadBarcodeImage(itemId, imgElement) {
+        const dataUrl = '{{ route("room-manage.data", ["id" => "PLACEHOLDER"]) }}'.replace('PLACEHOLDER', itemId);
+        fetch(dataUrl)
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error('Network response was not ok');
+                }
+                return response.json();
+            })
+            .then(itemData => {
+                if (itemData.barcode_image) {
+                    const barcodeImg = document.createElement('img');
+                    barcodeImg.src = `data:image/png;base64,${itemData.barcode_image}`;
+                    barcodeImg.alt = itemData.barcode || 'Barcode';
+                    barcodeImg.style.cssText = 'display:block; width: 200px; height: 50px; object-fit: contain;';
+                    barcodeImg.onerror = function() { 
+                        this.style.display = 'none';
+                        const errorDiv = document.createElement('div');
+                        errorDiv.style.cssText = 'color: #999; font-size: 12px;';
+                        errorDiv.textContent = 'Barcode image unavailable';
+                        this.parentElement.appendChild(errorDiv);
+                    };
+                    
+                    // Replace the failed image or loading div
+                    if (imgElement) {
+                        imgElement.parentElement.replaceChild(barcodeImg, imgElement);
+                    } else {
+                        const container = document.querySelector(`#barcode-${itemId} .bwippbarcode`);
+                        if (container) {
+                            container.innerHTML = '';
+                            container.appendChild(barcodeImg);
+                        }
+                    }
+                } else {
+                    // Show error message
+                    const container = document.querySelector(`#barcode-${itemId} .bwippbarcode`);
+                    if (container) {
+                        container.innerHTML = '<div style="color: #999; font-size: 12px;">Barcode image unavailable</div>';
+                    }
+                }
+            })
+            .catch(err => {
+                console.error('Error fetching barcode for item ' + itemId + ':', err);
+                const container = document.querySelector(`#barcode-${itemId} .bwippbarcode`);
+                if (container) {
+                    container.innerHTML = '<div style="color: #999; font-size: 12px;">Error loading barcode</div>';
+                }
+            });
+    }
+    
+    // Load all missing barcode images on page load
+    function loadAllMissingBarcodes() {
+        // Find all barcode-loading divs
+        const loadingDivs = document.querySelectorAll('.barcode-loading');
+        loadingDivs.forEach(div => {
+            const itemId = div.getAttribute('data-item-id');
+            if (itemId) {
+                loadBarcodeImage(itemId, null);
+            }
+        });
+        
+        // Also check for images that failed to load (onerror was triggered)
+        const barcodeContainers = document.querySelectorAll('.barcode-wrapper');
+        barcodeContainers.forEach(container => {
+            const img = container.querySelector('img');
+            const loadingDiv = container.querySelector('.barcode-loading');
+            if (!img && !loadingDiv) {
+                // Check if there's a barcode text but no image
+                const barcodeText = container.querySelector('.barcode-text');
+                if (barcodeText && barcodeText.textContent && barcodeText.textContent !== 'N/A') {
+                    const itemId = container.id.replace('barcode-', '');
+                    if (itemId) {
+                        const loadingDiv = document.createElement('div');
+                        loadingDiv.className = 'barcode-loading';
+                        loadingDiv.setAttribute('data-item-id', itemId);
+                        loadingDiv.style.cssText = 'color: #999; font-size: 12px;';
+                        loadingDiv.textContent = 'Loading barcode...';
+                        const imgContainer = container.querySelector('.bwippbarcode');
+                        if (imgContainer) {
+                            imgContainer.innerHTML = '';
+                            imgContainer.appendChild(loadingDiv);
+                            loadBarcodeImage(itemId, null);
+                        }
+                    }
+                }
             }
         });
     }
@@ -5548,6 +5638,14 @@
                 timer: 1800
             });
         }
+    });
+    
+    // Load all missing barcode images when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Wait a bit for the page to fully render
+        setTimeout(function() {
+            loadAllMissingBarcodes();
+        }, 500);
     });
 </script>
 @endif

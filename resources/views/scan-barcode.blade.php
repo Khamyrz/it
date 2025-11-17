@@ -525,11 +525,7 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
         </form>
 
-        @if(isset($error) && $error)
-            <div class="not-found" style="color: #dc3545;">
-                ⚠️ {{ $error }}
-            </div>
-        @elseif(isset($scanned) && $scanned && isset($items) && count($items) > 0)
+        @if(isset($scanned) && $scanned && isset($items) && count($items) > 0)
             <div class="result">
                 <h3>🔍 Result for Barcode: <code>{{ $barcode }}</code></h3>
 

@@ -20,58 +20,35 @@ class RoomItemScanController extends Controller
      */
     public function search(Request $request)
     {
-        try {
-            $request->validate([
-                'barcode' => 'required|string'
-            ]);
+        $request->validate([
+            'barcode' => 'required|string'
+        ]);
 
-            $user = auth()->user();
-            
-            if (!$user) {
-                return redirect()->route('login')->withErrors(['error' => 'Please login to access this page.']);
-            }
-            
-            $barcode = trim($request->input('barcode'));
+        $user = auth()->user();
+        $barcode = $request->input('barcode');
 
-            if (empty($barcode)) {
-                return view('scan-barcode', [
-                    'notFound' => true,
-                    'barcode' => ''
-                ]);
-            }
+        // Find all matching room items by barcode with user isolation
+        $itemsQuery = RoomItem::where('barcode', $barcode);
+        
+        // Apply user-based filtering for new users
+        if ($user->is_new_user) {
+            $itemsQuery->where('user_id', $user->id);
+        }
+        
+        $items = $itemsQuery->get();
 
-            // Find all matching room items by barcode with user isolation
-            $itemsQuery = RoomItem::where('barcode', $barcode);
-            
-            // Apply user-based filtering for new users
-            if (isset($user->is_new_user) && $user->is_new_user) {
-                $itemsQuery->where('user_id', $user->id);
-            }
-            
-            $items = $itemsQuery->get();
-
-            if ($items->isEmpty()) {
-                return view('scan-barcode', [
-                    'notFound' => true,
-                    'barcode' => $barcode
-                ]);
-            }
-
+        if ($items->isEmpty()) {
             return view('scan-barcode', [
-                'items' => $items,
-                'barcode' => $barcode,
-                'scanned' => true
-            ]);
-        } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Scan barcode error: ' . $e->getMessage(), [
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            return view('scan-barcode', [
-                'error' => 'An error occurred while searching for the barcode. Please try again.',
-                'barcode' => $request->input('barcode', '')
+                'notFound' => true,
+                'barcode' => $barcode
             ]);
         }
+
+        return view('scan-barcode', [
+            'items' => $items,
+            'barcode' => $barcode,
+            'scanned' => true
+        ]);
     }
 
     /**

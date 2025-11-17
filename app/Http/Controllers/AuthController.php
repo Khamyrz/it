@@ -11,6 +11,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 use App\Models\IpTracking;
 use App\Models\DeviceBinding;
 use Illuminate\Support\Str;
@@ -106,6 +107,17 @@ class AuthController extends Controller
 
     public function login(Request $request) {
         try {
+            // Check database connection first
+            try {
+                DB::connection()->getPdo();
+            } catch (\PDOException $e) {
+                Log::error('Database connection failed: ' . $e->getMessage());
+                return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
+            } catch (\Exception $e) {
+                Log::error('Database connection error: ' . $e->getMessage());
+                return back()->withErrors(['email' => 'Database connection error. Please contact administrator.'])->withInput();
+            }
+
             $request->validate([
                 'email' => 'required|email|regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
                 'password' => 'required',
@@ -125,7 +137,18 @@ class AuthController extends Controller
                 Log::error('Failed to log login attempt: ' . $e->getMessage());
             }
 
-            if (Auth::attempt($credentials)) {
+            // Attempt authentication with error handling
+            try {
+                $authResult = Auth::attempt($credentials);
+            } catch (\PDOException $e) {
+                Log::error('Database error during authentication: ' . $e->getMessage());
+                return back()->withErrors(['email' => 'Database connection error. Please contact administrator.'])->withInput();
+            } catch (\Exception $e) {
+                Log::error('Authentication error: ' . $e->getMessage());
+                return back()->withErrors(['email' => 'An error occurred during authentication. Please try again.'])->withInput();
+            }
+
+            if ($authResult) {
                 $user = Auth::user();
                 
                 if (!$user->is_approved) {

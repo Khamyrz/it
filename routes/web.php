@@ -91,7 +91,6 @@ Route::middleware('auth')->group(function () {
     // SERIAL NUMBER GENERATION API
     Route::get('/api/next-serial-number', [RoomManagementController::class, 'getNextSerialNumber'])->name('api.next-serial-number');
     Route::get('/api/deleted-pc-numbers/{roomTitle}', [RoomManagementController::class, 'getDeletedPcNumbers'])->name('api.deleted-pc-numbers');
-    Route::get('/room-manage/{id}/data', [RoomManagementController::class, 'getItemData'])->name('room-manage.data');
 
     // CATEGORY / DEVICE-TYPE MANAGEMENT
     Route::get('/categories', [CategoryController::class, 'index'])->name('categories.index');

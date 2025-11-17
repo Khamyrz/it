@@ -1996,13 +1996,18 @@
                                                         </td>
                                                         <td>
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
-                                                                <div class="barcode-text">{{ $item->barcode }}</div>
+                                                                <div class="barcode-text">{{ $item->barcode ?? 'N/A' }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    @if($item->barcode)
+                                                                    @if(!empty($item->barcode) && is_string($item->barcode))
                                                                         @php
+                                                                            $barcodeBase64 = null;
                                                                             try {
-                                                                                $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                $barcodeBase64 = $barcodePng ? base64_encode($barcodePng) : null;
+                                                                                if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
+                                                                                    $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                    if ($barcodePng && strlen($barcodePng) > 0) {
+                                                                                        $barcodeBase64 = base64_encode($barcodePng);
+                                                                                    }
+                                                                                }
                                                                             } catch (\Exception $e) {
                                                                                 $barcodeBase64 = null;
                                                                             }
@@ -2141,13 +2146,18 @@
                                                     </td>
                                                     <td>
                                                         <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
-                                                            <div class="barcode-text">{{ $item->barcode }}</div>
+                                                            <div class="barcode-text">{{ $item->barcode ?? 'N/A' }}</div>
                                                             <div class="bwippbarcode">
-                                                                @if($item->barcode)
+                                                                @if(!empty($item->barcode) && is_string($item->barcode))
                                                                     @php
+                                                                        $barcodeBase64 = null;
                                                                         try {
-                                                                            $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                            $barcodeBase64 = $barcodePng ? base64_encode($barcodePng) : null;
+                                                                            if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
+                                                                                $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                if ($barcodePng && strlen($barcodePng) > 0) {
+                                                                                    $barcodeBase64 = base64_encode($barcodePng);
+                                                                                }
+                                                                            }
                                                                         } catch (\Exception $e) {
                                                                             $barcodeBase64 = null;
                                                                         }

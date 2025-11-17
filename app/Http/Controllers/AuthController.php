@@ -107,15 +107,37 @@ class AuthController extends Controller
 
     public function login(Request $request) {
         try {
-            // Check database connection first
+            // Check database connection first - try multiple hosts for Hostinger
+            $dbConnected = false;
+            $dbError = null;
+            
+            // Try localhost first
             try {
                 DB::connection()->getPdo();
+                $dbConnected = true;
             } catch (\PDOException $e) {
-                Log::error('Database connection failed: ' . $e->getMessage());
-                return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
+                $dbError = $e->getMessage();
+                Log::warning('Database connection failed with localhost: ' . $dbError);
+                
+                // Try 127.0.0.1 as fallback
+                try {
+                    config(['database.connections.mysql.host' => '127.0.0.1']);
+                    DB::purge('mysql');
+                    DB::connection()->getPdo();
+                    $dbConnected = true;
+                    Log::info('Database connection successful with 127.0.0.1');
+                } catch (\PDOException $e2) {
+                    $dbError = $e2->getMessage();
+                    Log::error('Database connection failed with 127.0.0.1: ' . $dbError);
+                }
             } catch (\Exception $e) {
-                Log::error('Database connection error: ' . $e->getMessage());
-                return back()->withErrors(['email' => 'Database connection error. Please contact administrator.'])->withInput();
+                $dbError = $e->getMessage();
+                Log::error('Database connection error: ' . $dbError);
+            }
+            
+            if (!$dbConnected) {
+                Log::error('Database connection failed. Error: ' . $dbError);
+                return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials in the hosting control panel.'])->withInput();
             }
 
             $request->validate([

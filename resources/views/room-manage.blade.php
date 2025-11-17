@@ -1,4 +1,25 @@
-@php use Milon\Barcode\Facades\DNS1DFacade as DNS1D; @endphp
+<?php 
+use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
+
+// Helper function to generate barcode safely
+if (!function_exists('getBarcodeBase64')) {
+    function getBarcodeBase64($barcode, $type = 'C128', $width = 2.0, $height = 50) {
+        try {
+            if (empty($barcode)) {
+                return null;
+            }
+            $pngData = DNS1D::getBarcodePNG($barcode, $type, $width, $height);
+            if ($pngData) {
+                return base64_encode($pngData);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Barcode generation error: ' . $e->getMessage());
+            return null;
+        }
+        return null;
+    }
+}
+?>
 
 @extends('layouts.app')
 @section('title', 'Room Management')
@@ -1754,8 +1775,7 @@
 
         <div class="container">
             @php
-                // Group items by room_title - ensure $items is a collection
-                $items = $items ?? collect([]);
+                // Group items by room_title
                 $groupedItems = $items->groupBy('room_title');
             @endphp
 
@@ -1996,21 +2016,11 @@
                                                         </td>
                                                         <td>
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
-                                                                <div class="barcode-text">{{ $item->barcode ?? 'N/A' }}</div>
+                                                                <div class="barcode-text">{{ $item->barcode }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    @if(!empty($item->barcode) && is_string($item->barcode))
+                                                                    @if($item->barcode)
                                                                         @php
-                                                                            $barcodeBase64 = null;
-                                                                            try {
-                                                                                if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
-                                                                                    $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                    if ($barcodePng && strlen($barcodePng) > 0) {
-                                                                                        $barcodeBase64 = base64_encode($barcodePng);
-                                                                                    }
-                                                                                }
-                                                                            } catch (\Exception $e) {
-                                                                                $barcodeBase64 = null;
-                                                                            }
+                                                                            $barcodeBase64 = getBarcodeBase64($item->barcode, 'C128', 2.0, 50);
                                                                         @endphp
                                                                         @if($barcodeBase64)
                                                                             <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
@@ -2146,27 +2156,10 @@
                                                     </td>
                                                     <td>
                                                         <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
-                                                            <div class="barcode-text">{{ $item->barcode ?? 'N/A' }}</div>
+                                                            <div class="barcode-text">{{ $item->barcode }}</div>
                                                             <div class="bwippbarcode">
-                                                                @if(!empty($item->barcode) && is_string($item->barcode))
-                                                                    @php
-                                                                        $barcodeBase64 = null;
-                                                                        try {
-                                                                            if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
-                                                                                $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                if ($barcodePng && strlen($barcodePng) > 0) {
-                                                                                    $barcodeBase64 = base64_encode($barcodePng);
-                                                                                }
-                                                                            }
-                                                                        } catch (\Exception $e) {
-                                                                            $barcodeBase64 = null;
-                                                                        }
-                                                                    @endphp
-                                                                    @if($barcodeBase64)
-                                                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
-                                                                    @else
-                                                                        <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
-                                                                    @endif
+                                                                @if($item->barcode)
+                                                                    <img src="data:image/png;base64,{{ base64_encode(DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50)) }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
                                                                 @else
                                                                     <div style="color: #999; font-size: 12px;">No barcode</div>
                                                                 @endif

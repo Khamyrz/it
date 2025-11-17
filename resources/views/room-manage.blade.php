@@ -1,4 +1,25 @@
-<?php use Milon\Barcode\Facades\DNS1DFacade as DNS1D; ?>
+<?php 
+use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
+
+// Helper function to generate barcode safely
+if (!function_exists('getBarcodeBase64')) {
+    function getBarcodeBase64($barcode, $type = 'C128', $width = 2.0, $height = 50) {
+        try {
+            if (empty($barcode)) {
+                return null;
+            }
+            $pngData = DNS1D::getBarcodePNG($barcode, $type, $width, $height);
+            if ($pngData) {
+                return base64_encode($pngData);
+            }
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Barcode generation error: ' . $e->getMessage());
+            return null;
+        }
+        return null;
+    }
+}
+?>
 
 @extends('layouts.app')
 @section('title', 'Room Management')
@@ -1997,7 +2018,18 @@
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                                 <div class="barcode-text">{{ $item->barcode }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                    @if($item->barcode)
+                                                                        @php
+                                                                            $barcodeBase64 = getBarcodeBase64($item->barcode, 'C128', 2.0, 50);
+                                                                        @endphp
+                                                                        @if($barcodeBase64)
+                                                                            <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                        @else
+                                                                            <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
+                                                                        @endif
+                                                                    @else
+                                                                        <div style="color: #999; font-size: 12px;">No barcode</div>
+                                                                    @endif
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -2126,7 +2158,18 @@
                                                         <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                             <div class="barcode-text">{{ $item->barcode }}</div>
                                                             <div class="bwippbarcode">
-                                                                <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                @if($item->barcode)
+                                                                    @php
+                                                                        $barcodeBase64 = getBarcodeBase64($item->barcode, 'C128', 2.0, 50);
+                                                                    @endphp
+                                                                    @if($barcodeBase64)
+                                                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                    @else
+                                                                        <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
+                                                                    @endif
+                                                                @else
+                                                                    <div style="color: #999; font-size: 12px;">No barcode</div>
+                                                                @endif
                                                             </div>
                                                         </div>
                                                     </td>
@@ -2900,7 +2943,7 @@
                 <div class="barcode-wrapper">
                     <div class="barcode-text">${tempId}</div>
                     <div class="bwippbarcode">
-                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG('${tempId}', 'C128', 2.0, 50) }}" alt="${tempId}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                        <div style="color: #999; font-size: 12px;">Loading barcode...</div>
                     </div>
                 </div>
             </td>

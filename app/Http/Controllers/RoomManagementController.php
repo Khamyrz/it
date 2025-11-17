@@ -14,61 +14,21 @@ class RoomManagementController extends Controller
 {
     public function index()
     {
-        try {
-            $user = auth()->user();
-            
-            if (!$user || !isset($user->id)) {
-                return redirect()->route('login')->withErrors(['email' => 'Please login to access this page.']);
-            }
-            
-            // Always filter by authenticated user for data isolation
-            // Use try-catch for database queries
-            try {
-                $items = RoomItem::where('user_id', $user->id)
-                    ->orderBy('created_at', 'desc')
-                    ->get();
-            } catch (\Exception $dbError) {
-                \Illuminate\Support\Facades\Log::error('RoomManagementController database query error: ' . $dbError->getMessage());
-                $items = collect([]); // Return empty collection if query fails
-            }
+        $user = auth()->user();
+        
+        // Always filter by authenticated user for data isolation
+        $items = RoomItem::where('user_id', $user->id)
+            ->orderBy('created_at', 'desc')
+            ->get();
 
-            // Process items to add photo URLs safely
-            $items->transform(function ($item) {
-                try {
-                    if (!empty($item->photo)) {
-                        $item->photo_url = Storage::url($item->photo);
-                    } else {
-                        $item->photo_url = null;
-                    }
-                    // Ensure all required properties exist
-                    if (!isset($item->is_full_set_item)) {
-                        $item->is_full_set_item = $item->is_full_item ?? false;
-                    }
-                    if (!isset($item->is_full_item)) {
-                        $item->is_full_item = $item->is_full_set_item ?? false;
-                    }
-                } catch (\Exception $e) {
-                    \Illuminate\Support\Facades\Log::error('Error processing item: ' . $e->getMessage());
-                    $item->photo_url = null;
-                }
-                return $item;
-            });
-            
-            return view('room-manage', compact('user', 'items'));
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('RoomManagementController index error: ' . $e->getMessage(), [
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => substr($e->getTraceAsString(), 0, 1000),
-                'class' => get_class($e)
-            ]);
-            
-            // Return a simple error response instead of redirecting
-            if (request()->expectsJson()) {
-                return response()->json(['error' => 'An error occurred loading the room management page.'], 500);
+        // Process items to add photo URLs
+        $items->transform(function ($item) {
+            if ($item->photo) {
+                $item->photo_url = Storage::url($item->photo);
             }
-            return redirect()->route('dashboard')->withErrors(['error' => 'An error occurred loading the room management page. Please try again.']);
-        }
+            return $item;
+        });
+        return view('room-manage', compact('user', 'items'));
     }
 
     public function store(Request $request)
@@ -158,22 +118,8 @@ class RoomManagementController extends Controller
         
         if ($isUpdate) {
             RoomItem::where('id', $request->route('item'))->update($itemData);
-            $item = RoomItem::find($request->route('item'));
         } else {
-            $item = RoomItem::create($itemData);
-        }
-
-        // Return JSON response for AJAX requests
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Item has been saved!',
-                'item' => [
-                    'id' => $item->id,
-                    'barcode' => $item->barcode,
-                    'serial_number' => $item->serial_number,
-                ]
-            ]);
+            RoomItem::create($itemData);
         }
 
         return redirect()->route('room-manage')->with('success', 'Item has been saved!');
@@ -310,15 +256,6 @@ class RoomManagementController extends Controller
                     throw $e;
                 }
             }
-        }
-
-        // Return JSON response for AJAX requests
-        if ($request->expectsJson() || $request->ajax()) {
-            return response()->json([
-                'success' => true,
-                'message' => 'Full set has been saved!',
-                'items' => [] // Full set items can be fetched separately if needed
-            ]);
         }
 
         return redirect()->route('room-manage')->with('success', 'Full set has been saved!');
@@ -1324,37 +1261,5 @@ class RoomManagementController extends Controller
         ]);
 
         return redirect()->route('room-manage')->with('success', 'Component added successfully!');
-    }
-
-    /**
-     * Get item data by ID (for AJAX requests)
-     */
-    public function getItemData($id)
-    {
-        $user = auth()->user();
-        
-        $item = RoomItem::where('id', $id)
-            ->where('user_id', $user->id)
-            ->firstOrFail();
-        
-        // Generate barcode image if barcode exists
-        $barcodeImage = null;
-        if ($item->barcode) {
-            try {
-                if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
-                    $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                }
-            } catch (\Exception $e) {
-                // Barcode generation failed, leave as null
-            }
-        }
-        
-        return response()->json([
-            'id' => $item->id,
-            'barcode' => $item->barcode,
-            'barcode_image' => $barcodeImage ? base64_encode($barcodeImage) : null,
-            'serial_number' => $item->serial_number,
-            'photo' => $item->photo ? Storage::url($item->photo) : null,
-        ]);
     }
 }

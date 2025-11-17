@@ -50,7 +50,7 @@ return [
         // Admin/User provider
         'users' => [
             'driver' => 'eloquent',
-            'model' => App\Models\User::class,
+            'model' => \App\Models\User::class,
         ],
 
         // Intern provider

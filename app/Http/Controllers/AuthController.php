@@ -180,19 +180,31 @@ class AuthController extends Controller
                     }
 
                     // FIRST: Check if account was registered on this device (has primary device binding)
-                    // If account is registered/binded to this device, allow login immediately - NO ERROR MESSAGE
+                    // If account was registered/binded to this device, allow login immediately - NO ERROR MESSAGE
                     // Check with both active and inactive primary bindings
+                    $primaryBinding = null;
                     try {
-                        $primaryBinding = DeviceBinding::where('user_id', $user->id)
-                            ->where('is_primary', true)
-                            ->orderBy('created_at', 'asc') // Get the oldest one (original registration)
-                            ->first();
+                        // Check if device_bindings table exists
+                        if (Schema::hasTable('device_bindings')) {
+                            $primaryBinding = DeviceBinding::where('user_id', $user->id)
+                                ->where('is_primary', true)
+                                ->orderBy('created_at', 'asc') // Get the oldest one (original registration)
+                                ->first();
+                        } else {
+                            Log::warning('device_bindings table does not exist, skipping device binding check');
+                        }
                     } catch (PDOException $e) {
                         Log::error('Database error when checking device binding: ' . $e->getMessage());
-                        return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials.'])->withInput();
+                        // Continue without device binding - don't block login
+                        $primaryBinding = null;
                     } catch (QueryException $e) {
                         Log::error('Database query error when checking device binding: ' . $e->getMessage());
-                        return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
+                        // Continue without device binding - don't block login
+                        $primaryBinding = null;
+                    } catch (\Exception $e) {
+                        Log::error('Error when checking device binding: ' . $e->getMessage());
+                        // Continue without device binding - don't block login
+                        $primaryBinding = null;
                     }
                 
                     $deviceBinding = null;
@@ -226,16 +238,16 @@ class AuthController extends Controller
                             Log::error('Database query error when updating device binding: ' . $e->getMessage());
                             // Continue with login even if device binding update fails
                         }
-                    
-                    Log::info('Login SUCCESS - Account registered on device (Primary device binding found)', [
-                        'user_id' => $user->id,
-                        'email' => $user->email,
-                        'primary_binding_id' => $primaryBinding->id,
-                        'device_fingerprint' => $deviceFingerprint
-                    ]);
-                    
-                    // Continue to login - DO NOT show error message
-                    // The account is registered on this device, so login is allowed
+                        
+                        Log::info('Login SUCCESS - Account registered on device (Primary device binding found)', [
+                            'user_id' => $user->id,
+                            'email' => $user->email,
+                            'primary_binding_id' => $primaryBinding->id ?? null,
+                            'device_fingerprint' => $deviceFingerprint
+                        ]);
+                        
+                        // Continue to login - DO NOT show error message
+                        // The account is registered on this device, so login is allowed
                     } else {
                         // No primary binding found - this could mean:
                         // 1. Account was created before device binding was implemented
@@ -245,59 +257,74 @@ class AuthController extends Controller
                         // SOLUTION: Create a primary device binding automatically
                         // This allows accounts created on this device to login
                         try {
-                            Log::info('No primary binding found - Creating primary device binding for account', [
-                                'user_id' => $user->id,
-                                'email' => $user->email
-                            ]);
-                            
-                            // Create primary device binding - this account is now bound to this device
-                            $primaryBinding = DeviceBinding::create([
-                                'user_id' => $user->id,
-                                'device_fingerprint' => $deviceFingerprint,
-                                'device_name' => $this->getDeviceName($request),
-                                'user_agent' => $userAgent,
-                                'ip_address' => $ipAddress,
-                                'is_primary' => true,
-                                'is_active' => true,
-                                'last_accessed_at' => now(),
-                            ]);
-                            
-                            $deviceBinding = $primaryBinding;
+                            // Only create device binding if table exists
+                            if (Schema::hasTable('device_bindings')) {
+                                Log::info('No primary binding found - Creating primary device binding for account', [
+                                    'user_id' => $user->id,
+                                    'email' => $user->email
+                                ]);
+                                
+                                // Create primary device binding - this account is now bound to this device
+                                $primaryBinding = DeviceBinding::create([
+                                    'user_id' => $user->id,
+                                    'device_fingerprint' => $deviceFingerprint,
+                                    'device_name' => $this->getDeviceName($request),
+                                    'user_agent' => $userAgent,
+                                    'ip_address' => $ipAddress,
+                                    'is_primary' => true,
+                                    'is_active' => true,
+                                    'last_accessed_at' => now(),
+                                ]);
+                                
+                                $deviceBinding = $primaryBinding;
+                            } else {
+                                Log::warning('device_bindings table does not exist, skipping device binding creation');
+                            }
                         } catch (PDOException $e) {
                             Log::error('Database error when creating device binding: ' . $e->getMessage());
-                            return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials.'])->withInput();
+                            // Continue with login even if device binding creation fails
                         } catch (QueryException $e) {
                             Log::error('Database query error when creating device binding: ' . $e->getMessage());
-                            return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
+                            // Continue with login even if device binding creation fails
+                        } catch (\Exception $e) {
+                            Log::error('Error when creating device binding: ' . $e->getMessage());
+                            // Continue with login even if device binding creation fails
                         }
                         
-                        Log::info('Primary device binding created - Login allowed', [
-                            'user_id' => $user->id,
-                            'email' => $user->email,
-                            'primary_binding_id' => $primaryBinding->id
-                        ]);
+                        if ($primaryBinding) {
+                            Log::info('Primary device binding created - Login allowed', [
+                                'user_id' => $user->id,
+                                'email' => $user->email,
+                                'primary_binding_id' => $primaryBinding->id ?? null
+                            ]);
+                        }
                         
                         // Continue to login - DO NOT show error message
                         // The account is now bound to this device
                     }
                 
                     // Generate 6-digit OTP for 2FA
-                    $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-                    $expiresAt = now()->addMinutes(5);
-                    
-                    // Normalize email (lowercase and trimmed) for consistent comparison
-                    $normalizedEmail = strtolower(trim($request->email));
-                    
-                    // Store OTP data in session BEFORE logout to ensure it persists
-                    $request->session()->put('login_otp_email', $normalizedEmail);
-                    $request->session()->put('login_otp', $otp);
-                    $request->session()->put('login_otp_expires', $expiresAt);
-                    $request->session()->put('login_otp_attempts', 0);
-                    $request->session()->put('login_user_id', $user->id);
-                    $request->session()->put('login_credentials_verified', true);
-                    
-                    // Save session explicitly to ensure it persists
-                    $request->session()->save();
+                    try {
+                        $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+                        $expiresAt = now()->addMinutes(5);
+                        
+                        // Normalize email (lowercase and trimmed) for consistent comparison
+                        $normalizedEmail = strtolower(trim($request->email));
+                        
+                        // Store OTP data in session BEFORE logout to ensure it persists
+                        $request->session()->put('login_otp_email', $normalizedEmail);
+                        $request->session()->put('login_otp', $otp);
+                        $request->session()->put('login_otp_expires', $expiresAt);
+                        $request->session()->put('login_otp_attempts', 0);
+                        $request->session()->put('login_user_id', $user->id ?? null);
+                        $request->session()->put('login_credentials_verified', true);
+                        
+                        // Save session explicitly to ensure it persists
+                        $request->session()->save();
+                    } catch (\Exception $e) {
+                        Log::error('Error storing OTP in session: ' . $e->getMessage());
+                        return back()->withErrors(['email' => 'Session error. Please try again.'])->withInput();
+                    }
 
                     // Send OTP email
                     try {
@@ -376,16 +403,27 @@ class AuthController extends Controller
             return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
         } catch (\Throwable $e) {
             // Catch any other errors including fatal errors
-            Log::error('Login error (outer catch): ' . $e->getMessage(), [
-                'class' => get_class($e),
+            $errorMessage = $e->getMessage();
+            $errorClass = get_class($e);
+            
+            Log::error('Login error (outer catch): ' . $errorMessage, [
+                'class' => $errorClass,
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
                 'trace' => substr($e->getTraceAsString(), 0, 1000),
                 'email' => $request->email ?? 'unknown'
             ]);
             
+            // Check if it's a database-related error
+            if (strpos($errorMessage, 'Access denied') !== false || 
+                strpos($errorMessage, 'SQLSTATE') !== false ||
+                strpos($errorMessage, 'database') !== false ||
+                strpos($errorMessage, 'connection') !== false) {
+                return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials in the hosting control panel (DB_DATABASE, DB_USERNAME, DB_PASSWORD).'])->withInput();
+            }
+            
             // Return a user-friendly error message
-            return back()->withErrors(['email' => 'An error occurred during login. Please try again or contact support.'])->withInput();
+            return back()->withErrors(['email' => 'An error occurred during login: ' . substr($errorMessage, 0, 100) . '. Please try again or contact support.'])->withInput();
         }
     }
 

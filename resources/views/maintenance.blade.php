@@ -1036,8 +1036,11 @@
                                                                 <!-- Item-specific notes section (only shows when status is Unusable) -->
                                                                 <tr id="notes-row-{{ $item->id }}" class="item-notes-row" style="{{ $item->status === 'Unusable' ? '' : 'display: none;' }}">
                                                                     <td colspan="8">
-                                                                        <div class="item-notes-section">
-                                                                            <div class="item-notes-header">
+                                                                        <div class="item-notes-section" style="{{ isset($itemNotes[$item->id]) && strpos($itemNotes[$item->id]->note ?? '', 'Returned as Unusable') !== false ? 'background: #f8d7da; border-color: #dc3545;' : '' }}">
+                                                                            <div class="item-notes-header" style="{{ isset($itemNotes[$item->id]) && strpos($itemNotes[$item->id]->note ?? '', 'Returned as Unusable') !== false ? 'background: #f5c6cb; color: #721c24;' : '' }}">
+                                                                                @if(isset($itemNotes[$item->id]) && strpos($itemNotes[$item->id]->note ?? '', 'Returned as Unusable') !== false)
+                                                                                    <span style="color: #dc3545; font-weight: bold;">⚠️ RETURNED AS UNUSABLE</span> - 
+                                                                                @endif
                                                                                 Issue Details for {{ $item->device_category }} ({{ $item->barcode }})
                                                                             </div>
                                                                             <form action="{{ url('/maintenance/item-note/' . $item->id) }}" method="POST" class="item-notes-form">
@@ -1046,6 +1049,7 @@
                                                                                     name="note" 
                                                                                     class="item-notes-textarea" 
                                                                                     placeholder="Describe the issue with this {{ strtolower($item->device_category) }}..."
+                                                                                    style="{{ isset($itemNotes[$item->id]) && strpos($itemNotes[$item->id]->note ?? '', 'Returned as Unusable') !== false ? 'border-color: #dc3545; background: white;' : '' }}"
                                                                                 >{{ isset($itemNotes[$item->id]) ? $itemNotes[$item->id]->note : '' }}</textarea>
                                                                                 <button type="submit" class="btn-save-item-note">Save Issue</button>
                                                                             </form>

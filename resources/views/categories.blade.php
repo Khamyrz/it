@@ -115,6 +115,31 @@
 </style>
 
 <div class="container">
+    <!-- SQL Export Section -->
+    <div class="box" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; margin-bottom: 20px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 15px;">
+            <div>
+                <h4 style="margin: 0; color: white; display: flex; align-items: center; gap: 10px;">
+                    <i class="fas fa-database"></i> Database Export
+                </h4>
+                <p style="margin: 5px 0 0 0; opacity: 0.9; font-size: 14px;">
+                    Export system data as SQL file. Automatic exports run every hour.
+                </p>
+            </div>
+            <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                <button id="exportSqlBtn" class="btn btn-light" onclick="exportSql()" style="font-weight: 600;">
+                    <i class="fas fa-download"></i> Export SQL Now
+                </button>
+                <button id="toggleAutoExportBtn" class="btn btn-outline-light" onclick="toggleAutoExport()" style="font-weight: 600;">
+                    <i class="fas fa-clock"></i> <span id="autoExportStatus">Enable</span> Auto Export
+                </button>
+            </div>
+        </div>
+        <div id="exportStatus" style="margin-top: 15px; padding: 10px; background: rgba(255,255,255,0.1); border-radius: 5px; display: none;">
+            <small id="exportStatusText"></small>
+        </div>
+    </div>
+
     <div class="row">
         <div class="col-md-6 box">
             <h4>ALL CATEGORIES (from Room Items)</h4>
@@ -304,5 +329,122 @@
                 return 'bg-secondary';
         }
     }
+
+    // SQL Export Functions
+    function exportSql() {
+        const btn = document.getElementById('exportSqlBtn');
+        const statusDiv = document.getElementById('exportStatus');
+        const statusText = document.getElementById('exportStatusText');
+        
+        // Disable button and show loading
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+        statusDiv.style.display = 'block';
+        statusText.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating SQL export...';
+        statusDiv.style.background = 'rgba(255,255,255,0.2)';
+        
+        // Make request to export endpoint
+        fetch('/categories/export-sql', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            }
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.blob();
+            }
+            throw new Error('Export failed');
+        })
+        .then(blob => {
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `database_export_${new Date().toISOString().split('T')[0]}_${Date.now()}.sql`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            // Show success message
+            statusText.innerHTML = '<i class="fas fa-check-circle"></i> SQL file exported successfully!';
+            statusDiv.style.background = 'rgba(40, 167, 69, 0.3)';
+            
+            // Re-enable button
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-download"></i> Export SQL Now';
+            
+            // Hide status after 5 seconds
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        })
+        .catch(error => {
+            console.error('Export error:', error);
+            statusText.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Export failed. Please try again.';
+            statusDiv.style.background = 'rgba(220, 53, 69, 0.3)';
+            
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-download"></i> Export SQL Now';
+            
+            setTimeout(() => {
+                statusDiv.style.display = 'none';
+            }, 5000);
+        });
+    }
+
+    function toggleAutoExport() {
+        const btn = document.getElementById('toggleAutoExportBtn');
+        const statusSpan = document.getElementById('autoExportStatus');
+        
+        btn.disabled = true;
+        const currentText = statusSpan.textContent.trim();
+        const isEnabled = currentText === 'Disable';
+        
+        fetch('/categories/toggle-auto-export', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || ''
+            },
+            body: JSON.stringify({ enabled: !isEnabled })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                statusSpan.textContent = data.enabled ? 'Disable' : 'Enable';
+                const statusDiv = document.getElementById('exportStatus');
+                const statusText = document.getElementById('exportStatusText');
+                statusDiv.style.display = 'block';
+                statusText.innerHTML = data.enabled 
+                    ? '<i class="fas fa-check-circle"></i> Automatic exports enabled. Exports will run every hour.'
+                    : '<i class="fas fa-info-circle"></i> Automatic exports disabled.';
+                statusDiv.style.background = data.enabled ? 'rgba(40, 167, 69, 0.3)' : 'rgba(255,255,255,0.2)';
+                
+                setTimeout(() => {
+                    statusDiv.style.display = 'none';
+                }, 5000);
+            }
+            btn.disabled = false;
+        })
+        .catch(error => {
+            console.error('Toggle error:', error);
+            btn.disabled = false;
+        });
+    }
+
+    // Check auto-export status on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        fetch('/categories/auto-export-status')
+            .then(response => response.json())
+            .then(data => {
+                if (data.enabled) {
+                    document.getElementById('autoExportStatus').textContent = 'Disable';
+                }
+            })
+            .catch(error => console.error('Status check error:', error));
+    });
 </script>
 @endsection

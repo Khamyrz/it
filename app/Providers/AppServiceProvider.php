@@ -3,6 +3,7 @@
 namespace App\Providers;
 
 use Illuminate\Support\ServiceProvider;
+use Illuminate\Support\Facades\Schedule;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -19,6 +20,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        // Schedule automatic database export every hour
+        Schedule::command('database:auto-export')
+            ->hourly()
+            ->withoutOverlapping()
+            ->runInBackground();
     }
 }

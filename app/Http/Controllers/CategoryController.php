@@ -120,4 +120,111 @@ class CategoryController extends Controller
 
         return redirect()->back()->with('success', 'Category deleted successfully!');
     }
+
+    /**
+     * Export database as SQL file
+     */
+    public function exportSql()
+    {
+        try {
+            $database = config('database.connections.mysql.database');
+            $username = config('database.connections.mysql.username');
+            $password = config('database.connections.mysql.password');
+            $host = config('database.connections.mysql.host');
+            
+            // Get all tables
+            $tables = \DB::select('SHOW TABLES');
+            $databaseName = 'Tables_in_' . $database;
+            
+            $sql = "-- Database Export\n";
+            $sql .= "-- Generated: " . now()->toDateTimeString() . "\n";
+            $sql .= "-- Database: {$database}\n\n";
+            $sql .= "SET SQL_MODE = \"NO_AUTO_VALUE_ON_ZERO\";\n";
+            $sql .= "SET time_zone = \"+00:00\";\n\n";
+            
+            foreach ($tables as $table) {
+                $tableName = $table->$databaseName;
+                
+                // Skip migrations table if you want
+                // if ($tableName === 'migrations') continue;
+                
+                // Get table structure
+                $createTable = \DB::select("SHOW CREATE TABLE `{$tableName}`");
+                $sql .= "\n-- --------------------------------------------------------\n";
+                $sql .= "-- Table structure for table `{$tableName}`\n";
+                $sql .= "-- --------------------------------------------------------\n\n";
+                $sql .= "DROP TABLE IF EXISTS `{$tableName}`;\n";
+                $sql .= $createTable[0]->{'Create Table'} . ";\n\n";
+                
+                // Get table data
+                $rows = \DB::table($tableName)->get();
+                if ($rows->count() > 0) {
+                    $sql .= "-- Dumping data for table `{$tableName}`\n\n";
+                    
+                    foreach ($rows as $row) {
+                        $values = [];
+                        foreach ((array)$row as $value) {
+                            if ($value === null) {
+                                $values[] = 'NULL';
+                            } else {
+                                $values[] = "'" . addslashes($value) . "'";
+                            }
+                        }
+                        $sql .= "INSERT INTO `{$tableName}` VALUES (" . implode(', ', $values) . ");\n";
+                    }
+                    $sql .= "\n";
+                }
+            }
+            
+            // Create response with SQL content
+            $filename = 'database_export_' . date('Y-m-d_His') . '.sql';
+            
+            return response($sql)
+                ->header('Content-Type', 'application/sql')
+                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+                
+        } catch (\Exception $e) {
+            return response()->json(['error' => 'Export failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Toggle automatic exports
+     */
+    public function toggleAutoExport(Request $request)
+    {
+        $enabled = $request->input('enabled', false);
+        
+        // Store setting in database or config file
+        // For simplicity, we'll use a config file
+        $configPath = config_path('auto_export.php');
+        $config = ['enabled' => $enabled];
+        
+        if (!file_exists(config_path())) {
+            mkdir(config_path(), 0755, true);
+        }
+        
+        file_put_contents($configPath, '<?php return ' . var_export($config, true) . ';');
+        
+        return response()->json([
+            'success' => true,
+            'enabled' => $enabled
+        ]);
+    }
+
+    /**
+     * Get auto-export status
+     */
+    public function getAutoExportStatus()
+    {
+        $configPath = config_path('auto_export.php');
+        $enabled = false;
+        
+        if (file_exists($configPath)) {
+            $config = require $configPath;
+            $enabled = $config['enabled'] ?? false;
+        }
+        
+        return response()->json(['enabled' => $enabled]);
+    }
 }

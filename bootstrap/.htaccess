@@ -1,0 +1,4 @@
+# Deny all access to bootstrap folder
+Order deny,allow
+Deny from all
+

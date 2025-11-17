@@ -1,0 +1,7 @@
+# Allow access to photo files
+Order allow,deny
+Allow from all
+
+# Block directory browsing
+Options -Indexes
+

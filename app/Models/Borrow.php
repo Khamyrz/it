@@ -61,4 +61,12 @@ class Borrow extends Model
     {
         return $this->status === 'Borrowed';
     }
+
+    /**
+     * Relationship: Get extensions for this borrow
+     */
+    public function extensions()
+    {
+        return $this->hasMany(BorrowExtension::class, 'borrow_id');
+    }
 }

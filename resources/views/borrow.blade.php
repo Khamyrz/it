@@ -812,10 +812,35 @@
         .room-content.show {
             display: block;
         }
+
+        /* Animations for reason field */
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                max-height: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                max-height: 500px;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes slideUp {
+            from {
+                opacity: 1;
+                max-height: 500px;
+                transform: translateY(0);
+            }
+            to {
+                opacity: 0;
+                max-height: 0;
+                transform: translateY(-10px);
+            }
+        }
     </style>
-    
-</head>
-<body>
+@endpush
 
 <div class="main-content">
     <div class="content-wrapper">
@@ -830,199 +855,152 @@
         <!-- Success/Error messages will be shown via SweetAlert -->
     </div>
 
-    <!-- Desktop Table View - Edge to Edge -->
+    <!-- Desktop Table View - Grouped by Borrower -->
     <div class="table-container">
         <div class="table-responsive">
-            <table>
-                <thead>
-                    <tr>
-                        <th><i class="fas fa-door-open"></i> Room</th>
-                        <th><i class="fas fa-tags"></i> Category</th>
-                        <th><i class="fas fa-barcode"></i> Serial #</th>
-                        <th><i class="fas fa-info-circle"></i> Description</th>
-                        <th><i class="fas fa-check-circle"></i> Status</th>
-                        <th><i class="fas fa-user"></i> Borrower</th>
-                        <th><i class="fas fa-calendar"></i> Borrow Date</th>
-                        <th><i class="fas fa-undo"></i> Return</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    @php
-                        // Group items by PC#/full_set_id similar to room-manage.blade.php
-                        $groupedItems = [];
-                        $individualItems = [];
+            @php
+                // Group items by borrower name
+                $borrowerGroups = [];
+                
+                foreach($items as $item) {
+                    if ($item->latestBorrow && $item->latestBorrow->status === 'Borrowed') {
+                        $borrowerName = $item->latestBorrow->borrower_name;
                         
-                        foreach($items as $item) {
-                            $pcNumber = null;
-                            
-                            // Try to extract PC number from various sources
-                            if (preg_match('/(\d{3})$/', $item->barcode ?? '', $matches)) {
-                                $pcNumber = intval($matches[1]);
-                            } elseif (preg_match('/(\d{3})$/', $item->serial_number ?? '', $matches)) {
-                                $pcNumber = intval($matches[1]);
-                            } elseif ($item->full_set_id && preg_match('/(\d{3})$/', $item->full_set_id, $matches)) {
-                                $pcNumber = intval($matches[1]);
-                            } elseif (preg_match('/(\d{3})/', ($item->barcode ?? '') . ' ' . ($item->serial_number ?? ''), $matches)) {
-                                $pcNumber = intval($matches[1]);
-                            }
-                            
-                            if ($pcNumber !== null) {
-                                if (!isset($groupedItems[$pcNumber])) {
-                                    $groupedItems[$pcNumber] = [];
-                                }
-                                $groupedItems[$pcNumber][] = $item;
-                            } else {
-                                $individualItems[] = $item;
-                            }
+                        if (!isset($borrowerGroups[$borrowerName])) {
+                            $borrowerGroups[$borrowerName] = [
+                                'borrower' => $item->latestBorrow,
+                                'items' => []
+                            ];
                         }
                         
-                        ksort($groupedItems, SORT_NUMERIC);
-                    @endphp
+                        // Prepare item data for JavaScript
+                        $itemData = [
+                            'id' => $item->id,
+                            'device_category' => $item->device_category ?? '',
+                            'serial_number' => $item->serial_number ?? '',
+                            'room_title' => $item->room_title ?? '',
+                            'description' => $item->description ?? 'N/A',
+                            'latestBorrow' => [
+                                'id' => $item->latestBorrow->id,
+                                'status' => $item->latestBorrow->status,
+                            ]
+                        ];
+                        
+                        $borrowerGroups[$borrowerName]['items'][] = $itemData;
+                    }
+                }
+                
+                ksort($borrowerGroups);
+            @endphp
+            
+            @forelse($borrowerGroups as $borrowerName => $group)
+                <div class="borrower-group" style="margin-bottom: 30px; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e9ecef;">
+                        <div style="display: flex; align-items: center; gap: 15px;">
+                            @if($group['borrower']->borrower_photo)
+                                <img src="{{ asset('storage/' . $group['borrower']->borrower_photo) }}" 
+                                     alt="Borrower" 
+                                     style="width: 50px; height: 50px; border-radius: 50%; object-fit: cover;"
+                                     onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';">
+                                <div style="display: none; width: 50px; height: 50px; border-radius: 50%; background: #e9ecef; align-items: center; justify-content: center; font-size: 24px;">👤</div>
+                            @else
+                                <div style="width: 50px; height: 50px; border-radius: 50%; background: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 24px;">👤</div>
+                            @endif
+                            <div>
+                                <h3 style="margin: 0; color: #2c3e50; font-size: 20px;">{{ $borrowerName }}</h3>
+                                @if($group['borrower']->position)
+                                    <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">{{ $group['borrower']->position }}</p>
+                                @endif
+                                @if($group['borrower']->department)
+                                    <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">{{ $group['borrower']->department }}</p>
+                                @endif
+                            </div>
+                        </div>
+                        <button class="btn-return return-all-btn" 
+                                data-borrower-name="{{ $borrowerName }}" 
+                                data-items-id="items-{{ md5($borrowerName) }}"
+                                style="padding: 12px 24px; font-size: 16px;">
+                            <i class="fas fa-undo"></i> Return All Items
+                        </button>
+                        <script type="application/json" id="items-{{ md5($borrowerName) }}">
+                            {!! json_encode($group['items']) !!}
+                        </script>
+                    </div>
                     
-                    @forelse($groupedItems as $pcNumber => $pcItems)
-                        @foreach($pcItems as $item)
-                            <tr>
-                                <td><strong>{{ $item->room_title }}</strong></td>
-                                <td>{{ $item->device_category }}</td>
-                                <td><code>{{ $item->serial_number }}</code> @if($item->is_full_item) <span style="color: #667eea; font-size: 11px;">(PC#{{ $pcNumber }})</span> @endif</td>
-                                <td>{{ $item->description }}</td>
-                                <td>
-                                    @if($item->status === 'Unusable')
-                                        <span class="unusable">❌ Unusable</span>
-                                    @elseif($item->latestBorrow && $item->latestBorrow->status === 'Borrowed')
-                                        <span class="status-badge status-borrowed">Borrowed</span>
-                                    @else
-                                        <span class="status-badge status-usable">Usable</span>
-                                    @endif
-                                </td>
-                                <td>
-                                    @if($item->latestBorrow)
-                                        <div>
-                                            @if($item->latestBorrow->borrower_photo)
-                                                <img src="{{ asset('storage/' . $item->latestBorrow->borrower_photo) }}" 
-                                                     alt="Borrower" 
-                                                     style="width: 30px; height: 30px; border-radius: 50%; margin-right: 5px; vertical-align: middle; object-fit: cover;"
-                                                     onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='inline-flex';">
-                                                <span style="display: none; width: 30px; height: 30px; border-radius: 50%; background: #e9ecef; align-items: center; justify-content: center; font-size: 14px; margin-right: 5px;">👤</span>
-                                            @endif
-                                            {{ $item->latestBorrow->borrower_name }}
-                                            @if($item->latestBorrow->position)
-                                                <br><small style="color: #6c757d;">{{ $item->latestBorrow->position }}</small>
-                                            @endif
-                                            @if($item->latestBorrow->department)
-                                                <br><small style="color: #6c757d;">{{ $item->latestBorrow->department }}</small>
-                                            @endif
-                                        </div>
-                                    @else
-                                        -
-                                    @endif
-                                </td>
-
-                                <td>
-                                   @if($item->latestBorrow && $item->latestBorrow->borrow_date)
-            <div class="date-info">
-                <span class="date-main">{{ \Carbon\Carbon::parse($item->latestBorrow->borrow_date)->format('M d, Y (g:i A)') }}</span>
-                <span class="date-relative">{{ \Carbon\Carbon::parse($item->latestBorrow->borrow_date)->diffForHumans() }}</span>
-            </div>
-        @else
-            -
-        @endif
-
-                                </td>
-                                <td>
-                                    @if($item->latestBorrow && $item->latestBorrow->status === 'Borrowed')
-            <form method="POST" action="/borrow/return/{{ $item->latestBorrow->id }}">
-                @csrf
-                <button class="btn-return"><i class="fas fa-check"></i> Return</button>
-            </form>
-        @elseif($item->status === 'Unusable')
-            <button class="btn-return btn-disabled" disabled><i class="fas fa-times"></i> Not Usable</button>
-        @else
-            <button class="btn-return btn-disabled" disabled><i class="fas fa-check"></i> Returned</button>
-        @endif
-
-                                </td>
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="background: #f8f9fa;">
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;"><i class="fas fa-door-open"></i> Room</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;"><i class="fas fa-tags"></i> Category</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;"><i class="fas fa-barcode"></i> Serial #</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;"><i class="fas fa-info-circle"></i> Description</th>
+                                <th style="padding: 12px; text-align: left; border-bottom: 2px solid #dee2e6;"><i class="fas fa-calendar"></i> Borrow Date</th>
                             </tr>
-                        @endforeach
-                    @endforeach
-                    
-                    @forelse($individualItems as $item)
-                        <tr>
-                            <td><strong>{{ $item->room_title }}</strong></td>
-                            <td>{{ $item->device_category }}</td>
-                            <td><code>{{ $item->serial_number }}</code></td>
-                            <td>{{ $item->description }}</td>
-                            <td>
-                                @if($item->status === 'Unusable')
-                                    <span class="unusable">❌ Unusable</span>
-                                @elseif($item->latestBorrow && $item->latestBorrow->status === 'Borrowed')
-                                    <span class="status-badge status-borrowed">Borrowed</span>
-                                @else
-                                    <span class="status-badge status-usable">Usable</span>
-                                @endif
-                            </td>
-                            <td>
-                                @if($item->latestBorrow)
-                                    <div>
-                                        @if($item->latestBorrow->borrower_photo)
-                                            <img src="{{ asset('storage/' . $item->latestBorrow->borrower_photo) }}" 
-                                                 alt="Borrower" 
-                                                 style="width: 30px; height: 30px; border-radius: 50%; margin-right: 5px; vertical-align: middle; object-fit: cover;"
-                                                 onerror="this.onerror=null; this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='inline-flex';">
-                                            <span style="display: none; width: 30px; height: 30px; border-radius: 50%; background: #e9ecef; align-items: center; justify-content: center; font-size: 14px; margin-right: 5px;">👤</span>
+                        </thead>
+                        <tbody>
+                            @php
+                                // Get actual item objects for display (not the prepared data)
+                                $displayItems = collect($items)->filter(function($item) use ($borrowerName) {
+                                    return $item->latestBorrow && 
+                                           $item->latestBorrow->status === 'Borrowed' && 
+                                           $item->latestBorrow->borrower_name === $borrowerName;
+                                });
+                            @endphp
+                            @foreach($displayItems as $item)
+                                <tr style="border-bottom: 1px solid #e9ecef;">
+                                    <td style="padding: 12px;"><strong>{{ $item->room_title }}</strong></td>
+                                    <td style="padding: 12px;">{{ $item->device_category }}</td>
+                                    <td style="padding: 12px;"><code>{{ $item->serial_number }}</code></td>
+                                    <td style="padding: 12px;">{{ $item->description }}</td>
+                                    <td style="padding: 12px;">
+                                        @if($item->latestBorrow && $item->latestBorrow->borrow_date)
+                                            <div class="date-info">
+                                                <span class="date-main">{{ \Carbon\Carbon::parse($item->latestBorrow->borrow_date)->format('M d, Y (g:i A)') }}</span>
+                                                <span class="date-relative">{{ \Carbon\Carbon::parse($item->latestBorrow->borrow_date)->diffForHumans() }}</span>
+                                            </div>
+                                        @else
+                                            -
                                         @endif
-                                        {{ $item->latestBorrow->borrower_name }}
-                                        @if($item->latestBorrow->position)
-                                            <br><small style="color: #6c757d;">{{ $item->latestBorrow->position }}</small>
-                                        @endif
-                                        @if($item->latestBorrow->department)
-                                            <br><small style="color: #6c757d;">{{ $item->latestBorrow->department }}</small>
-                                        @endif
-                                    </div>
-                                @else
-                                    -
-                                @endif
-                            </td>
-
-                            <td>
-                               @if($item->latestBorrow && $item->latestBorrow->borrow_date)
-        <div class="date-info">
-            <span class="date-main">{{ \Carbon\Carbon::parse($item->latestBorrow->borrow_date)->format('M d, Y (g:i A)') }}</span>
-            <span class="date-relative">{{ \Carbon\Carbon::parse($item->latestBorrow->borrow_date)->diffForHumans() }}</span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            @empty
+                <div style="text-align: center; padding: 40px; background: white; border-radius: 10px;">
+                    <p style="color: #6c757d; font-size: 18px;">No borrowed items found.</p>
+                </div>
+            @endforelse
         </div>
-    @else
-        -
-    @endif
+    </div>
 
-                            </td>
-                            <td>
-                                @if($item->latestBorrow && $item->latestBorrow->status === 'Borrowed')
-        <form method="POST" action="/borrow/return/{{ $item->latestBorrow->id }}">
-            @csrf
-            <button class="btn-return"><i class="fas fa-check"></i> Return</button>
-        </form>
-    @elseif($item->status === 'Unusable')
-        <button class="btn-return btn-disabled" disabled><i class="fas fa-times"></i> Not Usable</button>
-    @else
-        <button class="btn-return btn-disabled" disabled><i class="fas fa-check"></i> Returned</button>
-    @endif
-
-                            </td>
-                        </tr>
-                    @empty
-                        @if(empty($groupedItems))
-                            <tr>
-                                <td colspan="8">
-                                    <div class="empty-state">
-                                        <div class="empty-state-icon">📭</div>
-                                        <p>No items found.</p>
-                                    </div>
-                                </td>
-                            </tr>
-                        @endif
-                    @endforelse
-                </tbody>
-            </table>
+    <!-- Return Modal -->
+    <div id="returnModal" style="display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 10000; align-items: center; justify-content: center; overflow-y: auto; padding: 20px;" onclick="if(event.target.id === 'returnModal') closeReturnModal();">
+        <div style="background: white; border-radius: 15px; max-width: 800px; width: 100%; max-height: 90vh; overflow-y: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.3);">
+            <div style="padding: 25px; border-bottom: 2px solid #e9ecef; display: flex; justify-content: space-between; align-items: center; position: sticky; top: 0; background: white; z-index: 10;">
+                <h2 style="margin: 0; color: #2c3e50; font-size: 24px;"><i class="fas fa-undo"></i> Return Items</h2>
+                <button onclick="closeReturnModal()" style="background: none; border: none; font-size: 28px; color: #6c757d; cursor: pointer; padding: 0; width: 35px; height: 35px; display: flex; align-items: center; justify-content: center; border-radius: 50%; transition: all 0.3s;">&times;</button>
+            </div>
+            
+            <form id="returnForm" method="POST" action="/borrow/return-bulk" style="padding: 25px;">
+                @csrf
+                <div id="returnModalContent">
+                    <!-- Items will be dynamically inserted here -->
+                </div>
+                
+                <div id="unusableItemsSection" style="margin-top: 25px; display: none;">
+                    <h3 style="color: #dc3545; margin-bottom: 15px; font-size: 18px;"><i class="fas fa-exclamation-triangle"></i> Unusable Items</h3>
+                    <div id="unusableItemsList" style="background: #fff3cd; border: 1px solid #ffc107; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                        <!-- Unusable items will be listed here -->
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 15px; justify-content: flex-end; margin-top: 25px; padding-top: 20px; border-top: 2px solid #e9ecef;">
+                    <button type="button" onclick="closeReturnModal()" style="padding: 12px 24px; background: #6c757d; color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;">Cancel</button>
+                    <button type="submit" style="padding: 12px 24px; background: linear-gradient(135deg, #28a745, #20c997); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: 600;"><i class="fas fa-check"></i> Return Items</button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -1417,6 +1395,524 @@
     let trackerMap = null;
     let marker = null;
     let trackerMarkers = [];
+
+    // Return Modal Functions - Make sure it's globally accessible
+    window.openReturnModal = function(borrowerName, items) {
+        console.log('openReturnModal called with:', { borrowerName, itemsCount: items ? items.length : 0, items });
+        try {
+            // Validate inputs
+            if (!borrowerName) {
+                console.error('Borrower name is missing');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Borrower name is missing. Please try again.',
+                    confirmButtonColor: '#dc3545'
+                });
+                return;
+            }
+            
+            if (!items || !Array.isArray(items) || items.length === 0) {
+                console.error('Items array is missing or empty:', items);
+                Swal.fire({
+                    icon: 'error',
+                    title: 'No Items',
+                    text: 'No items found for this borrower.',
+                    confirmButtonColor: '#dc3545'
+                });
+                return;
+            }
+            
+            const modal = document.getElementById('returnModal');
+            const content = document.getElementById('returnModalContent');
+            const unusableSection = document.getElementById('unusableItemsSection');
+            const unusableList = document.getElementById('unusableItemsList');
+            
+            if (!modal || !content) {
+                console.error('Modal elements not found');
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error',
+                    text: 'Modal elements not found. Please refresh the page.',
+                    confirmButtonColor: '#dc3545'
+                });
+                return;
+            }
+            
+            // Clear previous content
+            content.innerHTML = '';
+            if (unusableList) unusableList.innerHTML = '';
+            if (unusableSection) unusableSection.style.display = 'none';
+            
+            // Add borrower name header
+            const header = document.createElement('div');
+            header.style.cssText = 'margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e9ecef;';
+            header.innerHTML = `<h3 style="margin: 0; color: #2c3e50;">Returning items for: <strong>${borrowerName}</strong></h3>`;
+            content.appendChild(header);
+            
+            // Create items list
+            const itemsContainer = document.createElement('div');
+            itemsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 15px;';
+            
+            let validItemsCount = 0;
+            
+            items.forEach((item, index) => {
+            // Get borrowId - handle both possible data structures
+            let borrowId = null;
+            if (item.latestBorrow && item.latestBorrow.id) {
+                borrowId = item.latestBorrow.id;
+            } else if (item.latest_borrow && item.latest_borrow.id) {
+                borrowId = item.latest_borrow.id;
+            }
+            
+            // Skip items without a valid borrowId
+            if (!borrowId) {
+                console.error('Item missing borrowId:', item);
+                return; // Skip this item
+            }
+            
+            validItemsCount++;
+            
+            const itemDiv = document.createElement('div');
+            itemDiv.style.cssText = 'background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 8px; padding: 15px;';
+            // Store item name for validation
+            const itemName = `${item.device_category || 'N/A'} (${item.serial_number || 'No Serial'})`;
+            itemDiv.setAttribute('data-item-name', itemName);
+            
+            const itemInfo = document.createElement('div');
+            itemInfo.style.cssText = 'margin-bottom: 12px;';
+            itemInfo.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 8px;">
+                    <div>
+                        <strong style="color: #2c3e50; font-size: 16px;" class="item-name-display">${item.device_category || 'N/A'}</strong>
+                        <p style="margin: 5px 0; color: #6c757d; font-size: 14px;">${item.room_title || ''} - ${item.serial_number || ''}</p>
+                        <p style="margin: 0; color: #6c757d; font-size: 13px;">${item.description || 'No description'}</p>
+                    </div>
+                </div>
+            `;
+            
+            const statusDiv = document.createElement('div');
+            statusDiv.style.cssText = 'display: flex; gap: 10px; align-items: center;';
+            
+            const usableBtn = document.createElement('button');
+            usableBtn.type = 'button';
+            usableBtn.className = 'status-btn-usable';
+            usableBtn.style.cssText = 'flex: 1; padding: 10px; background: #28a745; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s;';
+            usableBtn.innerHTML = '<i class="fas fa-check-circle"></i> Usable';
+            
+            usableBtn.onclick = function() {
+                setItemStatus(borrowId, 'Usable', usableBtn, unusableBtn, item, index);
+            };
+            
+            const unusableBtn = document.createElement('button');
+            unusableBtn.type = 'button';
+            unusableBtn.className = 'status-btn-unusable';
+            unusableBtn.style.cssText = 'flex: 1; padding: 10px; background: #6c757d; color: white; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: all 0.3s;';
+            unusableBtn.innerHTML = '<i class="fas fa-times-circle"></i> Unusable';
+            unusableBtn.onclick = function() {
+                setItemStatus(borrowId, 'Unusable', usableBtn, unusableBtn, item, index);
+            };
+            
+            statusDiv.appendChild(usableBtn);
+            statusDiv.appendChild(unusableBtn);
+            
+            // Hidden input for form submission
+            const statusInput = document.createElement('input');
+            statusInput.type = 'hidden';
+            statusInput.name = `items[${borrowId}][status]`;
+            statusInput.value = 'Usable'; // Default
+            statusInput.id = `status_${borrowId}`;
+            
+            const roomItemInput = document.createElement('input');
+            roomItemInput.type = 'hidden';
+            roomItemInput.name = `items[${borrowId}][room_item_id]`;
+            roomItemInput.value = item.id;
+            
+            // Create a wrapper for the visible content (to help with reason field insertion)
+            const contentWrapper = document.createElement('div');
+            contentWrapper.className = 'item-content-wrapper';
+            
+            contentWrapper.appendChild(itemInfo);
+            contentWrapper.appendChild(statusDiv);
+            
+            itemDiv.appendChild(contentWrapper);
+            itemDiv.appendChild(statusInput);
+            itemDiv.appendChild(roomItemInput);
+            
+            itemsContainer.appendChild(itemDiv);
+            });
+            
+            if (validItemsCount === 0) {
+                const errorMsg = document.createElement('div');
+                errorMsg.style.cssText = 'padding: 20px; text-align: center; color: #dc3545;';
+                errorMsg.innerHTML = '<p><i class="fas fa-exclamation-triangle"></i> No valid items found to return.</p>';
+                content.appendChild(errorMsg);
+            } else {
+                content.appendChild(itemsContainer);
+            }
+            
+            // Show modal
+            console.log('Showing modal...');
+            modal.style.display = 'flex';
+            modal.style.visibility = 'visible';
+            modal.style.opacity = '1';
+            document.body.style.overflow = 'hidden';
+            
+            // Scroll to top of modal
+            modal.scrollTop = 0;
+            
+            console.log('Modal should be visible now. Modal display:', modal.style.display);
+            
+        } catch (error) {
+            console.error('Error opening return modal:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Error',
+                text: 'An error occurred while opening the return modal. Please try again.',
+                confirmButtonColor: '#dc3545'
+            });
+        }
+    };
+    
+    // Also keep the function name without window for backward compatibility
+    function openReturnModal(borrowerName, items) {
+        return window.openReturnModal(borrowerName, items);
+    }
+    
+    function setItemStatus(borrowId, status, usableBtn, unusableBtn, item, index) {
+        const statusInput = document.getElementById(`status_${borrowId}`);
+        const reasonInputId = `reason_${borrowId}`;
+        const reasonInput = document.getElementById(reasonInputId);
+        const unusableSection = document.getElementById('unusableItemsSection');
+        const unusableList = document.getElementById('unusableItemsList');
+        
+        // Update status input
+        statusInput.value = status;
+        
+        // Update button styles
+        if (status === 'Usable') {
+            usableBtn.style.background = '#28a745';
+            usableBtn.style.transform = 'scale(1.05)';
+            unusableBtn.style.background = '#6c757d';
+            unusableBtn.style.transform = 'scale(1)';
+            
+            // Remove reason input container if exists
+            const reasonContainer = document.getElementById(`reason_container_${borrowId}`);
+            if (reasonContainer) {
+                reasonContainer.style.animation = 'slideUp 0.3s ease-out';
+                setTimeout(() => {
+                    reasonContainer.remove();
+                }, 300);
+            }
+        } else {
+            usableBtn.style.background = '#6c757d';
+            usableBtn.style.transform = 'scale(1)';
+            unusableBtn.style.background = '#dc3545';
+            unusableBtn.style.transform = 'scale(1.05)';
+            
+            // Add reason input if it doesn't exist
+            if (!reasonInput) {
+                console.log('Creating reason field for borrowId:', borrowId);
+                const reasonContainer = document.createElement('div');
+                reasonContainer.id = `reason_container_${borrowId}`;
+                reasonContainer.className = 'reason-field-container';
+                // Make absolutely sure it's visible
+                reasonContainer.style.cssText = 'display: block !important; visibility: visible !important; opacity: 1 !important; margin-top: 15px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 8px; animation: slideDown 0.3s ease-out; width: 100%; box-sizing: border-box;';
+                
+                const reasonHeader = document.createElement('div');
+                reasonHeader.style.cssText = 'display: flex; align-items: center; gap: 8px; margin-bottom: 10px; color: #856404; font-weight: 600; font-size: 14px;';
+                reasonHeader.innerHTML = `<i class="fas fa-exclamation-triangle"></i> <span>Reason for marking as Unusable (Required):</span>`;
+                
+                const reasonTextarea = document.createElement('textarea');
+                reasonTextarea.id = reasonInputId;
+                reasonTextarea.name = `items[${borrowId}][reason]`;
+                reasonTextarea.required = true;
+                reasonTextarea.placeholder = 'Please describe the damage or issue with this item...';
+                reasonTextarea.style.cssText = 'width: 100%; padding: 12px; border: 2px solid #ffc107; border-radius: 6px; font-size: 14px; min-height: 100px; resize: vertical; background: white; font-family: inherit; box-sizing: border-box;';
+                
+                const reasonNote = document.createElement('div');
+                reasonNote.style.cssText = 'margin-top: 8px; font-size: 12px; color: #856404; font-style: italic;';
+                reasonNote.innerHTML = '<i class="fas fa-info-circle"></i> This note will be saved to the maintenance page for monitoring.';
+                
+                reasonContainer.appendChild(reasonHeader);
+                reasonContainer.appendChild(reasonTextarea);
+                reasonContainer.appendChild(reasonNote);
+                
+                // Find the statusDiv (parent of the buttons)
+                const statusDiv = unusableBtn.parentElement;
+                if (statusDiv) {
+                    // Find the contentWrapper (parent of statusDiv)
+                    const contentWrapper = statusDiv.parentElement;
+                    if (contentWrapper && contentWrapper.classList.contains('item-content-wrapper')) {
+                        // Insert right after statusDiv
+                        contentWrapper.insertBefore(reasonContainer, statusDiv.nextSibling);
+                        console.log('Reason field inserted after statusDiv in contentWrapper');
+                    } else {
+                        // Fallback: append after statusDiv
+                        if (statusDiv.nextSibling) {
+                            statusDiv.parentNode.insertBefore(reasonContainer, statusDiv.nextSibling);
+                        } else {
+                            statusDiv.parentNode.appendChild(reasonContainer);
+                        }
+                        console.log('Reason field inserted after statusDiv (fallback)');
+                    }
+                } else {
+                    // Last resort: find item container and append
+                    const itemContainer = unusableBtn.closest('div[style*="background: #f8f9fa"]');
+                    if (itemContainer) {
+                        itemContainer.appendChild(reasonContainer);
+                        console.log('Reason field appended to itemContainer (last resort)');
+                    } else {
+                        console.error('Could not find container for reason field');
+                    }
+                }
+                
+                // Force visibility and scroll
+                setTimeout(() => {
+                    const container = document.getElementById(`reason_container_${borrowId}`);
+                    if (container) {
+                        container.style.display = 'block';
+                        container.style.visibility = 'visible';
+                        container.style.opacity = '1';
+                        container.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                        console.log('Reason field should be visible now');
+                    }
+                }, 50);
+            } else {
+                // If reason input exists, make sure it's visible
+                const reasonContainer = document.getElementById(`reason_container_${borrowId}`);
+                if (reasonContainer) {
+                    reasonContainer.style.display = 'block';
+                    reasonContainer.style.visibility = 'visible';
+                    reasonContainer.style.opacity = '1';
+                    reasonContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }
+            }
+        }
+        
+        // Update unusable items list
+        updateUnusableItemsList();
+    }
+    
+    function updateUnusableItemsList() {
+        const unusableSection = document.getElementById('unusableItemsSection');
+        const unusableList = document.getElementById('unusableItemsList');
+        const form = document.getElementById('returnForm');
+        
+        // Find all items marked as Unusable
+        const unusableItems = [];
+        const statusInputs = form.querySelectorAll('input[name*="[status]"]');
+        
+        statusInputs.forEach(input => {
+            if (input.value === 'Unusable') {
+                const borrowId = input.name.match(/\[(\d+)\]/)[1];
+                const itemDiv = input.closest('div[style*="background: #f8f9fa"]');
+                if (itemDiv) {
+                    const itemName = itemDiv.querySelector('strong')?.textContent || 'Unknown Item';
+                    const itemDetails = itemDiv.querySelector('p')?.textContent || '';
+                    unusableItems.push({
+                        id: borrowId,
+                        name: itemName,
+                        details: itemDetails
+                    });
+                }
+            }
+        });
+        
+        if (unusableItems.length > 0) {
+            unusableList.innerHTML = '';
+            unusableItems.forEach(item => {
+                const itemDiv = document.createElement('div');
+                itemDiv.style.cssText = 'padding: 10px; margin-bottom: 8px; background: white; border-radius: 6px; border-left: 4px solid #dc3545;';
+                itemDiv.innerHTML = `
+                    <strong style="color: #dc3545;">${item.name}</strong>
+                    <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 13px;">${item.details}</p>
+                `;
+                unusableList.appendChild(itemDiv);
+            });
+            unusableSection.style.display = 'block';
+        } else {
+            unusableSection.style.display = 'none';
+        }
+    }
+    
+    function closeReturnModal() {
+        const modal = document.getElementById('returnModal');
+        modal.style.display = 'none';
+        document.body.style.overflow = 'auto';
+        
+        // Reset form
+        const form = document.getElementById('returnForm');
+        if (form) {
+            form.reset();
+        }
+    }
+    
+    // Add event listeners for Return All Items buttons
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded - Setting up Return All Items buttons');
+        
+        // Handle Return All Items button clicks
+        const returnButtons = document.querySelectorAll('.return-all-btn');
+        console.log('Found', returnButtons.length, 'Return All Items buttons');
+        
+        returnButtons.forEach((button, index) => {
+            console.log('Setting up button', index, button);
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('Return All Items button clicked!', this);
+                
+                const borrowerName = this.getAttribute('data-borrower-name');
+                const itemsId = this.getAttribute('data-items-id');
+                
+                console.log('Borrower name:', borrowerName);
+                console.log('Items ID:', itemsId);
+                
+                if (!borrowerName) {
+                    console.error('Borrower name is missing');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Borrower name is missing. Please refresh the page.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                    return;
+                }
+                
+                if (!itemsId) {
+                    console.error('Items ID is missing');
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Items data ID is missing. Please refresh the page.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                    return;
+                }
+                
+                // Get items from script tag
+                const itemsScript = document.getElementById(itemsId);
+                if (!itemsScript) {
+                    console.error('Items script tag not found:', itemsId);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Items data not found. Please refresh the page.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                    return;
+                }
+                
+                try {
+                    const items = JSON.parse(itemsScript.textContent);
+                    console.log('Parsed items:', items);
+                    console.log('Opening modal for:', borrowerName, 'with', items.length, 'items');
+                    openReturnModal(borrowerName, items);
+                } catch (error) {
+                    console.error('Error parsing items JSON:', error);
+                    console.error('Items content:', itemsScript.textContent);
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Error',
+                        text: 'Failed to load items. Please refresh the page and try again.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                }
+            });
+        });
+        
+        // Form submission handler
+        const returnForm = document.getElementById('returnForm');
+        if (returnForm) {
+            returnForm.addEventListener('submit', function(e) {
+                // Validate that there are items to return
+                const statusInputs = returnForm.querySelectorAll('input[name*="[status]"]');
+                if (statusInputs.length === 0) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'No Items to Return',
+                        text: 'There are no items selected for return. Please try again.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                    return false;
+                }
+                
+                // Validate that all items have valid borrow IDs
+                let hasInvalidItems = false;
+                statusInputs.forEach(input => {
+                    const name = input.name;
+                    const match = name.match(/items\[(\d+)\]/);
+                    if (!match || !match[1]) {
+                        hasInvalidItems = true;
+                    }
+                });
+                
+                if (hasInvalidItems) {
+                    e.preventDefault();
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Invalid Form Data',
+                        text: 'Some items have invalid data. Please refresh the page and try again.',
+                        confirmButtonColor: '#dc3545'
+                    });
+                    return false;
+                }
+                
+                // Validate that all unusable items have reasons
+                const unusableStatusInputs = Array.from(statusInputs).filter(input => input.value === 'Unusable');
+                const missingReasons = [];
+                
+                for (let input of unusableStatusInputs) {
+                    const match = input.name.match(/items\[(\d+)\]/);
+                    if (match && match[1]) {
+                        const borrowId = match[1];
+                        const reasonInput = returnForm.querySelector(`textarea[name="items[${borrowId}][reason]"]`);
+                        if (!reasonInput || !reasonInput.value || !reasonInput.value.trim()) {
+                            // Find the item name from data attribute or display
+                            const itemContainer = input.closest('div[style*="background: #f8f9fa"]');
+                            let itemName = 'Unknown Item';
+                            if (itemContainer) {
+                                // Try data attribute first
+                                itemName = itemContainer.getAttribute('data-item-name') || 
+                                          itemContainer.querySelector('strong.item-name-display')?.textContent ||
+                                          itemContainer.querySelector('strong')?.textContent ||
+                                          'Unknown Item';
+                            }
+                            missingReasons.push(itemName);
+                        }
+                    }
+                }
+                
+                if (missingReasons.length > 0) {
+                    e.preventDefault();
+                    let message = 'Please provide a reason for the following items marked as Unusable:\n\n';
+                    missingReasons.forEach((name, index) => {
+                        message += `${index + 1}. ${name}\n`;
+                    });
+                    message += '\nThese notes will be saved to the maintenance page for monitoring.';
+                    
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Missing Reasons',
+                        text: message,
+                        confirmButtonColor: '#dc3545',
+                        width: '500px'
+                    });
+                    return false;
+                }
+            });
+        }
+    });
+    
+    // Close modal when clicking outside
+    document.addEventListener('click', function(event) {
+        const modal = document.getElementById('returnModal');
+        if (event.target === modal) {
+            closeReturnModal();
+        }
+    });
 
     // Original JavaScript functionality preserved
     function openBorrowModal() {

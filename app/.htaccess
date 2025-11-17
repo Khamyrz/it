@@ -1,0 +1,4 @@
+# Deny all access to app folder
+Order deny,allow
+Deny from all
+

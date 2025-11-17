@@ -5,6 +5,21 @@
 
     RewriteEngine On
 
+    # Block directory browsing - deny access to folders ending with /
+    # Allow access to css, photos, uploads folders for their files (images is blocked)
+    RewriteCond %{REQUEST_URI} /$ [NC]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteCond %{REQUEST_URI} !^/(css|photos|uploads|resources)/?$ [NC]
+    RewriteRule ^(.*)$ - [F,L]
+
+    # Block direct access to specific folders in public (including images)
+    RewriteCond %{REQUEST_URI} ^/(storage|vendor|node_modules|images|\.git) [NC]
+    RewriteRule ^(.*)$ - [F,L]
+    
+    # Block access to image files in /images/ folder
+    RewriteCond %{REQUEST_URI} ^/images/ [NC]
+    RewriteRule ^(.*)$ - [F,L]
+
     # Handle Authorization Header
     RewriteCond %{HTTP:Authorization} .
     RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
@@ -19,6 +34,15 @@
     RewriteCond %{REQUEST_FILENAME} !-f
     RewriteRule ^ index.php [L]
 </IfModule>
+
+# Disable directory browsing
+Options -Indexes
+
+# Block access to sensitive files
+<FilesMatch "^(\.env|\.htaccess|\.git|composer\.json|package\.json)">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
 
 # PHP Upload Settings for 128 MB
 php_value upload_max_filesize 128M

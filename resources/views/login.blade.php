@@ -28,6 +28,10 @@ if (!headers_sent()) {
 		// Device binding flags
 		window.DEVICE_BINDING_REQUIRED = {!! session('device_binding_required') ? 'true' : 'false' !!};
 		window.DEVICE_BINDING_EMAIL = {!! json_encode(session('device_binding_email')) !!};
+		// Login OTP modal flag
+		window.SHOW_LOGIN_OTP_MODAL = {!! session('show_login_otp_modal') ? 'true' : 'false' !!};
+		window.LOGIN_OTP_EMAIL = {!! json_encode(session('login_otp_email')) !!};
+		window.DEBUG_LOGIN_OTP = {!! json_encode(session('debug_otp')) !!};
 	</script>
     <script>
         // Ensure any SweetAlert will close all app modals first and grab focus
@@ -676,14 +680,14 @@ if (!headers_sent()) {
             }
         }
 
-        // Client-side lockout (10 minutes) to mitigate brute-force; backend enforcement recommended
+        // Client-side lockout (1 minute) to mitigate brute-force; backend enforcement recommendededededed
         (function(){
             const LOCK_KEY = 'auth_lockout_until';
             const ATTEMPTS_KEY = 'auth_attempts';
             const WINDOW_KEY = 'auth_window_start';
-            const MAX_ATTEMPTS = 5;
+            const MAX_ATTEMPTS = 3;
             const WINDOW_MS = 10 * 60 * 1000; // 10 minutes
-            const LOCKOUT_MS = 10 * 60 * 1000; // 10 minutes
+            const LOCKOUT_MS = 1 * 60 * 1000; // 1 minute
 
             function now(){ return Date.now(); }
             function getNum(key){ return parseInt(localStorage.getItem(key) || '0', 10); }
@@ -765,86 +769,141 @@ if (!headers_sent()) {
                 ensureWindow();
                 const attempts = getNum(ATTEMPTS_KEY) + 1;
                 setNum(ATTEMPTS_KEY, attempts);
-                if(attempts >= MAX_ATTEMPTS){ setTs(LOCK_KEY, now() + LOCKOUT_MS); }
-            }
-
-            function guardSubmit(e){
-                if(isLocked()){
-                    e.preventDefault(); e.stopPropagation();
-                    disableAllButtons(); startTimer(); return false;
+                if(attempts >= MAX_ATTEMPTS){ 
+                    setTs(LOCK_KEY, now() + LOCKOUT_MS);
                 }
-                recordAttempt();
-                return true;
             }
 
-            function init(){
+            // Track if we've already recorded an attempt for this page load
+            let attemptRecordedThisLoad = false;
+            
+            // Function to check and record failed login
+            function checkForFailedLogin(){
+                if(attemptRecordedThisLoad) return; // Don't record twice
+                
+                // Check if locked first
+                if(isLocked()){
+                    disableAllButtons();
+                    startTimer();
+                    return;
+                }
+                
+                // Check if there was a login error (failed attempt)
+                // window.loginError is set by Laravel when session('error') or $errors->any() exists
+                const hasError = (typeof window.loginError !== 'undefined' && window.loginError);
+                
+                // Also check for error messages in SweetAlert
+                const swalError = document.querySelector('.swal2-error') !== null;
+                const swalErrorIcon = document.querySelector('.swal2-icon-error') !== null;
+                const errorText = document.body.innerText.includes('Invalid credentials') || 
+                                document.body.innerText.includes('Validation Error');
+                
+                // If we have an error, it means login failed - record the attempt
+                if(hasError || swalError || swalErrorIcon || errorText){
+                    attemptRecordedThisLoad = true;
+                    recordAttempt();
+                    
+                    // Check if we're now locked after recording
+                    if(isLocked()){
+                        disableAllButtons();
+                        startTimer();
+                    }
+                }
+            }
+            
+            // Check lockout status on page load
+            function checkLockoutOnLoad(){
+                // Check immediately if already locked
+                if(isLocked()){
+                    disableAllButtons();
+                    startTimer();
+                    return;
+                }
+                
+                // Check immediately
+                checkForFailedLogin();
+                
+                // Wait for all scripts to load, especially window.loginError
+                setTimeout(checkForFailedLogin, 500);
+                setTimeout(checkForFailedLogin, 1000);
+                setTimeout(checkForFailedLogin, 2000);
+                
+                // Watch for SweetAlert errors appearing dynamically
+                if(typeof MutationObserver !== 'undefined'){
+                    const observer = new MutationObserver(function(mutations){
+                        checkForFailedLogin();
+                    });
+                    
+                    observer.observe(document.body, {
+                        childList: true,
+                        subtree: true
+                    });
+                    
+                    // Stop observing after 5 seconds
+                    setTimeout(function(){
+                        observer.disconnect();
+                    }, 5000);
+                }
+            }
+
+            // Intercept login form submission
+            function setupFormHandler(){
                 const loginForm = document.querySelector('form[action="/login"]');
-                if(loginForm){
-                    // reCAPTCHA v3 verification before submitting to backend
-                    let recaptchaPassed = false;
+                if(loginForm && !loginForm.dataset.lockoutHandlerAdded){
+                    loginForm.dataset.lockoutHandlerAdded = 'true';
                     loginForm.addEventListener('submit', function(e){
-                        if (!recaptchaPassed) {
-                            e.preventDefault(); e.stopPropagation();
-                            
-                            // Execute reCAPTCHA v3
-                            executeRecaptcha().then(function(token) {
-                                recaptchaPassed = true;
-                                // add hidden field to signal reCAPTCHA ok and include token
-                                let h = loginForm.querySelector('input[name="recaptcha_ok"]');
-                                if(!h){ h = document.createElement('input'); h.type='hidden'; h.name='recaptcha_ok'; loginForm.appendChild(h); }
-                                h.value = '1';
-                                
-                                let tokenField = loginForm.querySelector('input[name="recaptcha_token"]');
-                                if(!tokenField){ tokenField = document.createElement('input'); tokenField.type='hidden'; tokenField.name='recaptcha_token'; loginForm.appendChild(tokenField); }
-                                tokenField.value = token;
-                                
-                                loginForm.submit();
-                            }).catch(function(error) {
-                                console.error('reCAPTCHA execution failed:', error);
-                                (window.queueSwal || Swal.fire)({
-                                    icon: 'error',
-                                    title: 'Verification Failed',
-                                    text: 'Unable to verify your request. Please try again.',
-                                    confirmButtonColor: '#dc3545',
-                                    zIndex: 10001,
-                                    allowOutsideClick: false,
-                                    allowEscapeKey: false
-                                });
-                            });
+                        // Check if already locked
+                        if(isLocked()){
+                            e.preventDefault();
+                            disableAllButtons();
+                            startTimer();
                             return false;
                         }
-                        return true;
-                    }, {capture:true});
-                    // still guard for lockout
-                    loginForm.addEventListener('submit', guardSubmit, {capture:true});
+                        // Allow form to submit normally - we'll detect failure on next page load
+                    });
                 }
-                if(isLocked()){ disableAllButtons(); startTimer(); }
             }
-            document.addEventListener('DOMContentLoaded', init);
+
+            // Setup form handler and check lockout on page load
+            function initializeLockout(){
+                setupFormHandler();
+                checkLockoutOnLoad();
+            }
+            
+            // Initialize immediately if DOM is ready, otherwise wait
+            if(document.readyState === 'loading'){
+                document.addEventListener('DOMContentLoaded', function(){
+                    initializeLockout();
+                    // Also check after a delay to catch late-loading errors
+                    setTimeout(checkLockoutOnLoad, 3000);
+                });
+            } else {
+                initializeLockout();
+                // Also check after a delay to catch late-loading errors
+                setTimeout(checkLockoutOnLoad, 3000);
+            }
+            
+            // Also try to setup form handler after a delay in case form loads dynamically
+            setTimeout(function(){
+                setupFormHandler();
+                // Re-check lockout status after delay
+                checkLockoutOnLoad();
+            }, 1500);
+            
+            // Expose function for manual testing (remove in production)
+            window.testLockout = function(){
+                setNum(ATTEMPTS_KEY, MAX_ATTEMPTS - 1);
+                recordAttempt();
+                if(isLocked()){
+                    disableAllButtons();
+                    startTimer();
+                }
+            };
         })();
     </script>
     <script>
         // Access Token modal logic
         (function(){
-            let atTimer = null;
-            function clearAtTimer(){ if(atTimer){ clearInterval(atTimer); atTimer=null; } }
-            function startAtTimer(){
-                let t = 600; const timerEl = document.getElementById('accessOtpTimer'); const countEl = document.getElementById('accessTimerCount'); const btn = document.getElementById('accessResendBtn');
-                clearAtTimer(); if(btn) btn.disabled = true; if(timerEl) timerEl.classList.remove('warning');
-                atTimer = setInterval(()=>{
-                    t--; if(countEl) countEl.textContent = t;
-                    if(t<=10 && timerEl) timerEl.classList.add('warning');
-                    if(t<=0){ clearAtTimer(); if(btn) btn.disabled=false; if(timerEl){ timerEl.textContent = 'Token expired. Click resend to get a new code.'; timerEl.classList.remove('warning'); } }
-                },1000);
-            }
-            function openAccessModal(email){
-                const m = document.getElementById('accessTokenModal'); if(!m) return;
-                document.getElementById('accessEmail').textContent = email || '';
-                m.style.display = 'flex';
-                document.querySelectorAll('#accessOtpInputs .access-otp-digit').forEach(i=> i.value='');
-                document.querySelector('#accessOtpInputs .access-otp-digit')?.focus();
-                startAtTimer();
-            }
             window.resendAccessToken = async function(){
                 const email = document.getElementById('accessEmail')?.textContent||'';
                 try{
@@ -1458,6 +1517,8 @@ if (!headers_sent()) {
 
     @if(session('error'))
         <script>
+            // Set flag to indicate login error for lockout tracking
+            window.loginError = true;
             document.addEventListener('DOMContentLoaded', function() {
                 (window.queueSwal || Swal.fire)({
                     icon: 'error',
@@ -1490,6 +1551,8 @@ if (!headers_sent()) {
 
     @if($errors->any())
         <script>
+            // Set flag to indicate login error for lockout tracking
+            window.loginError = true;
             document.addEventListener('DOMContentLoaded', function() {
                 let errorMessage = '';
                 @foreach($errors->all() as $error)
@@ -1668,6 +1731,37 @@ if (!headers_sent()) {
                 </div>
                 <div style="text-align: center;">
                     <button type="button" id="resendEmailBtn" class="resend-btn" onclick="resendEmailOTP()" disabled>Resend OTP</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login OTP Modal for 2FA -->
+    <div id="loginOtpModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:10000; align-items:center; justify-content:center;">
+        <div class="reset-modal-content">
+            <button class="modal-close" onclick="return false;" style="cursor:not-allowed; opacity:0.5;" title="Cannot close during login">&times;</button>
+            
+            <div class="reset-step active">
+                <div class="reset-header">
+                    <h3>Two-Factor Authentication</h3>
+                    <p>We've sent a verification code to <span id="loginOtpEmail"></span></p>
+                </div>
+                <div class="otp-input">
+                    <input type="text" maxlength="1" class="login-otp-digit" data-index="0" />
+                    <input type="text" maxlength="1" class="login-otp-digit" data-index="1" />
+                    <input type="text" maxlength="1" class="login-otp-digit" data-index="2" />
+                    <input type="text" maxlength="1" class="login-otp-digit" data-index="3" />
+                    <input type="text" maxlength="1" class="login-otp-digit" data-index="4" />
+                    <input type="text" maxlength="1" class="login-otp-digit" data-index="5" />
+                </div>
+                <div class="otp-timer" id="loginOtpTimer">Resend OTP in <span id="loginOtpTimerCount">60</span>s</div>
+                <div id="loginOtpDevHint" style="text-align:center; color:#c00; font-weight:bold; margin-top:8px; display:none;"></div>
+                <div id="loginOtpError" style="text-align:center; color:#dc3545; margin-top:10px; display:none;"></div>
+                <div style="text-align: center; margin: 20px 0;">
+                    <button type="button" onclick="verifyLoginOTP()" class="submit-btn">Verify OTP</button>
+                </div>
+                <div style="text-align: center;">
+                    <button type="button" id="resendLoginOtpBtn" class="resend-btn" onclick="resendLoginOTP()" disabled>Resend OTP</button>
                 </div>
             </div>
         </div>
@@ -2691,6 +2785,290 @@ if (!headers_sent()) {
                 });
             }, 50);
         }
+    </script>
+    <script>
+        // Login OTP Modal Functions
+        let loginOtpTimerInterval = null;
+        let loginOtpTimerCount = 60;
+
+        function openLoginOtpModal(email, debugOtp = null) {
+            const modal = document.getElementById('loginOtpModal');
+            const emailSpan = document.getElementById('loginOtpEmail');
+            const devHint = document.getElementById('loginOtpDevHint');
+            const errorDiv = document.getElementById('loginOtpError');
+            
+            if (modal && emailSpan) {
+                emailSpan.textContent = email || window.LOGIN_OTP_EMAIL || '';
+                modal.style.display = 'flex';
+                
+                // Show debug OTP if available
+                if (debugOtp || window.DEBUG_LOGIN_OTP) {
+                    devHint.textContent = 'DEBUG MODE - OTP: ' + (debugOtp || window.DEBUG_LOGIN_OTP);
+                    devHint.style.display = 'block';
+                } else {
+                    devHint.style.display = 'none';
+                }
+                
+                errorDiv.style.display = 'none';
+                errorDiv.textContent = '';
+                
+                // Reset OTP inputs
+                document.querySelectorAll('.login-otp-digit').forEach(input => input.value = '');
+                
+                // Focus first input
+                const firstInput = document.querySelector('.login-otp-digit[data-index="0"]');
+                if (firstInput) firstInput.focus();
+                
+                // Start timer
+                startLoginOtpTimer();
+            }
+        }
+
+        function closeLoginOtpModal() {
+            const modal = document.getElementById('loginOtpModal');
+            if (modal) {
+                modal.style.display = 'none';
+                if (loginOtpTimerInterval) {
+                    clearInterval(loginOtpTimerInterval);
+                    loginOtpTimerInterval = null;
+                }
+            }
+        }
+
+        function startLoginOtpTimer() {
+            loginOtpTimerCount = 60;
+            const timerCount = document.getElementById('loginOtpTimerCount');
+            const resendBtn = document.getElementById('resendLoginOtpBtn');
+            
+            if (loginOtpTimerInterval) clearInterval(loginOtpTimerInterval);
+            
+            loginOtpTimerInterval = setInterval(function() {
+                loginOtpTimerCount--;
+                if (timerCount) timerCount.textContent = loginOtpTimerCount;
+                
+                if (loginOtpTimerCount <= 0) {
+                    clearInterval(loginOtpTimerInterval);
+                    loginOtpTimerInterval = null;
+                    if (resendBtn) resendBtn.disabled = false;
+                    if (timerCount) timerCount.parentElement.textContent = 'OTP expired. Please resend.';
+                }
+            }, 1000);
+        }
+
+        // Handle OTP input navigation
+        document.addEventListener('DOMContentLoaded', function() {
+            const otpDigits = document.querySelectorAll('.login-otp-digit');
+            
+            otpDigits.forEach((input, index) => {
+                input.addEventListener('input', function(e) {
+                    const value = e.target.value.replace(/[^0-9]/g, '');
+                    e.target.value = value ? value[0] : '';
+                    
+                    if (value && index < otpDigits.length - 1) {
+                        otpDigits[index + 1].focus();
+                    }
+                });
+                
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Backspace' && !e.target.value && index > 0) {
+                        otpDigits[index - 1].focus();
+                    }
+                });
+                
+                input.addEventListener('paste', function(e) {
+                    e.preventDefault();
+                    const paste = (e.clipboardData || window.clipboardData).getData('text');
+                    const digits = paste.replace(/[^0-9]/g, '').slice(0, 6);
+                    
+                    digits.split('').forEach((digit, i) => {
+                        if (otpDigits[index + i]) {
+                            otpDigits[index + i].value = digit;
+                        }
+                    });
+                    
+                    if (digits.length === 6) {
+                        otpDigits[5].focus();
+                        // Auto-verify if all 6 digits are entered
+                        setTimeout(() => verifyLoginOTP(), 100);
+                    } else if (digits.length > 0) {
+                        otpDigits[Math.min(index + digits.length, 5)].focus();
+                    }
+                });
+                
+                // Enter key to verify
+                input.addEventListener('keydown', function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const allFilled = Array.from(otpDigits).every(input => input.value);
+                        if (allFilled) {
+                            verifyLoginOTP();
+                        }
+                    }
+                });
+            });
+        });
+
+        async function verifyLoginOTP() {
+            const otpDigits = document.querySelectorAll('.login-otp-digit');
+            const otp = Array.from(otpDigits).map(input => input.value).join('');
+            
+            // Get email from multiple sources, prioritizing window variable
+            let email = window.LOGIN_OTP_EMAIL;
+            if (!email) {
+                const emailSpan = document.getElementById('loginOtpEmail');
+                if (emailSpan) {
+                    email = emailSpan.textContent?.trim();
+                }
+            }
+            // Fallback to login form email input
+            if (!email) {
+                const loginFormEmail = document.querySelector('form[action="/login"] input[name="email"]');
+                if (loginFormEmail) {
+                    email = loginFormEmail.value?.trim();
+                }
+            }
+            
+            const errorDiv = document.getElementById('loginOtpError');
+            
+            if (otp.length !== 6) {
+                if (errorDiv) {
+                    errorDiv.textContent = 'Please enter the complete 6-digit OTP';
+                    errorDiv.style.display = 'block';
+                }
+                return;
+            }
+            
+            if (!email) {
+                if (errorDiv) {
+                    errorDiv.textContent = 'Email not found. Please login again.';
+                    errorDiv.style.display = 'block';
+                }
+                return;
+            }
+            
+            // Clean and normalize email
+            email = email.trim().toLowerCase();
+            
+            try {
+                const response = await fetch('/login/verify-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email, otp: otp })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Success - redirect to dashboard
+                    window.location.href = data.redirect || '/dashboard';
+                } else {
+                    // Error
+                    if (errorDiv) {
+                        errorDiv.textContent = data.message || 'Invalid OTP. Please try again.';
+                        errorDiv.style.display = 'block';
+                    }
+                    
+                    // Clear OTP inputs
+                    otpDigits.forEach(input => input.value = '');
+                    otpDigits[0].focus();
+                    
+                    // If too many attempts, close modal
+                    if (data.message && data.message.includes('too many')) {
+                        setTimeout(() => {
+                            closeLoginOtpModal();
+                            window.location.reload();
+                        }, 2000);
+                    }
+                }
+            } catch (error) {
+                if (errorDiv) {
+                    errorDiv.textContent = 'An error occurred. Please try again.';
+                    errorDiv.style.display = 'block';
+                }
+            }
+        }
+
+        async function resendLoginOTP() {
+            const email = window.LOGIN_OTP_EMAIL || document.getElementById('loginOtpEmail')?.textContent;
+            const resendBtn = document.getElementById('resendLoginOtpBtn');
+            const errorDiv = document.getElementById('loginOtpError');
+            
+            if (!email) {
+                if (errorDiv) {
+                    errorDiv.textContent = 'Email not found. Please login again.';
+                    errorDiv.style.display = 'block';
+                }
+                return;
+            }
+            
+            if (resendBtn) resendBtn.disabled = true;
+            
+            try {
+                const response = await fetch('/login/resend-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify({ email: email })
+                });
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    // Reset timer
+                    startLoginOtpTimer();
+                    
+                    // Show success message
+                    if (errorDiv) {
+                        errorDiv.textContent = 'OTP resent successfully!';
+                        errorDiv.style.color = '#28a745';
+                        errorDiv.style.display = 'block';
+                        setTimeout(() => {
+                            errorDiv.style.display = 'none';
+                            errorDiv.style.color = '#dc3545';
+                        }, 3000);
+                    }
+                    
+                    // Show debug OTP if available
+                    if (data.debug_otp) {
+                        const devHint = document.getElementById('loginOtpDevHint');
+                        if (devHint) {
+                            devHint.textContent = 'DEBUG MODE - OTP: ' + data.debug_otp;
+                            devHint.style.display = 'block';
+                        }
+                    }
+                } else {
+                    if (errorDiv) {
+                        errorDiv.textContent = data.message || 'Failed to resend OTP. Please try again.';
+                        errorDiv.style.display = 'block';
+                    }
+                    if (resendBtn) resendBtn.disabled = false;
+                }
+            } catch (error) {
+                if (errorDiv) {
+                    errorDiv.textContent = 'An error occurred. Please try again.';
+                    errorDiv.style.display = 'block';
+                }
+                if (resendBtn) resendBtn.disabled = false;
+            }
+        }
+
+        // Open modal on page load if flag is set
+        document.addEventListener('DOMContentLoaded', function() {
+            if (window.SHOW_LOGIN_OTP_MODAL === 'true' || window.SHOW_LOGIN_OTP_MODAL === true) {
+                const email = window.LOGIN_OTP_EMAIL || '';
+                const debugOtp = window.DEBUG_LOGIN_OTP || null;
+                setTimeout(() => {
+                    openLoginOtpModal(email, debugOtp);
+                }, 500);
+            }
+        });
     </script>
 </body>
 </html>

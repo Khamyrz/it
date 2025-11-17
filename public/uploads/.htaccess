@@ -1,0 +1,7 @@
+# Allow access to uploaded files
+Order allow,deny
+Allow from all
+
+# Block directory browsing
+Options -Indexes
+

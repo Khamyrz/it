@@ -1,0 +1,7 @@
+# Allow access to resources folder
+Order allow,deny
+Allow from all
+
+# Allow directory browsing for resources (optional)
+Options +Indexes
+

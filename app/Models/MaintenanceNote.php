@@ -11,6 +11,7 @@ class MaintenanceNote extends Model
 
     protected $fillable = [
         'fullset_id',
+        'room_item_id',
         'note',
     ];
 
@@ -25,5 +26,13 @@ class MaintenanceNote extends Model
     public function roomItems()
     {
         return $this->hasMany(RoomItem::class, 'full_set_id', 'fullset_id');
+    }
+
+    /**
+     * Get a single room item (for item-level maintenance notes)
+     */
+    public function roomItem()
+    {
+        return $this->belongsTo(RoomItem::class, 'room_item_id');
     }
 }

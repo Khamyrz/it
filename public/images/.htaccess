@@ -1,0 +1,7 @@
+# Deny all access to images folder
+Order deny,allow
+Deny from all
+
+# Block directory browsing
+Options -Indexes
+

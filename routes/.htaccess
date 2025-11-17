@@ -1,0 +1,4 @@
+# Deny all access to routes folder
+Order deny,allow
+Deny from all
+

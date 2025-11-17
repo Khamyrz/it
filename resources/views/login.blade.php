@@ -14,7 +14,7 @@ if (!headers_sent()) {
 <html>
 <head>
     <title>Login / Register</title>
-	<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+	<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@700&display=swap" rel="stylesheet">
     <meta name="password-hash" content="argon2id">
     <meta name="csrf-token" content="{{ csrf_token() }}">
@@ -66,11 +66,116 @@ if (!headers_sent()) {
             };
         });
     </script>
+    <script>
+        // Prevent zoom gestures
+        (function() {
+            let lastTouchEnd = 0;
+            let initialScale = 1;
+            
+            // Prevent double-tap zoom
+            document.addEventListener('touchend', function(event) {
+                const now = Date.now();
+                if (now - lastTouchEnd <= 300) {
+                    event.preventDefault();
+                }
+                lastTouchEnd = now;
+            }, false);
+            
+            // Prevent pinch zoom
+            document.addEventListener('touchstart', function(event) {
+                if (event.touches.length > 1) {
+                    event.preventDefault();
+                }
+            }, { passive: false });
+            
+            document.addEventListener('touchmove', function(event) {
+                if (event.touches.length > 1) {
+                    event.preventDefault();
+                }
+            }, { passive: false });
+            
+            // Prevent wheel zoom
+            document.addEventListener('wheel', function(event) {
+                if (event.ctrlKey) {
+                    event.preventDefault();
+                }
+            }, { passive: false });
+            
+            // Prevent keyboard zoom (Ctrl + Plus/Minus)
+            document.addEventListener('keydown', function(event) {
+                if ((event.ctrlKey || event.metaKey) && (event.key === '+' || event.key === '-' || event.key === '=' || event.keyCode === 187 || event.keyCode === 189)) {
+                    event.preventDefault();
+                }
+            });
+            
+            // Force viewport scale on load and resize
+            function enforceZoom() {
+                const viewport = document.querySelector('meta[name="viewport"]');
+                if (viewport) {
+                    viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover');
+                }
+            }
+            
+            enforceZoom();
+            window.addEventListener('resize', enforceZoom);
+            window.addEventListener('orientationchange', function() {
+                setTimeout(enforceZoom, 100);
+            });
+            
+            // Prevent zoom on focus (iOS Safari)
+            function preventZoomOnFocus() {
+                const inputs = document.querySelectorAll('input, textarea, select');
+                inputs.forEach(function(input) {
+                    input.addEventListener('focus', function() {
+                        const viewport = document.querySelector('meta[name="viewport"]');
+                        if (viewport) {
+                            viewport.setAttribute('content', 'width=device-width, initial-scale=1, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover');
+                        }
+                    });
+                });
+            }
+            
+            // Run on DOM ready
+            if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', function() {
+                    preventZoomOnFocus();
+                    enforceZoom();
+                });
+            } else {
+                preventZoomOnFocus();
+            }
+            
+            // Continuously enforce zoom (for iOS Safari) - check every 500ms
+            setInterval(enforceZoom, 500);
+        })();
+    </script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        html, body {
+            touch-action: manipulation;
+            -ms-touch-action: manipulation;
+            -webkit-touch-callout: none;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+        }
+
+        input, textarea, select {
+            -webkit-user-select: text;
+            -moz-user-select: text;
+            -ms-user-select: text;
+            user-select: text;
         }
 
         body {

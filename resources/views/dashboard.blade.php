@@ -17,6 +17,7 @@
             height: 100vh;
             background: radial-gradient(1200px 600px at 70% 30%, #1b0f1f 0%, #140a18 40%, #0f0813 100%);
             color: #ffe9cc;
+            overflow: hidden;
         }
 
         nav {
@@ -28,6 +29,7 @@
             align-items: center;
             padding-top: 20px;
             box-shadow: 2px 0 5px rgba(0,0,0,0.1);
+            overflow-y: auto;
         }
 
         nav img {
@@ -69,6 +71,8 @@
             display: flex;
             flex-direction: column;
             padding: 12px;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
         .topbar {
@@ -76,6 +80,7 @@
             justify-content: space-between;
             align-items: center;
             margin-bottom: 10px;
+            flex-shrink: 0;
         }
 
         .topbar .datetime {
@@ -91,7 +96,7 @@
         .topbar .account button {
             background: none;
             border: none;
-            color: #2c3e50;
+            color: #ffe9cc;
             cursor: pointer;
             font-size: 16px;
         }
@@ -106,6 +111,17 @@
             padding: 10px;
             border-radius: 5px;
             z-index: 999;
+        }
+
+        .dropdown a {
+            color: #2c3e50;
+            text-decoration: none;
+            display: block;
+            padding: 5px 0;
+        }
+
+        .dropdown a:hover {
+            color: #3498db;
         }
 
         .account:hover .dropdown {
@@ -130,18 +146,25 @@
         }
 
         .chart-container {
-            height: 200px;
             background: linear-gradient(180deg, rgba(40,18,26,0.9) 0%, rgba(30,12,20,0.9) 100%);
             border-radius: 12px;
             box-shadow: 0 0 0 1px rgba(255, 140, 0, 0.25), 0 0 22px rgba(255, 140, 0, 0.08) inset;
-            padding: 8px;
+            padding: 16px;
             margin-bottom: 8px;
+            display: flex;
+            flex-direction: column;
+            min-height: 200px;
+        }
+
+        .chart-wrapper {
+            position: relative;
+            flex: 1;
+            min-height: 0;
         }
 
         canvas {
             max-width: 100%;
-            width: 100% !important;
-            height: 100% !important;
+            max-height: 100%;
         }
 
         .hud-row {
@@ -149,82 +172,17 @@
             grid-template-columns: repeat(12, 1fr);
             gap: 8px;
         }
+        
         .col-4 { grid-column: span 4; }
         .col-6 { grid-column: span 6; }
         .col-12 { grid-column: span 12; }
+        
         .hud-title {
             color: #ffae52;
             letter-spacing: 1px;
             margin: 0 0 12px 0;
             font-weight: 700;
-        }
-
-        #contributionModal {
-            display: none;
-            position: fixed;
-            z-index: 9999;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.5);
-        }
-
-        #contributionModal .modal-content {
-            background-color: #fff;
-            margin: 10% auto;
-            padding: 20px;
-            border: 1px solid #888;
-            width: 90%;
-            max-width: 500px;
-            border-radius: 10px;
-            position: relative;
-        }
-
-        #contributionModal .close {
-            position: absolute;
-            top: 10px;
-            right: 15px;
-            color: #aaa;
-            font-size: 28px;
-            font-weight: bold;
-            cursor: pointer;
-        }
-
-        .contribution-btn {
-            padding: 10px 20px;
-            font-size: 14px;
-            background: #2980b9;
-            color: white;
-            border: none;
-            border-radius: 5px;
-            cursor: pointer;
-        }
-
-        .contribution-btn:hover {
-            background: #3498db;
-        }
-
-        /* Profile header above Usable Peripherals */
-        .profile-header {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            margin: 8px 0 14px 0;
-        }
-        .profile-header img {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            object-fit: cover;
-            box-shadow: 0 0 0 2px rgba(255, 140, 0, 0.35);
-        }
-        .profile-header .name {
-            font-weight: 800;
-            letter-spacing: .3px;
-            color: #ffd7a1;
-            text-shadow: 0 0 8px rgba(255, 140, 0, 0.2);
+            flex-shrink: 0;
         }
 
         /* Topbar right group (profile + dropdown) */
@@ -242,6 +200,57 @@
         .profile-form input { flex:1; padding:10px 12px; border:1px solid #e5e7eb; border-radius:10px; }
         .profile-avatar { display:flex; align-items:center; gap:12px; }
         .profile-avatar img { width:72px; height:72px; border-radius:50%; object-fit:cover; }
+        .profile-form button {
+            padding: 10px 20px;
+            font-size: 14px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        .profile-form button[type="submit"] {
+            background: #2980b9;
+            color: white;
+        }
+        .profile-form button[type="submit"]:hover {
+            background: #3498db;
+        }
+
+        /* Gauge chart specific styling */
+        .gauge-container {
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+        }
+
+        .gauge-value {
+            position: absolute;
+            top: 60%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 24px;
+            font-weight: bold;
+            color: #ffae52;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            .col-4 { grid-column: span 6; }
+        }
+
+        @media (max-width: 768px) {
+            nav {
+                width: 200px;
+            }
+            
+            .col-4 { grid-column: span 12; }
+            
+            .activity-panel {
+                grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+            }
+        }
     </style>
 </head>
 <body>
@@ -250,17 +259,15 @@
    <img src="{{ asset('images/logo.png') }}" alt="Logo" width="150">
     <h2>IT DEPARTMENT</h2>
     <ul>
-    <li><a href="/dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
-    <li><a href="/add-new-user"><i class="fas fa-user-plus"></i> Add New User</a></li>
-    <li><a href="/manage-room"><i class="fas fa-door-open"></i> Room Management</a></li>
-    <li><a href="{{ url('/categories') }}"><i class="fas fa-layer-group"></i> Categories</a></li>
-    <li><a href="/maintenance"><i class="fas fa-tools"></i> Maintenance</a></li>
-    <li><a href="/borrow"><i class="fas fa-handshake"></i> Borrow</a></li>
-    <li><a href="/print-report"><i class="fas fa-print"></i> Print Report</a></li>
- <li><a href="/scan-barcode"><i class="fas fa-barcode"></i> Scan Barcode</a></li>
-
-</ul>
-
+        <li><a href="/dashboard"><i class="fas fa-tachometer-alt"></i> Dashboard</a></li>
+        <li><a href="/add-new-user"><i class="fas fa-user-plus"></i> Add New User</a></li>
+        <li><a href="/manage-room"><i class="fas fa-door-open"></i> Room Management</a></li>
+        <li><a href="{{ url('/categories') }}"><i class="fas fa-layer-group"></i> Categories</a></li>
+        <li><a href="/maintenance"><i class="fas fa-tools"></i> Maintenance</a></li>
+        <li><a href="/borrow"><i class="fas fa-handshake"></i> Borrow</a></li>
+        <li><a href="/print-report"><i class="fas fa-print"></i> Print Report</a></li>
+        <li><a href="/scan-barcode"><i class="fas fa-barcode"></i> Scan Barcode</a></li>
+    </ul>
 </nav>
 
 <div class="container">
@@ -274,7 +281,6 @@
             <div class="account">
                 <button onclick="toggleAccountMenu(event)" aria-label="Open menu">&#9660;</button>
                 <div class="dropdown" id="accountDropdown">
-                    
                     <a href="#" onclick="openProfileModal(); return false;">Settings</a><br>
                     <a href="/logout">Logout</a>
                 </div>
@@ -283,7 +289,6 @@
     </div>
 
     <div class="activity-panel">
-        <div class="activity-box">Pending Users: {{ $pendingUsers->count() }}</div>
         <div class="activity-box">Total Rooms: {{ $roomItemCounts->count() }}</div>
         <div class="activity-box">Total Peripherals: {{ $peripheralCount }}</div>
         <div class="activity-box">Total Computer Units: {{ $computerUnitCount }}</div>
@@ -297,38 +302,35 @@
     <div class="hud-row">
         <div class="chart-container col-4">
             <h3 class="hud-title">Items by Category</h3>
-            <canvas id="deviceChart"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="deviceChart"></canvas>
+            </div>
         </div>
         <div class="chart-container col-4">
             <h3 class="hud-title">Item Status Overview</h3>
-            <canvas id="statusChart"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="statusChart"></canvas>
+            </div>
         </div>
         <div class="chart-container col-4">
             <h3 class="hud-title">Borrowed Items by Type</h3>
-            <canvas id="borrowedChart"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="borrowedChart"></canvas>
+            </div>
         </div>
         <div class="chart-container col-4">
             <h3 class="hud-title">Activity Timeline</h3>
-            <canvas id="hudLineChart"></canvas>
+            <div class="chart-wrapper">
+                <canvas id="hudLineChart"></canvas>
+            </div>
         </div>
         <div class="chart-container col-4">
             <h3 class="hud-title">Usable Peripherals</h3>
-            <canvas id="gaugeChart"></canvas>
+            <div class="chart-wrapper gauge-container">
+                <canvas id="gaugeChart"></canvas>
+                <div class="gauge-value" id="gaugeValue"></div>
+            </div>
         </div>
-    </div>
-
-    <!-- Button to Trigger Modal -->
-    <div style="margin-top: 10px;">
-        <button class="contribution-btn" onclick="openModal()">📊 View Inventory Distribution</button>
-    </div>
-</div>
-
-<!-- Modal with Contribution Graph -->
-<div id="contributionModal">
-    <div class="modal-content">
-        <span class="close" onclick="closeModal()">&times;</span>
-        <h3 style="text-align:center;">Total Inventory Distribution</h3>
-        <canvas id="contributionChart" height="250"></canvas>
     </div>
 </div>
 
@@ -370,12 +372,11 @@
                 <input type="password" name="password_confirmation" placeholder="Confirm new password">
             </div>
             <div style="text-align:right; margin-top:6px; display:flex; gap:8px; justify-content:flex-end;">
-                <button type="button" class="contribution-btn" onclick="closeProfileModal()" style="background:#6c757d;">Cancel</button>
-                <button type="submit" class="contribution-btn">Save Changes</button>
+                <button type="button" onclick="closeProfileModal()" style="background:#6c757d; color:white;">Cancel</button>
+                <button type="submit">Save Changes</button>
             </div>
         </form>
     </div>
-    
 </div>
 
 <script>
@@ -388,15 +389,15 @@
     setInterval(updateDateTime, 1000);
     updateDateTime();
 
-    // Items by Category Chart
-    const ctx = document.getElementById('deviceChart').getContext('2d');
-    // Orange/Cyan palette
+    // Color palette
     const neonCyan = 'rgba(0, 255, 209, 1)';
     const cyanDim = 'rgba(0, 255, 209, 0.35)';
     const neonOrange = 'rgba(255, 153, 0, 1)';
     const orangeDim = 'rgba(255, 153, 0, 0.35)';
     const gridColor = 'rgba(255, 190, 120, 0.18)';
 
+    // Items by Category Chart
+    const ctx = document.getElementById('deviceChart').getContext('2d');
     const deviceChart = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -412,7 +413,8 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
             scales: {
                 y: {
                     beginAtZero: true,
@@ -443,9 +445,13 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
             plugins: {
-                legend: { position: 'bottom' },
+                legend: { 
+                    position: 'bottom',
+                    labels: { color: '#ffd7a1' }
+                },
                 tooltip: {
                     callbacks: {
                         label: function(context) {
@@ -477,7 +483,8 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
             scales: {
                 y: {
                     beginAtZero: true,
@@ -492,7 +499,7 @@
         }
     });
 
-    // HUD Line Chart (sine-like with points)
+    // Activity Timeline Chart
     const hudLineCtx = document.getElementById('hudLineChart').getContext('2d');
     const hudLineChart = new Chart(hudLineCtx, {
         type: 'line',
@@ -512,18 +519,30 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
-            plugins: { legend: { display: false } },
+            maintainAspectRatio: true,
+            aspectRatio: 1.5,
+            plugins: { 
+                legend: { display: false }
+            },
             scales: {
-                y: { grid: { color: gridColor }, ticks: { color: '#ffd7a1' }, beginAtZero: true },
-                x: { grid: { color: 'rgba(255, 190, 120, 0.08)' }, ticks: { color: '#ffd7a1' } }
+                y: { 
+                    grid: { color: gridColor }, 
+                    ticks: { color: '#ffd7a1' }, 
+                    beginAtZero: true 
+                },
+                x: { 
+                    grid: { color: 'rgba(255, 190, 120, 0.08)' }, 
+                    ticks: { color: '#ffd7a1' } 
+                }
             }
         }
     });
 
-    // Semi-circle Gauge (utilization)
+    // Semi-circle Gauge Chart
     const gaugeCtx = document.getElementById('gaugeChart').getContext('2d');
-    const gaugeValue = {{ max(0, min(100, round(($usableCount/ max(1, $usableCount+$unusableCount))*100))) }}; // percent
+    const gaugeValue = {{ max(0, min(100, round(($usableCount/ max(1, $usableCount+$unusableCount))*100))) }};
+    document.getElementById('gaugeValue').textContent = gaugeValue + '%';
+    
     const gaugeChart = new Chart(gaugeCtx, {
         type: 'doughnut',
         data: {
@@ -537,7 +556,8 @@
         },
         options: {
             responsive: true,
-            maintainAspectRatio: false,
+            maintainAspectRatio: true,
+            aspectRatio: 2,
             rotation: -90,
             circumference: 180,
             plugins: {
@@ -550,66 +570,27 @@
     function toggleAccountMenu(e){
         e.stopPropagation();
         const dd = document.getElementById('accountDropdown');
-        if(!dd) return; dd.style.display = dd.style.display==='block' ? 'none' : 'block';
-        document.addEventListener('click', function hide(e2){ if(!dd.contains(e2.target)){ dd.style.display='none'; document.removeEventListener('click', hide); } });
-    }
-
-    function openProfileModal(){
-        const m = document.getElementById('profileModal'); if(!m) return; m.style.display = 'block';
-    }
-    function closeProfileModal(){ const m = document.getElementById('profileModal'); if(!m) return; m.style.display='none'; }
-
-    function openModal() {
-        document.getElementById('contributionModal').style.display = 'block';
-        setTimeout(() => {
-            if (!window.contributionChart) {
-                renderContributionChart();
-            }
-        }, 200);
-    }
-
-    function closeModal() {
-        document.getElementById('contributionModal').style.display = 'none';
-    }
-
-    function renderContributionChart() {
-        const ctx = document.getElementById('contributionChart').getContext('2d');
-        window.contributionChart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['Peripheral Devices', 'Computer Units'],
-                datasets: [{
-                    data: [{{ $peripheralCount }}, {{ $computerUnitCount }}],
-                    backgroundColor: ['rgba(52, 152, 219, 0.7)', 'rgba(231, 76, 60, 0.7)'],
-                    borderColor: ['rgba(52, 152, 219, 1)', 'rgba(231, 76, 60, 1)'],
-                    borderWidth: 1
-                }]
-            },
-            options: {
-                responsive: true,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                const total = context.dataset.data.reduce((sum, val) => sum + val, 0);
-                                const value = context.raw;
-                                const percent = total > 0 ? ((value / total) * 100).toFixed(1) : 0;
-                                return `${context.label}: ${value} (${percent}%)`;
-                            }
-                        }
-                    }
-                }
-            }
+        if(!dd) return; 
+        dd.style.display = dd.style.display==='block' ? 'none' : 'block';
+        document.addEventListener('click', function hide(e2){ 
+            if(!dd.contains(e2.target)){ 
+                dd.style.display='none'; 
+                document.removeEventListener('click', hide); 
+            } 
         });
     }
 
-    window.onclick = function(event) {
-        const modal = document.getElementById('contributionModal');
-        if (event.target === modal) {
-            closeModal();
-        }
-    };
+    function openProfileModal(){
+        const m = document.getElementById('profileModal'); 
+        if(!m) return; 
+        m.style.display = 'block';
+    }
+    
+    function closeProfileModal(){ 
+        const m = document.getElementById('profileModal'); 
+        if(!m) return; 
+        m.style.display='none'; 
+    }
 
     // Profile save handler (AJAX + SweetAlert)
     document.addEventListener('DOMContentLoaded', function(){
@@ -626,38 +607,94 @@
                     fd.delete('password_confirmation');
                 }
                 try{
-                    const res = await fetch('{{ route('profile.update') }}', { method:'POST', credentials:'same-origin', headers: { 'X-CSRF-TOKEN': '{{ csrf_token() }}', 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' }, body: fd });
+                    const res = await fetch('{{ route('profile.update') }}', { 
+                        method:'POST', 
+                        credentials:'same-origin', 
+                        headers: { 
+                            'X-CSRF-TOKEN': '{{ csrf_token() }}', 
+                            'Accept': 'application/json', 
+                            'X-Requested-With': 'XMLHttpRequest' 
+                        }, 
+                        body: fd 
+                    });
                     let data = {};
-                    try { data = await res.json(); } catch(e) { try { const t = await res.text(); data = { message: t }; } catch(_) {} }
+                    try { 
+                        data = await res.json(); 
+                    } catch(e) { 
+                        try { 
+                            const t = await res.text(); 
+                            data = { message: t }; 
+                        } catch(_) {} 
+                    }
                     if(res.ok){
                         closeProfileModal();
                         const name = (data.user && data.user.name) || '';
                         const photo = (data.user && data.user.photo) ? ('{{ asset('photos') }}/' + data.user.photo) : null;
                         const nameEls = document.querySelectorAll('.topbar-profile .name');
                         nameEls.forEach(el=> el.textContent = name);
-                        if(photo){ document.querySelectorAll('.topbar-profile img').forEach(el=> el.src = photo); }
-                        Swal.fire({ icon:'success', title:'Saved', text: data.message || 'Profile updated successfully', confirmButtonColor:'#28a745' });
+                        if(photo){ 
+                            document.querySelectorAll('.topbar-profile img').forEach(el=> el.src = photo); 
+                        }
+                        Swal.fire({ 
+                            icon:'success', 
+                            title:'Saved', 
+                            text: data.message || 'Profile updated successfully', 
+                            confirmButtonColor:'#28a745' 
+                        });
                     } else if (res.status === 419) {
                         closeProfileModal();
-                        Swal.fire({ icon:'error', title:'Session Expired', text:'Please refresh the page and try again.', confirmButtonColor:'#dc3545' });
+                        Swal.fire({ 
+                            icon:'error', 
+                            title:'Session Expired', 
+                            text:'Please refresh the page and try again.', 
+                            confirmButtonColor:'#dc3545' 
+                        });
                     } else if (res.status === 422) {
                         closeProfileModal();
                         let msg = 'Validation failed';
                         if (data && data.errors) {
                             msg = Object.values(data.errors).flat().join('\n');
-                        } else if (data && data.message) { msg = data.message; }
-                        Swal.fire({ icon:'error', title:'Validation Error', text: msg, confirmButtonColor:'#dc3545' });
+                        } else if (data && data.message) { 
+                            msg = data.message; 
+                        }
+                        Swal.fire({ 
+                            icon:'error', 
+                            title:'Validation Error', 
+                            text: msg, 
+                            confirmButtonColor:'#dc3545' 
+                        });
                     } else {
                         closeProfileModal();
-                        Swal.fire({ icon:'error', title:'Update Failed', text: data.message || 'Please try again', confirmButtonColor:'#dc3545' });
+                        Swal.fire({ 
+                            icon:'error', 
+                            title:'Update Failed', 
+                            text: data.message || 'Please try again', 
+                            confirmButtonColor:'#dc3545' 
+                        });
                     }
                 }catch(err){
-                    Swal.fire({ icon:'error', title:'Network Error', text:'Please try again', confirmButtonColor:'#dc3545' });
+                    Swal.fire({ 
+                        icon:'error', 
+                        title:'Network Error', 
+                        text:'Please try again', 
+                        confirmButtonColor:'#dc3545' 
+                    });
                 }
             });
 
             const file = form.querySelector('input[name="photo"]');
-            if(file){ file.addEventListener('change', function(){ const f=this.files && this.files[0]; if(!f) return; const r=new FileReader(); r.onload = e=>{ const p=document.getElementById('profilePreview'); if(p) p.src=e.target.result; }; r.readAsDataURL(f); }); }
+            if(file){ 
+                file.addEventListener('change', function(){ 
+                    const f=this.files && this.files[0]; 
+                    if(!f) return; 
+                    const r=new FileReader(); 
+                    r.onload = e=>{ 
+                        const p=document.getElementById('profilePreview'); 
+                        if(p) p.src=e.target.result; 
+                    }; 
+                    r.readAsDataURL(f); 
+                }); 
+            }
         }
     });
 </script>

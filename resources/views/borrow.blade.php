@@ -359,7 +359,7 @@
             font-size: 14px;
         }
 
-        input, select {
+        input, select, textarea {
             width: 100%;
             padding: 12px 15px;
             border: 2px solid #e9ecef;
@@ -367,9 +367,10 @@
             font-size: 14px;
             transition: border-color 0.3s ease;
             background: white;
+            font-family: inherit;
         }
 
-        input:focus, select:focus {
+        input:focus, select:focus, textarea:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -1257,6 +1258,26 @@
             <div class="form-group">
                 <label for="borrow_date">Borrow Date</label>
                 <input type="datetime-local" name="borrow_date" id="borrow_date" required>
+            </div>
+
+            <div class="form-group">
+                <label for="borrow_duration">Borrow Duration <span style="color: red;">*</span></label>
+                <select name="borrow_duration" id="borrow_duration" required>
+                    <option value="">-- Select Duration --</option>
+                    <option value="1_day">1 Day</option>
+                    <option value="2_days">2 Days</option>
+                    <option value="3_days">3 Days</option>
+                    <option value="4_days">4 Days</option>
+                    <option value="1_week">1 Week</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="reason">Reason for Borrowing <span style="color: red;">*</span></label>
+                <textarea name="reason" id="reason" rows="4" placeholder="Please provide a reason for borrowing this item..." required style="resize: vertical; min-height: 100px;"></textarea>
+                <small style="color: #6c757d; display: block; margin-top: 5px;">
+                    <i class="fas fa-info-circle"></i> Please describe why you need to borrow this item.
+                </small>
             </div>
 
             <button type="submit" class="submit-btn">

@@ -1754,7 +1754,8 @@
 
         <div class="container">
             @php
-                // Group items by room_title
+                // Group items by room_title - ensure $items is a collection
+                $items = $items ?? collect([]);
                 $groupedItems = $items->groupBy('room_title');
             @endphp
 

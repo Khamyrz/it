@@ -54,4 +54,19 @@ return Application::configure(basePath: dirname(__DIR__))
                 return redirect()->back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
             }
         });
+        
+        // Handle errors on manage-room route
+        $exceptions->render(function (\Throwable $e, \Illuminate\Http\Request $request) {
+            if ($request->is('manage-room') || $request->is('manage-room/*')) {
+                \Illuminate\Support\Facades\Log::error('Error on manage-room: ' . $e->getMessage(), [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => substr($e->getTraceAsString(), 0, 500)
+                ]);
+                if ($request->expectsJson()) {
+                    return response()->json(['error' => 'An error occurred. Please try again.'], 500);
+                }
+                return redirect()->route('dashboard')->withErrors(['error' => 'An error occurred loading the room management page. Please try again.']);
+            }
+        });
     })->create();

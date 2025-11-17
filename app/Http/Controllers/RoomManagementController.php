@@ -17,30 +17,57 @@ class RoomManagementController extends Controller
         try {
             $user = auth()->user();
             
-            if (!$user) {
+            if (!$user || !isset($user->id)) {
                 return redirect()->route('login')->withErrors(['email' => 'Please login to access this page.']);
             }
             
             // Always filter by authenticated user for data isolation
-            $items = RoomItem::where('user_id', $user->id)
-                ->orderBy('created_at', 'desc')
-                ->get();
+            // Use try-catch for database queries
+            try {
+                $items = RoomItem::where('user_id', $user->id)
+                    ->orderBy('created_at', 'desc')
+                    ->get();
+            } catch (\Exception $dbError) {
+                \Illuminate\Support\Facades\Log::error('RoomManagementController database query error: ' . $dbError->getMessage());
+                $items = collect([]); // Return empty collection if query fails
+            }
 
-            // Process items to add photo URLs
+            // Process items to add photo URLs safely
             $items->transform(function ($item) {
-                if ($item->photo) {
-                    $item->photo_url = Storage::url($item->photo);
+                try {
+                    if (!empty($item->photo)) {
+                        $item->photo_url = Storage::url($item->photo);
+                    } else {
+                        $item->photo_url = null;
+                    }
+                    // Ensure all required properties exist
+                    if (!isset($item->is_full_set_item)) {
+                        $item->is_full_set_item = $item->is_full_item ?? false;
+                    }
+                    if (!isset($item->is_full_item)) {
+                        $item->is_full_item = $item->is_full_set_item ?? false;
+                    }
+                } catch (\Exception $e) {
+                    \Illuminate\Support\Facades\Log::error('Error processing item: ' . $e->getMessage());
+                    $item->photo_url = null;
                 }
                 return $item;
             });
+            
             return view('room-manage', compact('user', 'items'));
-        } catch (\Exception $e) {
+        } catch (\Throwable $e) {
             \Illuminate\Support\Facades\Log::error('RoomManagementController index error: ' . $e->getMessage(), [
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => substr($e->getTraceAsString(), 0, 500)
+                'trace' => substr($e->getTraceAsString(), 0, 1000),
+                'class' => get_class($e)
             ]);
-            return redirect()->route('dashboard')->withErrors(['error' => 'An error occurred loading the room management page.']);
+            
+            // Return a simple error response instead of redirecting
+            if (request()->expectsJson()) {
+                return response()->json(['error' => 'An error occurred loading the room management page.'], 500);
+            }
+            return redirect()->route('dashboard')->withErrors(['error' => 'An error occurred loading the room management page. Please try again.']);
         }
     }
 

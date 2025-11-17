@@ -1,4 +1,18 @@
-<?php use Milon\Barcode\Facades\DNS1DFacade as DNS1D; ?>
+@php
+    // Helper function to generate barcode safely
+    if (!function_exists('getBarcodePNGSafe')) {
+        function getBarcodePNGSafe($barcode, $type = 'C128', $width = 2.0, $height = 50) {
+            try {
+                if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
+                    return \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode ?? '000000000', $type, $width, $height);
+                }
+            } catch (\Exception $e) {
+                // Return empty string if barcode generation fails
+            }
+            return '';
+        }
+    }
+@endphp
 
 @extends('layouts.app')
 @section('title', 'Room Management')
@@ -1999,7 +2013,7 @@
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                                 <div class="barcode-text">{{ $item->barcode }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                    <img src="data:image/png;base64,{{ getBarcodePNGSafe($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;" onerror="this.style.display='none';">
                                                                 </div>
                                                             </div>
                                                         </td>
@@ -2128,7 +2142,7 @@
                                                         <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                             <div class="barcode-text">{{ $item->barcode }}</div>
                                                             <div class="bwippbarcode">
-                                                                <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                <img src="data:image/png;base64,{{ getBarcodePNGSafe($item->barcode ?? '000000000', 'C128', 2.0, 50) }}" alt="{{ $item->barcode ?? 'N/A' }}" style="display:block; width: 200px; height: 50px; object-fit: contain;" onerror="this.style.display='none';">
                                                             </div>
                                                         </div>
                                                     </td>
@@ -2902,7 +2916,7 @@
                 <div class="barcode-wrapper">
                     <div class="barcode-text">${tempId}</div>
                     <div class="bwippbarcode">
-                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG('${tempId}', 'C128', 2.0, 50) }}" alt="${tempId}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                        <div class="barcode-placeholder" data-barcode="${tempId}">Barcode: ${tempId}</div>
                     </div>
                 </div>
             </td>

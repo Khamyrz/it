@@ -15,6 +15,8 @@ use Illuminate\Support\Facades\DB;
 use App\Models\IpTracking;
 use App\Models\DeviceBinding;
 use Illuminate\Support\Str;
+use PDOException;
+use Illuminate\Database\QueryException;
 
 class AuthController extends Controller
 {
@@ -102,7 +104,20 @@ class AuthController extends Controller
     }
 
     public function showLoginForm() {
-        return view('login');
+        try {
+            // Try to check database connection, but don't fail if it's down
+            try {
+                DB::connection()->getPdo();
+            } catch (\Exception $e) {
+                // Database is down, but we can still show the login form
+                Log::warning('Database connection check failed on login form: ' . $e->getMessage());
+            }
+            return view('login');
+        } catch (\Exception $e) {
+            Log::error('Error showing login form: ' . $e->getMessage());
+            // Still try to show the login form even if there's an error
+            return view('login');
+        }
     }
 
     public function login(Request $request) {
@@ -129,24 +144,25 @@ class AuthController extends Controller
             // Attempt authentication with comprehensive error handling
             try {
                 $authResult = Auth::attempt($credentials);
-            } catch (\PDOException $e) {
+            } catch (PDOException $e) {
                 Log::error('Database PDO error during authentication: ' . $e->getMessage(), [
                     'code' => $e->getCode(),
                     'file' => $e->getFile(),
                     'line' => $e->getLine()
                 ]);
                 return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials are correct.'])->withInput();
-            } catch (\Illuminate\Database\QueryException $e) {
+            } catch (QueryException $e) {
                 Log::error('Database query error during authentication: ' . $e->getMessage(), [
-                    'sql' => $e->getSql() ?? 'N/A',
-                    'bindings' => $e->getBindings() ?? []
+                    'sql' => method_exists($e, 'getSql') ? $e->getSql() : 'N/A',
+                    'bindings' => method_exists($e, 'getBindings') ? $e->getBindings() : []
                 ]);
                 return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
             } catch (\Exception $e) {
                 Log::error('Authentication error: ' . $e->getMessage(), [
                     'class' => get_class($e),
                     'file' => $e->getFile(),
-                    'line' => $e->getLine()
+                    'line' => $e->getLine(),
+                    'trace' => $e->getTraceAsString()
                 ]);
                 return back()->withErrors(['email' => 'An error occurred during authentication. Please try again.'])->withInput();
             }
@@ -171,10 +187,10 @@ class AuthController extends Controller
                             ->where('is_primary', true)
                             ->orderBy('created_at', 'asc') // Get the oldest one (original registration)
                             ->first();
-                    } catch (\PDOException $e) {
+                    } catch (PDOException $e) {
                         Log::error('Database error when checking device binding: ' . $e->getMessage());
                         return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials.'])->withInput();
-                    } catch (\Illuminate\Database\QueryException $e) {
+                    } catch (QueryException $e) {
                         Log::error('Database query error when checking device binding: ' . $e->getMessage());
                         return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
                     }
@@ -203,10 +219,10 @@ class AuthController extends Controller
                                 'device_name' => $this->getDeviceName($request),
                                 'last_accessed_at' => now()
                             ]);
-                        } catch (\PDOException $e) {
+                        } catch (PDOException $e) {
                             Log::error('Database error when updating device binding: ' . $e->getMessage());
                             // Continue with login even if device binding update fails
-                        } catch (\Illuminate\Database\QueryException $e) {
+                        } catch (QueryException $e) {
                             Log::error('Database query error when updating device binding: ' . $e->getMessage());
                             // Continue with login even if device binding update fails
                         }
@@ -247,10 +263,10 @@ class AuthController extends Controller
                             ]);
                             
                             $deviceBinding = $primaryBinding;
-                        } catch (\PDOException $e) {
+                        } catch (PDOException $e) {
                             Log::error('Database error when creating device binding: ' . $e->getMessage());
                             return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials.'])->withInput();
-                        } catch (\Illuminate\Database\QueryException $e) {
+                        } catch (QueryException $e) {
                             Log::error('Database query error when creating device binding: ' . $e->getMessage());
                             return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
                         }
@@ -320,21 +336,22 @@ class AuthController extends Controller
                         'show_login_otp_modal' => true,
                         'login_otp_email' => $request->email,
                     ])->withInput();
-                } catch (\PDOException $e) {
+                } catch (PDOException $e) {
                     Log::error('Database PDO error after authentication: ' . $e->getMessage());
-                    Auth::logout();
+                    try { Auth::logout(); } catch (\Exception $e) {}
                     return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials.'])->withInput();
-                } catch (\Illuminate\Database\QueryException $e) {
+                } catch (QueryException $e) {
                     Log::error('Database query error after authentication: ' . $e->getMessage());
-                    Auth::logout();
+                    try { Auth::logout(); } catch (\Exception $e) {}
                     return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
                 } catch (\Exception $e) {
                     Log::error('Error after authentication: ' . $e->getMessage(), [
                         'class' => get_class($e),
                         'file' => $e->getFile(),
-                        'line' => $e->getLine()
+                        'line' => $e->getLine(),
+                        'trace' => substr($e->getTraceAsString(), 0, 500)
                     ]);
-                    Auth::logout();
+                    try { Auth::logout(); } catch (\Exception $e) {}
                     return back()->withErrors(['email' => 'An error occurred. Please try again.'])->withInput();
                 }
             }
@@ -343,17 +360,32 @@ class AuthController extends Controller
         } catch (\Illuminate\Validation\ValidationException $e) {
             // Re-throw validation exceptions so they're handled properly
             throw $e;
-        } catch (\Exception $e) {
-            // Log the error for debugging
-            Log::error('Login error: ' . $e->getMessage(), [
+        } catch (PDOException $e) {
+            // Catch any PDO exceptions that weren't caught earlier
+            Log::error('Login PDO error (outer catch): ' . $e->getMessage(), [
+                'code' => $e->getCode(),
+                'file' => $e->getFile(),
+                'line' => $e->getLine()
+            ]);
+            return back()->withErrors(['email' => 'Database connection error. Please verify your database credentials in the hosting control panel.'])->withInput();
+        } catch (QueryException $e) {
+            // Catch any Query exceptions that weren't caught earlier
+            Log::error('Login Query error (outer catch): ' . $e->getMessage(), [
+                'sql' => method_exists($e, 'getSql') ? $e->getSql() : 'N/A'
+            ]);
+            return back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
+        } catch (\Throwable $e) {
+            // Catch any other errors including fatal errors
+            Log::error('Login error (outer catch): ' . $e->getMessage(), [
+                'class' => get_class($e),
                 'file' => $e->getFile(),
                 'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString(),
+                'trace' => substr($e->getTraceAsString(), 0, 1000),
                 'email' => $request->email ?? 'unknown'
             ]);
             
             // Return a user-friendly error message
-            return back()->withErrors(['email' => 'An error occurred during login. Please try again.'])->withInput();
+            return back()->withErrors(['email' => 'An error occurred during login. Please try again or contact support.'])->withInput();
         }
     }
 

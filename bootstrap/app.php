@@ -16,5 +16,24 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
-        //
+        // Handle database connection errors globally
+        $exceptions->render(function (\PDOException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('login') || $request->is('login/*')) {
+                \Illuminate\Support\Facades\Log::error('Database PDO error on login: ' . $e->getMessage());
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => 'Database connection error. Please verify your database credentials.'], 500);
+                }
+                return redirect()->back()->withErrors(['email' => 'Database connection error. Please verify your database credentials in the hosting control panel.'])->withInput();
+            }
+        });
+        
+        $exceptions->render(function (\Illuminate\Database\QueryException $e, \Illuminate\Http\Request $request) {
+            if ($request->is('login') || $request->is('login/*')) {
+                \Illuminate\Support\Facades\Log::error('Database Query error on login: ' . $e->getMessage());
+                if ($request->expectsJson()) {
+                    return response()->json(['message' => 'Database connection error. Please check your database configuration.'], 500);
+                }
+                return redirect()->back()->withErrors(['email' => 'Database connection error. Please check your database configuration.'])->withInput();
+            }
+        });
     })->create();

@@ -6,7 +6,6 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use App\Models\RoomItem;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
@@ -1344,27 +1343,16 @@ class RoomManagementController extends Controller
             try {
                 if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
                     $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                    // Validate that we got valid image data
-                    if ($barcodeImage && strlen($barcodeImage) > 0) {
-                        $barcodeImage = base64_encode($barcodeImage);
-                    } else {
-                        $barcodeImage = null;
-                        Log::warning('Barcode generation returned empty data for item ID: ' . $item->id . ', barcode: ' . $item->barcode);
-                    }
-                } else {
-                    Log::warning('DNS1DFacade class not found when generating barcode for item ID: ' . $item->id);
                 }
             } catch (\Exception $e) {
-                // Barcode generation failed, log the error
-                Log::error('Barcode generation error for item ID: ' . $item->id . ', barcode: ' . $item->barcode . ', error: ' . $e->getMessage());
-                $barcodeImage = null;
+                // Barcode generation failed, leave as null
             }
         }
         
         return response()->json([
             'id' => $item->id,
             'barcode' => $item->barcode,
-            'barcode_image' => $barcodeImage,
+            'barcode_image' => $barcodeImage ? base64_encode($barcodeImage) : null,
             'serial_number' => $item->serial_number,
             'photo' => $item->photo ? Storage::url($item->photo) : null,
         ]);

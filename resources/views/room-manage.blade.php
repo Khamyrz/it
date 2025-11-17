@@ -1770,15 +1770,16 @@
                     
                     foreach($roomItems as $item) {
                         // Check if item is part of a full set (PC# grouped items)
-                        // PC# items: is_full_set_item = true AND full_set_id exists
-                        // Solo items: is_full_set_item = false OR full_set_id is null
+                        // PC# items: is_full_item = true AND full_set_id exists
+                        // Solo items: is_full_item = false OR full_set_id is null
                         $isFullSetItem = false;
                         
-                        // Primary check: use database flags
-                        if ($item->is_full_set_item && $item->full_set_id) {
+                        // Primary check: use database flags (check both column names for compatibility)
+                        $isFullItem = $item->is_full_set_item ?? $item->is_full_item ?? false;
+                        if ($isFullItem && $item->full_set_id) {
                             // Explicitly marked as full set item in database
                             $isFullSetItem = true;
-                        } elseif ($item->full_set_id && !$item->is_full_set_item) {
+                        } elseif ($item->full_set_id && !$isFullItem) {
                             // Has full_set_id but flag not set (legacy data) - treat as full set
                             $isFullSetItem = true;
                         }
@@ -1817,7 +1818,7 @@
                             }
                         } else {
                             // Solo items (NOT part of full set/PC#)
-                            // is_full_set_item = false AND full_set_id is null
+                            // is_full_item = false AND full_set_id is null
                             // These are items added through regular form, not "Add Component"
                             $soloItems[] = $item;
                         }

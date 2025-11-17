@@ -24,11 +24,13 @@ class RoomItem extends Model
         'status',
         'quantity',
         'is_full_item',
+        'is_full_set_item', // Database column name (legacy)
         'full_set_id',
     ];
 
     protected $casts = [
         'is_full_item' => 'boolean',
+        'is_full_set_item' => 'boolean', // Database column name (legacy)
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
     ];
@@ -52,7 +54,9 @@ class RoomItem extends Model
 
     public function fullSetSiblings()
     {
-        if (!$this->is_full_item || !$this->full_set_id) {
+        // Check both column names for compatibility
+        $isFullSet = $this->is_full_set_item ?? $this->is_full_item ?? false;
+        if (!$isFullSet || !$this->full_set_id) {
             return collect();
         }
 
@@ -90,12 +94,14 @@ class RoomItem extends Model
 
     public function scopeFullSetItems($query)
     {
-        return $query->where('is_full_item', true);
+        // Use the actual database column name
+        return $query->where('is_full_set_item', true);
     }
 
     public function scopeSingleItems($query)
     {
-        return $query->where('is_full_item', false);
+        // Use the actual database column name
+        return $query->where('is_full_set_item', false);
     }
 
     public function scopeByFullSetId($query, $fullSetId)

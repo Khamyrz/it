@@ -16,6 +16,10 @@ class RoomManagementController extends Controller
     {
         $user = auth()->user();
         
+        if (!$user) {
+            return redirect()->route('login');
+        }
+        
         // Always filter by authenticated user for data isolation
         $items = RoomItem::where('user_id', $user->id)
             ->orderBy('created_at', 'desc')
@@ -26,8 +30,13 @@ class RoomManagementController extends Controller
             if ($item->photo) {
                 $item->photo_url = Storage::url($item->photo);
             }
+            // Ensure barcode is set
+            if (!isset($item->barcode)) {
+                $item->barcode = null;
+            }
             return $item;
         });
+        
         return view('room-manage', compact('user', 'items'));
     }
 

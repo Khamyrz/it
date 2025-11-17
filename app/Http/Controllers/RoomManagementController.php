@@ -14,21 +14,34 @@ class RoomManagementController extends Controller
 {
     public function index()
     {
-        $user = auth()->user();
-        
-        // Always filter by authenticated user for data isolation
-        $items = RoomItem::where('user_id', $user->id)
-            ->orderBy('created_at', 'desc')
-            ->get();
-
-        // Process items to add photo URLs
-        $items->transform(function ($item) {
-            if ($item->photo) {
-                $item->photo_url = Storage::url($item->photo);
+        try {
+            $user = auth()->user();
+            
+            if (!$user) {
+                return redirect()->route('login')->withErrors(['email' => 'Please login to access this page.']);
             }
-            return $item;
-        });
-        return view('room-manage', compact('user', 'items'));
+            
+            // Always filter by authenticated user for data isolation
+            $items = RoomItem::where('user_id', $user->id)
+                ->orderBy('created_at', 'desc')
+                ->get();
+
+            // Process items to add photo URLs
+            $items->transform(function ($item) {
+                if ($item->photo) {
+                    $item->photo_url = Storage::url($item->photo);
+                }
+                return $item;
+            });
+            return view('room-manage', compact('user', 'items'));
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('RoomManagementController index error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => substr($e->getTraceAsString(), 0, 500)
+            ]);
+            return redirect()->route('dashboard')->withErrors(['error' => 'An error occurred loading the room management page.']);
+        }
     }
 
     public function store(Request $request)

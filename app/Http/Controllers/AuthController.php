@@ -628,12 +628,8 @@ class AuthController extends Controller
         $users = User::where('is_approved', false)->get();
         $currentUser = Auth::user();
         
-        // Get all device bindings for the current user (including inactive to show history)
-        $deviceBindings = DeviceBinding::where('user_id', $currentUser->id)
-            ->orderBy('is_active', 'desc')
-            ->orderBy('is_primary', 'desc')
-            ->orderBy('last_accessed_at', 'desc')
-            ->get();
+        // Device binding removed - no longer needed
+        $deviceBindings = collect([]); // Empty collection for backward compatibility
         
         return view('add-new-user', compact('users', 'deviceBindings'));
     }
@@ -654,51 +650,7 @@ class AuthController extends Controller
             return response()->json(['message' => 'No account found with this email'], 404);
         }
 
-        // Check if device is bound
-        $deviceFingerprint = $this->generateDeviceFingerprint($request);
-        $deviceBinding = DeviceBinding::where('user_id', $user->id)
-            ->where('device_fingerprint', $deviceFingerprint)
-            ->where('is_active', true)
-            ->first();
-
-        // If exact fingerprint doesn't match, try fallback strategies (same as login)
-        if (!$deviceBinding) {
-            $userAgent = $request->userAgent() ?? '';
-            $ipAddress = $request->ip();
-            
-            // Strategy 1: Exact user agent match
-            $deviceBinding = DeviceBinding::where('user_id', $user->id)
-                ->where('user_agent', $userAgent)
-                ->where('is_active', true)
-                ->orderBy('is_primary', 'desc')
-                ->first();
-            
-            // Strategy 2: Primary device with IP match
-            if (!$deviceBinding) {
-                $deviceBinding = DeviceBinding::where('user_id', $user->id)
-                    ->where('is_primary', true)
-                    ->where('is_active', true)
-                    ->where('ip_address', $ipAddress)
-                    ->first();
-            }
-            
-            // If found via fallback, update the fingerprint
-            if ($deviceBinding) {
-                $deviceBinding->update([
-                    'device_fingerprint' => $deviceFingerprint,
-                    'user_agent' => $userAgent,
-                    'ip_address' => $ipAddress
-                ]);
-            }
-        }
-
-        // If device is not bound, return device binding message
-        if (!$deviceBinding) {
-            return response()->json([
-                'message' => 'This account is Registered/Binded to your Device',
-                'device_binding_required' => true,
-            ], 403);
-        }
+        // Device binding removed - allow password reset for all users
 
         // Lockout check
         $lockUntil = session('password_reset_lock_until');
@@ -1436,40 +1388,21 @@ class AuthController extends Controller
         // Bind device to account
         $deviceFingerprint = $this->generateDeviceFingerprint($request);
         
-        // Check if device is already bound
-        $existingBinding = DeviceBinding::where('user_id', $user->id)
-            ->where('device_fingerprint', $deviceFingerprint)
-            ->first();
-
-        if (!$existingBinding) {
-            // Create new device binding with the share token
-            $deviceBinding = DeviceBinding::create([
-                'user_id' => $user->id,
-                'device_fingerprint' => $deviceFingerprint,
-                'device_share_token' => $request->token, // Store the device share token
-                'device_name' => $this->getDeviceName($request),
-                'user_agent' => $request->userAgent(),
-                'ip_address' => $request->ip(),
-                'is_primary' => false,
-                'is_active' => true,
-                'last_accessed_at' => now(),
-            ]);
-
-            // Send email notification to owner
-            try {
-                Mail::send('emails.device_access_granted', [
-                    'user' => $user,
-                    'deviceName' => $this->getDeviceName($request),
-                    'ipAddress' => $request->ip(),
-                    'userAgent' => $request->userAgent(),
-                ], function ($message) use ($user) {
-                    $message->from('iitech.inventory@gmail.com', 'IT Inventory System')
-                            ->to($user->email)
-                            ->subject('New Device Access - IT Inventory System');
-                });
-            } catch (\Throwable $e) {
-                Log::error('Failed to send device access notification: ' . $e->getMessage());
-            }
+        // Device binding removed - share token verification complete
+        // Send email notification to owner
+        try {
+            Mail::send('emails.device_access_granted', [
+                'user' => $user,
+                'deviceName' => $this->getDeviceName($request),
+                'ipAddress' => $request->ip(),
+                'userAgent' => $request->userAgent(),
+            ], function ($message) use ($user) {
+                $message->from('iitech.inventory@gmail.com', 'IT Inventory System')
+                        ->to($user->email)
+                        ->subject('New Device Access - IT Inventory System');
+            });
+        } catch (\Throwable $e) {
+            Log::error('Failed to send device access notification: ' . $e->getMessage());
         }
 
         // Clear the share token
@@ -1497,28 +1430,8 @@ class AuthController extends Controller
             return response()->json(['message' => 'Unauthorized'], 401);
         }
 
-        $deviceBinding = DeviceBinding::where('id', $id)
-            ->where('user_id', $user->id)
-            ->first();
-
-        if (!$deviceBinding) {
-            return response()->json(['message' => 'Device binding not found'], 404);
-        }
-
-        // Don't allow removing primary device
-        if ($deviceBinding->is_primary) {
-            return response()->json(['message' => 'Cannot remove primary device'], 403);
-        }
-
-        // Keep the device_share_token but remove the binding by setting is_active to false
-        // or we can delete it completely - based on user requirement, let's delete but keep token in history
-        // Actually, let's just set is_active to false to keep the record with the token
-        $deviceBinding->is_active = false;
-        $deviceBinding->save();
-
-        return response()->json([
-            'message' => 'Device access removed successfully',
-        ]);
+        // Device binding removed - return success for backward compatibility
+        return response()->json(['message' => 'Device binding removed (feature disabled)'], 200);
     }
 
     // Missing methods referenced in routes - stubs to prevent 500 errors

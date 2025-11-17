@@ -13,7 +13,6 @@ use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use App\Models\IpTracking;
-use App\Models\DeviceBinding;
 use Illuminate\Support\Str;
 use PDOException;
 use Illuminate\Database\QueryException;
@@ -60,18 +59,7 @@ class AuthController extends Controller
 
         $user = User::create($data);
 
-        // Bind device to account on registration
-        $deviceFingerprint = $this->generateDeviceFingerprint($request);
-        DeviceBinding::create([
-            'user_id' => $user->id,
-            'device_fingerprint' => $deviceFingerprint,
-            'device_name' => $this->getDeviceName($request),
-            'user_agent' => $request->userAgent(),
-            'ip_address' => $request->ip(),
-            'is_primary' => true,
-            'is_active' => true,
-            'last_accessed_at' => now(),
-        ]);
+        // Device binding removed - registration complete
 
         // Clear email verification session
         session()->forget(['email_verification_otp', 'email_verification_email', 'email_verification_expires', 'email_verification_verified']);
@@ -179,130 +167,7 @@ class AuthController extends Controller
                         ]);
                     }
 
-                    // FIRST: Check if account was registered on this device (has primary device binding)
-                    // If account was registered/binded to this device, allow login immediately - NO ERROR MESSAGE
-                    // Check with both active and inactive primary bindings
-                    $primaryBinding = null;
-                    try {
-                        // Check if device_bindings table exists
-                        if (Schema::hasTable('device_bindings')) {
-                            $primaryBinding = DeviceBinding::where('user_id', $user->id)
-                                ->where('is_primary', true)
-                                ->orderBy('created_at', 'asc') // Get the oldest one (original registration)
-                                ->first();
-                        } else {
-                            Log::warning('device_bindings table does not exist, skipping device binding check');
-                        }
-                    } catch (PDOException $e) {
-                        Log::error('Database error when checking device binding: ' . $e->getMessage());
-                        // Continue without device binding - don't block login
-                        $primaryBinding = null;
-                    } catch (QueryException $e) {
-                        Log::error('Database query error when checking device binding: ' . $e->getMessage());
-                        // Continue without device binding - don't block login
-                        $primaryBinding = null;
-                    } catch (\Exception $e) {
-                        Log::error('Error when checking device binding: ' . $e->getMessage());
-                        // Continue without device binding - don't block login
-                        $primaryBinding = null;
-                    }
-                
-                    $deviceBinding = null;
-                    $deviceFingerprint = $this->generateDeviceFingerprint($request);
-                    $userAgent = $request->userAgent() ?? '';
-                    $ipAddress = $request->ip();
-                    
-                    // If account has a primary device binding (registered on a device), allow login immediately
-                    // This means the account was created on a device, so it can always login from that device
-                    if ($primaryBinding) {
-                        try {
-                            // Reactivate if it was deactivated
-                            if (!$primaryBinding->is_active) {
-                                $primaryBinding->is_active = true;
-                                $primaryBinding->save();
-                            }
-                            
-                            // Use the primary binding and update it with current device info
-                            $deviceBinding = $primaryBinding;
-                            $deviceBinding->update([
-                                'device_fingerprint' => $deviceFingerprint,
-                                'user_agent' => $userAgent,
-                                'ip_address' => $ipAddress,
-                                'device_name' => $this->getDeviceName($request),
-                                'last_accessed_at' => now()
-                            ]);
-                        } catch (PDOException $e) {
-                            Log::error('Database error when updating device binding: ' . $e->getMessage());
-                            // Continue with login even if device binding update fails
-                        } catch (QueryException $e) {
-                            Log::error('Database query error when updating device binding: ' . $e->getMessage());
-                            // Continue with login even if device binding update fails
-                        }
-                        
-                        Log::info('Login SUCCESS - Account registered on device (Primary device binding found)', [
-                            'user_id' => $user->id,
-                            'email' => $user->email,
-                            'primary_binding_id' => $primaryBinding->id ?? null,
-                            'device_fingerprint' => $deviceFingerprint
-                        ]);
-                        
-                        // Continue to login - DO NOT show error message
-                        // The account is registered on this device, so login is allowed
-                    } else {
-                        // No primary binding found - this could mean:
-                        // 1. Account was created before device binding was implemented
-                        // 2. Primary binding was deleted
-                        // 3. Account is trying to login from device where it was created
-                        // 
-                        // SOLUTION: Create a primary device binding automatically
-                        // This allows accounts created on this device to login
-                        try {
-                            // Only create device binding if table exists
-                            if (Schema::hasTable('device_bindings')) {
-                                Log::info('No primary binding found - Creating primary device binding for account', [
-                                    'user_id' => $user->id,
-                                    'email' => $user->email
-                                ]);
-                                
-                                // Create primary device binding - this account is now bound to this device
-                                $primaryBinding = DeviceBinding::create([
-                                    'user_id' => $user->id,
-                                    'device_fingerprint' => $deviceFingerprint,
-                                    'device_name' => $this->getDeviceName($request),
-                                    'user_agent' => $userAgent,
-                                    'ip_address' => $ipAddress,
-                                    'is_primary' => true,
-                                    'is_active' => true,
-                                    'last_accessed_at' => now(),
-                                ]);
-                                
-                                $deviceBinding = $primaryBinding;
-                            } else {
-                                Log::warning('device_bindings table does not exist, skipping device binding creation');
-                            }
-                        } catch (PDOException $e) {
-                            Log::error('Database error when creating device binding: ' . $e->getMessage());
-                            // Continue with login even if device binding creation fails
-                        } catch (QueryException $e) {
-                            Log::error('Database query error when creating device binding: ' . $e->getMessage());
-                            // Continue with login even if device binding creation fails
-                        } catch (\Exception $e) {
-                            Log::error('Error when creating device binding: ' . $e->getMessage());
-                            // Continue with login even if device binding creation fails
-                        }
-                        
-                        if ($primaryBinding) {
-                            Log::info('Primary device binding created - Login allowed', [
-                                'user_id' => $user->id,
-                                'email' => $user->email,
-                                'primary_binding_id' => $primaryBinding->id ?? null
-                            ]);
-                        }
-                        
-                        // Continue to login - DO NOT show error message
-                        // The account is now bound to this device
-                    }
-                
+                    // Device binding removed - proceed directly to OTP generation
                     // Generate 6-digit OTP for 2FA
                     try {
                         $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
@@ -545,40 +410,9 @@ class AuthController extends Controller
         Auth::login($user);
         $request->session()->regenerate();
 
-        // Update device binding
-        $deviceFingerprint = $this->generateDeviceFingerprint($request);
+        // Device binding removed - proceed with login
         $userAgent = $request->userAgent() ?? '';
         $ipAddress = $request->ip();
-
-        $primaryBinding = DeviceBinding::where('user_id', $user->id)
-            ->where('is_primary', true)
-            ->orderBy('created_at', 'asc')
-            ->first();
-
-        if ($primaryBinding) {
-            if (!$primaryBinding->is_active) {
-                $primaryBinding->is_active = true;
-                $primaryBinding->save();
-            }
-            $primaryBinding->update([
-                'device_fingerprint' => $deviceFingerprint,
-                'user_agent' => $userAgent,
-                'ip_address' => $ipAddress,
-                'device_name' => $this->getDeviceName($request),
-                'last_accessed_at' => now()
-            ]);
-        } else {
-            DeviceBinding::create([
-                'user_id' => $user->id,
-                'device_fingerprint' => $deviceFingerprint,
-                'device_name' => $this->getDeviceName($request),
-                'user_agent' => $userAgent,
-                'ip_address' => $ipAddress,
-                'is_primary' => true,
-                'is_active' => true,
-                'last_accessed_at' => now(),
-            ]);
-        }
 
         // Log successful login
         try {

@@ -105,172 +105,188 @@ class AuthController extends Controller
     }
 
     public function login(Request $request) {
-        $request->validate([
-            'email' => 'required|email|regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
-            'password' => 'required',
-        ], [
-            'email.regex' => 'Please use a valid Gmail address (e.g., user@gmail.com)',
-            'email.required' => 'Gmail address is required',
-        ]);
-
-        $credentials = $request->only('email', 'password');
-        $ip = $request->ip();
-        $userAgent = $request->userAgent();
-
-        // Log login attempt (don't let this block login if it fails)
         try {
-            IpTracking::logEvent($ip, 'login_attempt', $request->email, false, $userAgent);
-        } catch (\Exception $e) {
-            Log::error('Failed to log login attempt: ' . $e->getMessage());
-        }
+            $request->validate([
+                'email' => 'required|email|regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
+                'password' => 'required',
+            ], [
+                'email.regex' => 'Please use a valid Gmail address (e.g., user@gmail.com)',
+                'email.required' => 'Gmail address is required',
+            ]);
 
-        if (Auth::attempt($credentials)) {
-            $user = Auth::user();
-            
-            if (!$user->is_approved) {
+            $credentials = $request->only('email', 'password');
+            $ip = $request->ip();
+            $userAgent = $request->userAgent();
+
+            // Log login attempt (don't let this block login if it fails)
+            try {
+                IpTracking::logEvent($ip, 'login_attempt', $request->email, false, $userAgent);
+            } catch (\Exception $e) {
+                Log::error('Failed to log login attempt: ' . $e->getMessage());
+            }
+
+            if (Auth::attempt($credentials)) {
+                $user = Auth::user();
+                
+                if (!$user->is_approved) {
                 Auth::logout();
                 return back()->withErrors(['email' => 'Your account is not yet activated. Please enter the Access Token sent to your Gmail.']).with([
                     'access_token_email' => $request->email,
                     'show_access_token_modal' => true,
                 ]);
-            }
-
-            // FIRST: Check if account was registered on this device (has primary device binding)
-            // If account is registered/binded to this device, allow login immediately - NO ERROR MESSAGE
-            // Check with both active and inactive primary bindings
-            $primaryBinding = DeviceBinding::where('user_id', $user->id)
-                ->where('is_primary', true)
-                ->orderBy('created_at', 'asc') // Get the oldest one (original registration)
-                ->first();
-            
-            $deviceBinding = null;
-            $deviceFingerprint = $this->generateDeviceFingerprint($request);
-            $userAgent = $request->userAgent() ?? '';
-            $ipAddress = $request->ip();
-            
-            // If account has a primary device binding (registered on a device), allow login immediately
-            // This means the account was created on a device, so it can always login from that device
-            if ($primaryBinding) {
-                // Reactivate if it was deactivated
-                if (!$primaryBinding->is_active) {
-                    $primaryBinding->is_active = true;
-                    $primaryBinding->save();
                 }
-                
-                // Use the primary binding and update it with current device info
-                $deviceBinding = $primaryBinding;
-                $deviceBinding->update([
-                    'device_fingerprint' => $deviceFingerprint,
-                    'user_agent' => $userAgent,
-                    'ip_address' => $ipAddress,
-                    'device_name' => $this->getDeviceName($request),
-                    'last_accessed_at' => now()
-                ]);
-                
-                Log::info('Login SUCCESS - Account registered on device (Primary device binding found)', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'primary_binding_id' => $primaryBinding->id,
-                    'device_fingerprint' => $deviceFingerprint
-                ]);
-                
-                // Continue to login - DO NOT show error message
-                // The account is registered on this device, so login is allowed
-            } else {
-                // No primary binding found - this could mean:
-                // 1. Account was created before device binding was implemented
-                // 2. Primary binding was deleted
-                // 3. Account is trying to login from device where it was created
-                // 
-                // SOLUTION: Create a primary device binding automatically
-                // This allows accounts created on this device to login
-                Log::info('No primary binding found - Creating primary device binding for account', [
-                    'user_id' => $user->id,
-                    'email' => $user->email
-                ]);
-                
-                // Create primary device binding - this account is now bound to this device
-                $primaryBinding = DeviceBinding::create([
-                    'user_id' => $user->id,
-                    'device_fingerprint' => $deviceFingerprint,
-                    'device_name' => $this->getDeviceName($request),
-                    'user_agent' => $userAgent,
-                    'ip_address' => $ipAddress,
-                    'is_primary' => true,
-                    'is_active' => true,
-                    'last_accessed_at' => now(),
-                ]);
-                
-                $deviceBinding = $primaryBinding;
-                
-                Log::info('Primary device binding created - Login allowed', [
-                    'user_id' => $user->id,
-                    'email' => $user->email,
-                    'primary_binding_id' => $primaryBinding->id
-                ]);
-                
-                // Continue to login - DO NOT show error message
-                // The account is now bound to this device
-            }
-            
-            // Generate 6-digit OTP for 2FA
-            $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
-            $expiresAt = now()->addMinutes(5);
-            
-            // Normalize email (lowercase and trimmed) for consistent comparison
-            $normalizedEmail = strtolower(trim($request->email));
-            
-            // Store OTP data in session BEFORE logout to ensure it persists
-            $request->session()->put('login_otp_email', $normalizedEmail);
-            $request->session()->put('login_otp', $otp);
-            $request->session()->put('login_otp_expires', $expiresAt);
-            $request->session()->put('login_otp_attempts', 0);
-            $request->session()->put('login_user_id', $user->id);
-            $request->session()->put('login_credentials_verified', true);
-            
-            // Save session explicitly to ensure it persists
-            $request->session()->save();
 
-            // Send OTP email
-            try {
-                $gmailPassword = env('MAIL_PASSWORD');
+                    // FIRST: Check if account was registered on this device (has primary device binding)
+                // If account is registered/binded to this device, allow login immediately - NO ERROR MESSAGE
+                // Check with both active and inactive primary bindings
+                $primaryBinding = DeviceBinding::where('user_id', $user->id)
+                    ->where('is_primary', true)
+                    ->orderBy('created_at', 'asc') // Get the oldest one (original registration)
+                    ->first();
                 
-                if (empty($gmailPassword) || $gmailPassword === 'your-app-password-here') {
-                    Log::error('Gmail SMTP password not configured. Please set MAIL_PASSWORD in .env file');
-                    
-                    if (env('APP_DEBUG', false)) {
-                        return back()->with([
-                            'show_login_otp_modal' => true,
-                            'login_otp_email' => $request->email,
-                            'debug_otp' => $otp,
-                        ])->withInput();
+                $deviceBinding = null;
+                $deviceFingerprint = $this->generateDeviceFingerprint($request);
+                $userAgent = $request->userAgent() ?? '';
+                $ipAddress = $request->ip();
+                
+                // If account has a primary device binding (registered on a device), allow login immediately
+                // This means the account was created on a device, so it can always login from that device
+                if ($primaryBinding) {
+                    // Reactivate if it was deactivated
+                    if (!$primaryBinding->is_active) {
+                        $primaryBinding->is_active = true;
+                        $primaryBinding->save();
                     }
                     
-                    return back()->withErrors(['email' => 'Email service not configured. Please contact administrator.'])->withInput();
+                    // Use the primary binding and update it with current device info
+                    $deviceBinding = $primaryBinding;
+                    $deviceBinding->update([
+                        'device_fingerprint' => $deviceFingerprint,
+                        'user_agent' => $userAgent,
+                        'ip_address' => $ipAddress,
+                        'device_name' => $this->getDeviceName($request),
+                        'last_accessed_at' => now()
+                    ]);
+                    
+                    Log::info('Login SUCCESS - Account registered on device (Primary device binding found)', [
+                        'user_id' => $user->id,
+                        'email' => $user->email,
+                        'primary_binding_id' => $primaryBinding->id,
+                        'device_fingerprint' => $deviceFingerprint
+                    ]);
+                    
+                    // Continue to login - DO NOT show error message
+                    // The account is registered on this device, so login is allowed
+                } else {
+                    // No primary binding found - this could mean:
+                    // 1. Account was created before device binding was implemented
+                    // 2. Primary binding was deleted
+                    // 3. Account is trying to login from device where it was created
+                    // 
+                    // SOLUTION: Create a primary device binding automatically
+                    // This allows accounts created on this device to login
+                    Log::info('No primary binding found - Creating primary device binding for account', [
+                        'user_id' => $user->id,
+                        'email' => $user->email
+                    ]);
+                    
+                    // Create primary device binding - this account is now bound to this device
+                    $primaryBinding = DeviceBinding::create([
+                        'user_id' => $user->id,
+                        'device_fingerprint' => $deviceFingerprint,
+                        'device_name' => $this->getDeviceName($request),
+                        'user_agent' => $userAgent,
+                        'ip_address' => $ipAddress,
+                        'is_primary' => true,
+                        'is_active' => true,
+                        'last_accessed_at' => now(),
+                    ]);
+                    
+                    $deviceBinding = $primaryBinding;
+                    
+                    Log::info('Primary device binding created - Login allowed', [
+                        'user_id' => $user->id,
+                        'email' => $user->email,
+                        'primary_binding_id' => $primaryBinding->id
+                    ]);
+                    
+                    // Continue to login - DO NOT show error message
+                    // The account is now bound to this device
+                }
+                
+                // Generate 6-digit OTP for 2FA
+                $otp = str_pad(random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+                $expiresAt = now()->addMinutes(5);
+                
+                // Normalize email (lowercase and trimmed) for consistent comparison
+                $normalizedEmail = strtolower(trim($request->email));
+                
+                // Store OTP data in session BEFORE logout to ensure it persists
+                $request->session()->put('login_otp_email', $normalizedEmail);
+                $request->session()->put('login_otp', $otp);
+                $request->session()->put('login_otp_expires', $expiresAt);
+                $request->session()->put('login_otp_attempts', 0);
+                $request->session()->put('login_user_id', $user->id);
+                $request->session()->put('login_credentials_verified', true);
+                
+                // Save session explicitly to ensure it persists
+                $request->session()->save();
+
+                // Send OTP email
+                try {
+                    $gmailPassword = env('MAIL_PASSWORD');
+                    
+                    if (empty($gmailPassword) || $gmailPassword === 'your-app-password-here') {
+                        Log::error('Gmail SMTP password not configured. Please set MAIL_PASSWORD in .env file');
+                        
+                        if (env('APP_DEBUG', false)) {
+                            return back()->with([
+                                'show_login_otp_modal' => true,
+                                'login_otp_email' => $request->email,
+                                'debug_otp' => $otp,
+                            ])->withInput();
+                        }
+                        
+                        return back()->withErrors(['email' => 'Email service not configured. Please contact administrator.'])->withInput();
+                    }
+
+                    Mail::send('emails.login_otp', ['otp' => $otp, 'user' => $user], function ($message) use ($request) {
+                        $message->from('iitech.inventory@gmail.com', 'IT Inventory System')
+                                ->to($request->email)
+                                ->subject('Your Login OTP - IT Inventory System');
+                    });
+                } catch (\Throwable $e) {
+                    Log::error('Login OTP email send failed: ' . $e->getMessage());
+                    return back()->withErrors(['email' => 'Failed to send OTP. Please try again.'])->withInput();
                 }
 
-                Mail::send('emails.login_otp', ['otp' => $otp, 'user' => $user], function ($message) use ($request) {
-                    $message->from('iitech.inventory@gmail.com', 'IT Inventory System')
-                            ->to($request->email)
-                            ->subject('Your Login OTP - IT Inventory System');
-                });
-            } catch (\Throwable $e) {
-                Log::error('Login OTP email send failed: ' . $e->getMessage());
-                return back()->withErrors(['email' => 'Failed to send OTP. Please try again.'])->withInput();
+                // Don't log in yet - wait for OTP verification
+                // Logout AFTER session is saved to preserve OTP data
+                // Note: We don't regenerate session here to preserve OTP data
+                Auth::logout();
+                
+                return back()->with([
+                    'show_login_otp_modal' => true,
+                    'login_otp_email' => $request->email,
+                ])->withInput();
             }
 
-            // Don't log in yet - wait for OTP verification
-            // Logout AFTER session is saved to preserve OTP data
-            // Note: We don't regenerate session here to preserve OTP data
-            Auth::logout();
+            return back()->withErrors(['email' => 'Invalid credentials']);
+        } catch (\Illuminate\Validation\ValidationException $e) {
+            // Re-throw validation exceptions so they're handled properly
+            throw $e;
+        } catch (\Exception $e) {
+            // Log the error for debugging
+            Log::error('Login error: ' . $e->getMessage(), [
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => $e->getTraceAsString(),
+                'email' => $request->email ?? 'unknown'
+            ]);
             
-            return back()->with([
-                'show_login_otp_modal' => true,
-                'login_otp_email' => $request->email,
-            ])->withInput();
+            // Return a user-friendly error message
+            return back()->withErrors(['email' => 'An error occurred during login. Please try again.'])->withInput();
         }
-
-        return back()->withErrors(['email' => 'Invalid credentials']);
     }
 
     /**

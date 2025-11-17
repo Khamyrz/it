@@ -7,19 +7,12 @@ use App\Models\RoomItem;
 use App\Models\Borrow;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class DashboardController extends Controller
 {
     public function index()
     {
-        try {
-            $user = Auth::user();
-            
-            // Ensure user is authenticated
-            if (!$user) {
-                return redirect('/login')->withErrors(['error' => 'Please login to access the dashboard.']);
-            }
+        $user = Auth::user();
 
         // Count items grouped by device category (always filter by user)
         $itemCounts = RoomItem::where('user_id', $user->id)
@@ -73,7 +66,7 @@ class DashboardController extends Controller
         $borrowedComputerCount = 0;
         
         foreach ($activeBorrowedRoomItems as $borrow) {
-            if ($borrow->roomItem && isset($borrow->roomItem->device_category)) {
+            if ($borrow->roomItem) {
                 $deviceType = $this->getDeviceType($borrow->roomItem->device_category);
                 if ($deviceType === 'Peripherals') {
                     $borrowedPeripheralCount++;
@@ -142,37 +135,26 @@ class DashboardController extends Controller
             'Computer Units' => $computerUnitCount
         ];
 
-            return view('dashboard', compact(
-                'user',
-                'itemCounts',
-                'usableCount',
-                'unusableCount',
-                'borrowedCount',
-                'borrowedPeripheralCount',
-                'borrowedComputerCount',
-                'pendingUsers',
-                'recentBorrowedItems',
-                'roomItemCounts',
-                'peripheralCount',
-                'computerUnitCount',
-                'deviceTypeCounts',
-                'usablePeripheralCount',
-                'usableComputerUnitCount',
-                'unusablePeripheralCount',
-                'unusableComputerUnitCount',
-                'isNewUser'
-            ));
-        } catch (\Exception $e) {
-            // Log the error for debugging
-            Log::error('Dashboard error: ' . $e->getMessage(), [
-                'file' => $e->getFile(),
-                'line' => $e->getLine(),
-                'trace' => $e->getTraceAsString()
-            ]);
-            
-            // Return a user-friendly error message
-            return redirect('/login')->withErrors(['error' => 'An error occurred while loading the dashboard. Please try again.']);
-        }
+        return view('dashboard', compact(
+            'user',
+            'itemCounts',
+            'usableCount',
+            'unusableCount',
+            'borrowedCount',
+            'borrowedPeripheralCount',
+            'borrowedComputerCount',
+            'pendingUsers',
+            'recentBorrowedItems',
+            'roomItemCounts',
+            'peripheralCount',
+            'computerUnitCount',
+            'deviceTypeCounts',
+            'usablePeripheralCount',
+            'usableComputerUnitCount',
+            'unusablePeripheralCount',
+            'unusableComputerUnitCount',
+            'isNewUser'
+        ));
     }
 
     /**
@@ -181,11 +163,6 @@ class DashboardController extends Controller
      */
     private function getDeviceType($deviceCategory)
     {
-        // Handle null or empty device category
-        if (empty($deviceCategory)) {
-            return 'Other';
-        }
-        
         $deviceCategory = strtolower($deviceCategory);
         
         // Define peripherals

@@ -16,6 +16,24 @@ return Application::configure(basePath: dirname(__DIR__))
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
+        // Handle class not found errors (especially User model)
+        $exceptions->render(function (\Error $e, \Illuminate\Http\Request $request) {
+            $message = $e->getMessage();
+            if (strpos($message, 'AppModelsUser') !== false || strpos($message, 'App\\Models\\User') !== false || strpos($message, 'Class') !== false && strpos($message, 'User') !== false) {
+                \Illuminate\Support\Facades\Log::error('User model class not found: ' . $message, [
+                    'file' => $e->getFile(),
+                    'line' => $e->getLine(),
+                    'trace' => substr($e->getTraceAsString(), 0, 500)
+                ]);
+                if ($request->is('login') || $request->is('login/*')) {
+                    if ($request->expectsJson()) {
+                        return response()->json(['message' => 'Configuration error. Please run: composer dump-autoload && php artisan config:clear on the server.'], 500);
+                    }
+                    return redirect()->back()->withErrors(['email' => 'System configuration error. Please contact administrator to run: composer dump-autoload && php artisan config:clear'])->withInput();
+                }
+            }
+        });
+        
         // Handle database connection errors globally
         $exceptions->render(function (\PDOException $e, \Illuminate\Http\Request $request) {
             if ($request->is('login') || $request->is('login/*')) {

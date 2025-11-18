@@ -466,9 +466,9 @@
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>{{ $borrow->borrower_name }}</td>
-                            <td>{{ $borrow->item->device_category ?? 'N/A' }} - {{ $borrow->item->device_type ?? 'N/A' }}</td>
-                            <td><code>{{ $borrow->item->serial_number ?? 'N/A' }}</code></td>
-                            <td>{{ $borrow->item->room_title ?? 'N/A' }}</td>
+                            <td>{{ $item->device_category }}</td>
+                            <td><code>{{ $item->serial_number }}</code></td>
+                            <td>{{ $item->room_title }}</td>
                             <td>{{ Carbon::parse($borrow->borrow_date)->format('M d, Y') }}</td>
                             <td>{{ $borrow->return_date ? Carbon::parse($borrow->return_date)->format('M d, Y') : 'N/A' }}</td>
                             <td><span class="status {{ $borrow->status }}">{{ $borrow->status }}</span></td>

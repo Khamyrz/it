@@ -524,8 +524,29 @@
                             <td><code>{{ $item->serial_number }}</code></td>
                             <td>{{ $item->description }}</td>
                             <td class="barcode-container">
-                                <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode ?? '000000000', 'C128', 1.5, 35) }}" alt="{{ $item->barcode ?? 'N/A' }}">
-                                <div>{{ $item->barcode }}</div>
+                                @if(!empty($item->barcode) && is_string($item->barcode))
+                                    @php
+                                        $barcodeBase64 = null;
+                                        try {
+                                            if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
+                                                $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 35);
+                                                if ($barcodePng && strlen($barcodePng) > 0) {
+                                                    $barcodeBase64 = base64_encode($barcodePng);
+                                                }
+                                            }
+                                        } catch (\Exception $e) {
+                                            $barcodeBase64 = null;
+                                        } catch (\Throwable $e) {
+                                            $barcodeBase64 = null;
+                                        }
+                                    @endphp
+                                    @if($barcodeBase64)
+                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}">
+                                    @endif
+                                    <div>{{ $item->barcode }}</div>
+                                @else
+                                    <div>N/A</div>
+                                @endif
                             </td>
                             <td>{{ $item->status }}</td>
                             <td>{{ $item->created_at->format('M d, Y') }}</td>

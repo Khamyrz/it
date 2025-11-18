@@ -5,15 +5,21 @@ use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
 if (!function_exists('getBarcodeBase64')) {
     function getBarcodeBase64($barcode, $type = 'C128', $width = 2.0, $height = 50) {
         try {
-            if (empty($barcode)) {
+            if (empty($barcode) || !is_string($barcode)) {
+                return null;
+            }
+            if (!class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
                 return null;
             }
             $pngData = DNS1D::getBarcodePNG($barcode, $type, $width, $height);
-            if ($pngData) {
+            if ($pngData && strlen($pngData) > 0) {
                 return base64_encode($pngData);
             }
         } catch (\Exception $e) {
-            \Illuminate\Support\Facades\Log::error('Barcode generation error: ' . $e->getMessage());
+            // Silently fail - don't log to avoid potential issues
+            return null;
+        } catch (\Throwable $e) {
+            // Catch any other errors
             return null;
         }
         return null;
@@ -1775,7 +1781,8 @@ if (!function_exists('getBarcodeBase64')) {
 
         <div class="container">
             @php
-                // Group items by room_title
+                // Group items by room_title - ensure $items is a collection
+                $items = $items ?? collect([]);
                 $groupedItems = $items->groupBy('room_title');
             @endphp
 
@@ -2159,7 +2166,14 @@ if (!function_exists('getBarcodeBase64')) {
                                                             <div class="barcode-text">{{ $item->barcode }}</div>
                                                             <div class="bwippbarcode">
                                                                 @if($item->barcode)
-                                                                    <img src="data:image/png;base64,{{ base64_encode(DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50)) }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                    @php
+                                                                        $barcodeBase64 = getBarcodeBase64($item->barcode, 'C128', 2.0, 50);
+                                                                    @endphp
+                                                                    @if($barcodeBase64)
+                                                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
+                                                                    @else
+                                                                        <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
+                                                                    @endif
                                                                 @else
                                                                     <div style="color: #999; font-size: 12px;">No barcode</div>
                                                                 @endif

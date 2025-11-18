@@ -1,5 +1,6 @@
 @php
     use Illuminate\Support\Str;
+    use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
 @endphp
 
 <h3>🔍 Result for Barcode: <code>{{ $barcode }}</code></h3>
@@ -76,7 +77,26 @@
                                     <span class="status-small {{ $item->status }}">{{ $item->status }}</span>
                                 </div>
                                 <div class="barcode-image-small">
-                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40) }}" alt="Barcode">
+                                    @php
+                                        $barcodeImage = null;
+                                        try {
+                                            if (function_exists('imagecreate') && function_exists('imagepng')) {
+                                                $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40);
+                                                if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
+                                                    $barcodeImage = null;
+                                                } elseif (base64_decode($barcodeImage, true) === false) {
+                                                    $barcodeImage = null;
+                                                }
+                                            }
+                                        } catch (\Exception $e) {
+                                            $barcodeImage = null;
+                                        } catch (\Throwable $e) {
+                                            $barcodeImage = null;
+                                        }
+                                    @endphp
+                                    @if($barcodeImage)
+                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                                    @endif
                                     <div class="barcode-text-small">{{ $item->barcode }}</div>
                                 </div>
                             </div>
@@ -112,7 +132,26 @@
                         <span class="status-small {{ $item->status }}">{{ $item->status }}</span>
                     </div>
                     <div class="barcode-image-small">
-                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40) }}" alt="Barcode">
+                        @php
+                            $barcodeImage = null;
+                            try {
+                                if (function_exists('imagecreate') && function_exists('imagepng')) {
+                                    $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40);
+                                    if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
+                                        $barcodeImage = null;
+                                    } elseif (base64_decode($barcodeImage, true) === false) {
+                                        $barcodeImage = null;
+                                    }
+                                }
+                            } catch (\Exception $e) {
+                                $barcodeImage = null;
+                            } catch (\Throwable $e) {
+                                $barcodeImage = null;
+                            }
+                        @endphp
+                        @if($barcodeImage)
+                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                        @endif
                         <div class="barcode-text-small">{{ $item->barcode }}</div>
                     </div>
                 </div>

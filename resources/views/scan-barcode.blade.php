@@ -610,7 +610,26 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 </div>
                                                 <div class="barcode-image-small">
                                                     @if($item->barcode)
-                                                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40) }}" alt="Barcode">
+                                                        @php
+                                                            $barcodeImage = null;
+                                                            try {
+                                                                if (function_exists('imagecreate') && function_exists('imagepng')) {
+                                                                    $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40);
+                                                                    if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
+                                                                        $barcodeImage = null;
+                                                                    } elseif (base64_decode($barcodeImage, true) === false) {
+                                                                        $barcodeImage = null;
+                                                                    }
+                                                                }
+                                                            } catch (\Exception $e) {
+                                                                $barcodeImage = null;
+                                                            } catch (\Throwable $e) {
+                                                                $barcodeImage = null;
+                                                            }
+                                                        @endphp
+                                                        @if($barcodeImage)
+                                                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                                                        @endif
                                                         <div class="barcode-text-small">{{ $item->barcode }}</div>
                                                     @else
                                                         <div class="barcode-text-small" style="color: #999;">No barcode</div>
@@ -664,7 +683,26 @@ document.addEventListener('DOMContentLoaded', function() {
                             </div>
                             <div class="barcode-image">
                                 @if($item->barcode)
-                                    <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 2, 60) }}" alt="Barcode">
+                                    @php
+                                        $barcodeImage = null;
+                                        try {
+                                            if (function_exists('imagecreate') && function_exists('imagepng')) {
+                                                $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2, 60);
+                                                if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
+                                                    $barcodeImage = null;
+                                                } elseif (base64_decode($barcodeImage, true) === false) {
+                                                    $barcodeImage = null;
+                                                }
+                                            }
+                                        } catch (\Exception $e) {
+                                            $barcodeImage = null;
+                                        } catch (\Throwable $e) {
+                                            $barcodeImage = null;
+                                        }
+                                    @endphp
+                                    @if($barcodeImage)
+                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                                    @endif
                                     <div class="barcode-text">{{ $item->barcode }}</div>
                                 @else
                                     <div class="barcode-text" style="color: #999;">No barcode</div>

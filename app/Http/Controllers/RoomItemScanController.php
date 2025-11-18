@@ -48,7 +48,13 @@ class RoomItemScanController extends Controller
                 $itemsQuery->where('user_id', $user->id);
             }
             
+            // Get items with proper error handling
             $items = $itemsQuery->get();
+            
+            // Ensure items collection is valid
+            if (!$items) {
+                $items = collect([]);
+            }
 
             if ($items->isEmpty()) {
                 return view('scan-barcode', [

@@ -2044,24 +2044,8 @@ if (!function_exists('getBarcodeBase64')) {
                                                                 <div class="barcode-text">{{ $item->barcode }}</div>
                                                                 <div class="bwippbarcode">
                                                                     @if($item->barcode && !empty($item->barcode))
-                                                                        @php
-                                                                            $barcodeImage = null;
-                                                                            try {
-                                                                                if (class_exists('\Milon\Barcode\Facades\DNS1DFacade')) {
-                                                                                    $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                    if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
-                                                                                        $barcodeImage = null;
-                                                                                    }
-                                                                                }
-                                                                            } catch (\Exception $e) {
-                                                                                $barcodeImage = null;
-                                                                            } catch (\Throwable $e) {
-                                                                                $barcodeImage = null;
-                                                                            }
-                                                                        @endphp
-                                                                        @if($barcodeImage && strlen($barcodeImage) > 50)
-                                                                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;" onerror="this.style.display='none';">
-                                                                        @endif
+                                                                        {{-- Use exact same pattern as scan-barcode.blade.php which works online and offline --}}
+                                                                        <img src="data:image/png;base64,{{ DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50) }}" alt="{{ $item->barcode }}" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
                                                                     @else
                                                                         <div style="color: #999; font-size: 12px;">No barcode</div>
                                                                     @endif

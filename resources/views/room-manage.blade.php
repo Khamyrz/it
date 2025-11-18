@@ -2047,9 +2047,22 @@ if (!function_exists('getBarcodeBase64')) {
                                                                         @php
                                                                             $barcodeImage = null;
                                                                             try {
-                                                                                $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage)) {
-                                                                                    $barcodeImage = null;
+                                                                                // Check if GD library is available (required for barcode generation)
+                                                                                if (function_exists('imagecreate') && function_exists('imagepng')) {
+                                                                                    // Generate barcode - the library handles output buffering internally
+                                                                                    $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                    
+                                                                                    // Validate the result - must be valid base64 string
+                                                                                    if ($barcodeImage !== false && $barcodeImage !== null && !empty($barcodeImage) && strlen($barcodeImage) >= 50) {
+                                                                                        // Ensure it's valid base64
+                                                                                        if (base64_decode($barcodeImage, true) !== false) {
+                                                                                            // Valid barcode image
+                                                                                        } else {
+                                                                                            $barcodeImage = null;
+                                                                                        }
+                                                                                    } else {
+                                                                                        $barcodeImage = null;
+                                                                                    }
                                                                                 }
                                                                             } catch (\Exception $e) {
                                                                                 $barcodeImage = null;

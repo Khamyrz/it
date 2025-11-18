@@ -1295,15 +1295,28 @@ class RoomManagementController extends Controller
         // Generate barcode for the component using the existing PC number
         $barcode = $this->generateBarcodeForFullSet($validatedData['room_title'], $validatedData['device_category'], $pc);
 
+        // Format PC number to match barcode format (e.g., 1 -> 001)
+        $formattedPc = str_pad($pc, 3, '0', STR_PAD_LEFT);
+        
         // Try to find an existing full set id for this room + PC number so the new
         // component is grouped with the same PC set (only user's items)
+        // Match barcode pattern: ROOMCODE-DEVICECODE001 (where 001 is the PC number)
         $existingPcItem = RoomItem::where('room_title', $validatedData['room_title'])
-            ->where('barcode', 'LIKE', '%-' . $pc)
+            ->where('barcode', 'LIKE', '%' . $formattedPc)
             ->where('user_id', $user->id)
+            ->whereNotNull('full_set_id')
             ->orderBy('id', 'desc')
             ->first();
-        $fullSetId = $existingPcItem ? $existingPcItem->full_set_id : null;
-        $isFullSetItem = $fullSetId ? true : false;
+        
+        // If no existing item found, create a new full_set_id based on room and PC
+        if (!$existingPcItem) {
+            // Create full_set_id in format: room_title-PC001
+            $fullSetId = $validatedData['room_title'] . '-PC' . $formattedPc;
+        } else {
+            $fullSetId = $existingPcItem->full_set_id;
+        }
+        
+        $isFullSetItem = true; // Always true for components added via Add Component
 
         // Create the component
         RoomItem::create([

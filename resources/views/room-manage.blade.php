@@ -1,4 +1,4 @@
-<?php 
+@php 
 use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
 
 // Helper function to generate barcode safely
@@ -8,10 +8,12 @@ if (!function_exists('getBarcodeBase64')) {
             if (empty($barcode) || !is_string($barcode)) {
                 return null;
             }
+            // Check if the facade class exists
             if (!class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
                 return null;
             }
-            $pngData = DNS1D::getBarcodePNG($barcode, $type, $width, $height);
+            // Use fully qualified name to ensure it works in function scope
+            $pngData = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode, $type, $width, $height);
             if ($pngData && strlen($pngData) > 0) {
                 return base64_encode($pngData);
             }
@@ -25,7 +27,7 @@ if (!function_exists('getBarcodeBase64')) {
         return null;
     }
 }
-?>
+@endphp
 
 @extends('layouts.app')
 @section('title', 'Room Management')
@@ -1267,6 +1269,22 @@ if (!function_exists('getBarcodeBase64')) {
     color: #666;
 }
 
+.bwippbarcode {
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bwippbarcode img {
+    display: block !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+    max-width: 200px;
+    height: auto;
+    margin: 0 auto;
+}
+
 /* Empty State */
 .empty-state {
     text-align: center;
@@ -2025,14 +2043,22 @@ if (!function_exists('getBarcodeBase64')) {
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                                 <div class="barcode-text">{{ $item->barcode }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    @if($item->barcode)
+                                                                    @if($item->barcode && !empty($item->barcode))
                                                                         @php
-                                                                            $barcodeBase64 = getBarcodeBase64($item->barcode, 'C128', 2.0, 50);
+                                                                            $barcodeImage = null;
+                                                                            try {
+                                                                                $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
+                                                                                    $barcodeImage = null;
+                                                                                }
+                                                                            } catch (\Exception $e) {
+                                                                                $barcodeImage = null;
+                                                                            } catch (\Throwable $e) {
+                                                                                $barcodeImage = null;
+                                                                            }
                                                                         @endphp
-                                                                        @if($barcodeBase64)
-                                                                            <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
-                                                                        @else
-                                                                            <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
+                                                                        @if($barcodeImage)
+                                                                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
                                                                         @endif
                                                                     @else
                                                                         <div style="color: #999; font-size: 12px;">No barcode</div>
@@ -2165,15 +2191,24 @@ if (!function_exists('getBarcodeBase64')) {
                                                         <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                             <div class="barcode-text">{{ $item->barcode }}</div>
                                                             <div class="bwippbarcode">
-                                                                @if($item->barcode)
+                                                                @if($item->barcode && !empty($item->barcode))
                                                                     @php
-                                                                        $barcodeBase64 = getBarcodeBase64($item->barcode, 'C128', 2.0, 50);
+                                                                        $barcodeImage = null;
+                                                                        try {
+                                                                            $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                            if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
+                                                                                $barcodeImage = null;
+                                                                            }
+                                                                        } catch (\Exception $e) {
+                                                                            $barcodeImage = null;
+                                                                        } catch (\Throwable $e) {
+                                                                            $barcodeImage = null;
+                                                                        }
                                                                     @endphp
-                                                                    @if($barcodeBase64)
-                                                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; width: 200px; height: 50px; object-fit: contain;">
-                                                                    @else
-                                                                        <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
+                                                                    @if($barcodeImage)
+                                                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
                                                                     @endif
+                                                                    <div class="barcode-text" style="margin-top: 5px; font-size: 10px; color: #666;">{{ $item->barcode }}</div>
                                                                 @else
                                                                     <div style="color: #999; font-size: 12px;">No barcode</div>
                                                                 @endif

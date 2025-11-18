@@ -1,4 +1,31 @@
-@php use Carbon\Carbon; use Milon\Barcode\Facades\DNS1DFacade as DNS1D; @endphp
+@php 
+use Carbon\Carbon; 
+use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
+
+// Helper function to generate barcode safely
+if (!function_exists('getBarcodeBase64')) {
+    function getBarcodeBase64($barcode, $type = 'C128', $width = 2.0, $height = 50) {
+        try {
+            if (empty($barcode) || !is_string($barcode)) {
+                return null;
+            }
+            if (!class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
+                return null;
+            }
+            // Use fully qualified name to ensure it works in function scope
+            $pngData = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode, $type, $width, $height);
+            if ($pngData && strlen($pngData) > 0) {
+                return base64_encode($pngData);
+            }
+        } catch (\Exception $e) {
+            return null;
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return null;
+    }
+}
+@endphp
 
 @extends('layouts.app')
 
@@ -466,9 +493,9 @@
                         <tr>
                             <td>{{ $index + 1 }}</td>
                             <td>{{ $borrow->borrower_name }}</td>
-                            <td>{{ $item->device_category }}</td>
-                            <td><code>{{ $item->serial_number }}</code></td>
-                            <td>{{ $item->room_title }}</td>
+                            <td>{{ $borrow->item->device_category ?? 'N/A' }} - {{ $borrow->item->device_type ?? 'N/A' }}</td>
+                            <td><code>{{ $borrow->item->serial_number ?? 'N/A' }}</code></td>
+                            <td>{{ $borrow->item->room_title ?? 'N/A' }}</td>
                             <td>{{ Carbon::parse($borrow->borrow_date)->format('M d, Y') }}</td>
                             <td>{{ $borrow->return_date ? Carbon::parse($borrow->return_date)->format('M d, Y') : 'N/A' }}</td>
                             <td><span class="status {{ $borrow->status }}">{{ $borrow->status }}</span></td>
@@ -526,22 +553,10 @@
                             <td class="barcode-container">
                                 @if(!empty($item->barcode) && is_string($item->barcode))
                                     @php
-                                        $barcodeBase64 = null;
-                                        try {
-                                            if (class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
-                                                $barcodePng = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 35);
-                                                if ($barcodePng && strlen($barcodePng) > 0) {
-                                                    $barcodeBase64 = base64_encode($barcodePng);
-                                                }
-                                            }
-                                        } catch (\Exception $e) {
-                                            $barcodeBase64 = null;
-                                        } catch (\Throwable $e) {
-                                            $barcodeBase64 = null;
-                                        }
+                                        $barcodeBase64 = getBarcodeBase64($item->barcode, 'C128', 1.5, 35);
                                     @endphp
                                     @if($barcodeBase64)
-                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}">
+                                        <img src="data:image/png;base64,{{ $barcodeBase64 }}" alt="{{ $item->barcode }}" style="display:block; max-width: 200px; height: auto; margin: 0 auto;">
                                     @endif
                                     <div>{{ $item->barcode }}</div>
                                 @else

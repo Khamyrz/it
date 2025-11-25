@@ -19,6 +19,27 @@ use Illuminate\Database\QueryException;
 
 class AuthController extends Controller
 {
+    public function __construct()
+    {
+        $this->ensureUserModelLoaded();
+    }
+
+    /**
+     * Ensure the User model class is available even if Composer's autoloader cache is stale.
+     */
+    private function ensureUserModelLoaded(): void
+    {
+        if (!class_exists(\App\Models\User::class, false)) {
+            $userFile = app_path('Models/User.php');
+            $userFileLower = app_path('Models/user.php');
+
+            if (file_exists($userFile)) {
+                require_once $userFile;
+            } elseif (file_exists($userFileLower)) {
+                require_once $userFileLower;
+            }
+        }
+    }
     public function showRegisterForm() {
         return view('register');
     }
@@ -110,21 +131,7 @@ class AuthController extends Controller
 
     public function login(Request $request) {
         try {
-            // Ensure User model class is available (fallback for server autoloader issues)
-            if (!class_exists(\App\Models\User::class)) {
-                // Try to load User.php directly if autoloader is broken
-                $userFile = app_path('Models/User.php');
-                if (file_exists($userFile)) {
-                    require_once $userFile;
-                } else {
-                    // Try lowercase as fallback
-                    $userFileLower = app_path('Models/user.php');
-                    if (file_exists($userFileLower)) {
-                        require_once $userFileLower;
-                    }
-                }
-            }
-            
+
             $request->validate([
                 'email' => 'required|email|regex:/^[a-zA-Z0-9._%+-]+@gmail\.com$/',
                 'password' => 'required',

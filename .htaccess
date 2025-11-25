@@ -1,40 +1,5 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
-
-    # Block direct access to folders (except resources)
-    RewriteCond %{REQUEST_URI} ^/(app|bootstrap|config|database|routes|storage|vendor|tests|node_modules|images|\.git|\.env|composer\.json|artisan|package\.json|vite\.config\.js|phpunit\.xml|README\.md) [NC]
-    RewriteRule ^(.*)$ - [F,L]
-
-    # Block direct access to /public/ folder (directory listing)
-    RewriteCond %{REQUEST_URI} ^/public/?$ [NC]
-    RewriteRule ^(.*)$ - [F,L]
-
-    # Allow access to resources folder
-    RewriteCond %{REQUEST_URI} ^/resources [NC]
-    RewriteRule ^(.*)$ - [L]
-
-    # Redirect all other requests to the public folder
+    RewriteRule ^(storage|vendor|app|bootstrap|config|database|resources|routes|tests)$ - [F,L,NC]
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
-
-# Disable directory browsing
-Options -Indexes
-
-# Block access to sensitive files
-<FilesMatch "^(\.env|\.git|composer\.json|artisan|server\.php|storage|vendor|\.htaccess|\.gitignore|\.gitattributes)">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-# Block access to PHP files in root (except public)
-<FilesMatch "\.php$">
-    Order allow,deny
-    Deny from all
-</FilesMatch>
-
-# Allow access to resources folder
-<IfModule mod_rewrite.c>
-    RewriteCond %{REQUEST_URI} ^/resources [NC]
-    RewriteRule ^(.*)$ - [L]
-</IfModule>
-

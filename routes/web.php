@@ -53,7 +53,9 @@ Route::post('/password-reset/verify-otp', [AuthController::class, 'verifyOTP'])-
 Route::post('/password-reset/update', [AuthController::class, 'updatePassword'])->name('password.reset.update');
 
 // DASHBOARD (PROTECTED)
-Route::get('/dashboard', [DashboardController::class, 'index'])->middleware('auth');
+Route::get('/dashboard', [DashboardController::class, 'index'])
+    ->middleware('auth')
+    ->name('dashboard');
 // ADMIN DASHBOARD VIEW (you can implement controller/view)
 Route::get('/admin-dashboard', function(){ return view('admin-dashboard'); })->name('admin.dashboard');
 Route::get('/admin-metrics', [AdminMetricsController::class, 'metrics'])->name('admin.metrics');

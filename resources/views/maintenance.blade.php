@@ -34,33 +34,33 @@
         }
 
         .main-content {
-            padding: 30px 40px;
+            padding: 15px 20px;
             background: #f8f9fa;
             min-height: 100vh;
         }
 
         .page-header {
-            margin-bottom: 35px;
+            margin-bottom: 20px;
             display: flex;
             align-items: center;
             justify-content: space-between;
             flex-wrap: wrap;
-            gap: 20px;
+            gap: 12px;
         }
 
         .page-title {
-            font-size: 28px;
+            font-size: 20px;
             font-weight: 600;
             color: #2c3e50;
             margin: 0;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
         }
 
         .page-title::before {
             content: "🔧";
-            font-size: 24px;
+            font-size: 18px;
         }
 
         .stats-overview {
@@ -71,14 +71,14 @@
 
         .stat-badge {
             background: white;
-            padding: 12px 20px;
-            border-radius: 25px;
+            padding: 6px 12px;
+            border-radius: 20px;
             box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
-            font-size: 14px;
+            font-size: 12px;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 6px;
         }
 
         .stat-usable {
@@ -131,7 +131,7 @@
         }
 
         .comlab-header {
-            padding: 25px 30px;
+            padding: 12px 18px;
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             cursor: pointer;
@@ -152,17 +152,17 @@
         }
 
         .comlab-title {
-            font-size: 24px;
+            font-size: 18px;
             font-weight: 700;
             margin: 0;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
         }
 
         .comlab-title::before {
             content: "🖥️";
-            font-size: 22px;
+            font-size: 16px;
         }
 
         .comlab-subtitle {
@@ -179,13 +179,13 @@
 
         .comlab-stat {
             background: rgba(255, 255, 255, 0.2);
-            padding: 10px 15px;
-            border-radius: 25px;
-            font-size: 14px;
+            padding: 5px 10px;
+            border-radius: 15px;
+            font-size: 12px;
             font-weight: 600;
             display: flex;
             align-items: center;
-            gap: 8px;
+            gap: 5px;
         }
 
         .toggle-icon {
@@ -228,7 +228,7 @@
         }
 
         .fullset-header {
-            padding: 18px 22px;
+            padding: 10px 15px;
             background: linear-gradient(135deg, #34495e, #2c3e50);
             color: white;
             cursor: pointer;
@@ -249,17 +249,17 @@
         }
 
         .fullset-title {
-            font-size: 18px;
+            font-size: 15px;
             font-weight: 600;
             margin: 0;
             display: flex;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
 
         .fullset-title::before {
             content: "💻";
-            font-size: 16px;
+            font-size: 14px;
         }
 
         .fullset-room {
@@ -276,9 +276,9 @@
 
         .fullset-stat {
             background: rgba(255, 255, 255, 0.2);
-            padding: 6px 10px;
-            border-radius: 15px;
-            font-size: 12px;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 11px;
             font-weight: 600;
             display: flex;
             align-items: center;
@@ -333,10 +333,10 @@
         }
 
         .maintenance-table th {
-            padding: 18px 16px;
+            padding: 10px 12px;
             color: white;
             font-weight: 600;
-            font-size: 13px;
+            font-size: 11px;
             text-transform: uppercase;
             letter-spacing: 0.5px;
             border: none;
@@ -344,10 +344,11 @@
         }
 
         .maintenance-table td {
-            padding: 16px;
+            padding: 10px 12px;
             border: none;
             border-bottom: 1px solid #f1f3f4;
             vertical-align: middle;
+            font-size: 12px;
         }
 
         .maintenance-table tbody tr:last-child td {
@@ -474,9 +475,9 @@
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 6px 12px;
             border-radius: 8px;
-            font-size: 13px;
+            font-size: 12px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -551,9 +552,9 @@
             background: linear-gradient(135deg, #f39c12, #e67e22);
             color: white;
             border: none;
-            padding: 10px 20px;
+            padding: 8px 16px;
             border-radius: 8px;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
@@ -785,6 +786,88 @@
         @supports not (height: 100dvh) {
             .sidebar {
                 height: 100vh !important;
+            }
+        }
+
+        /* Enhanced Mobile Responsive Styles */
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 10px 5px;
+            }
+
+            .page-title {
+                font-size: 20px;
+            }
+
+            .stats-overview {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .stat-badge {
+                width: 100%;
+                justify-content: center;
+            }
+
+            .comlab-header {
+                padding: 15px;
+            }
+
+            .comlab-title {
+                font-size: 18px;
+            }
+
+            .fullset-header {
+                padding: 12px 15px;
+            }
+
+            .fullset-title {
+                font-size: 16px;
+            }
+
+            .maintenance-table {
+                font-size: 11px;
+                min-width: 700px;
+            }
+
+            .maintenance-table th,
+            .maintenance-table td {
+                padding: 8px 5px;
+            }
+
+            .device-photo,
+            .no-photo {
+                width: 40px;
+                height: 40px;
+            }
+
+            .status-form {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .status-form select {
+                width: 100%;
+            }
+
+            .btn-update {
+                width: 100%;
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+
+            .item-notes-form {
+                flex-direction: column;
+            }
+
+            .item-notes-textarea {
+                width: 100%;
+            }
+
+            .btn-save-item-note {
+                width: 100%;
+                padding: 8px 12px;
+                font-size: 12px;
             }
         }
     </style>

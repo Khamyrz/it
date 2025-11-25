@@ -57,22 +57,22 @@
         flex: 1;
         display: flex;
         flex-direction: column;
-        padding: 20px;
+        padding: 12px;
         max-width: 1200px;
         margin: auto;
     }
     .box {
         background: white;
-        padding: 20px;
+        padding: 12px;
         border-radius: 6px;
         box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-        margin-bottom: 20px;
+        margin-bottom: 12px;
     }
     .category-total {
         background: #e3f2fd;
         border-left: 4px solid #2196f3;
-        padding: 8px 12px;
-        margin: 5px 0;
+        padding: 6px 10px;
+        margin: 4px 0;
         border-radius: 4px;
         display: flex;
         justify-content: space-between;
@@ -81,36 +81,162 @@
     .category-total .category-name {
         font-weight: 600;
         color: #1976d2;
+        font-size: 13px;
     }
     .category-total .category-count {
         background: #2196f3;
         color: white;
-        padding: 4px 8px;
+        padding: 3px 6px;
         border-radius: 12px;
-        font-size: 12px;
+        font-size: 11px;
         font-weight: bold;
     }
     .totals-section {
         background: #f8f9fa;
         border-radius: 6px;
-        padding: 15px;
-        margin-bottom: 15px;
+        padding: 10px;
+        margin-bottom: 10px;
         border: 1px solid #e9ecef;
     }
     .totals-title {
-        font-size: 16px;
+        font-size: 14px;
         font-weight: 600;
         color: #495057;
-        margin-bottom: 10px;
+        margin-bottom: 8px;
         display: flex;
         align-items: center;
-        gap: 8px;
+        gap: 6px;
     }
     .no-totals {
         color: #6c757d;
         font-style: italic;
         text-align: center;
         padding: 20px;
+    }
+
+    /* Responsive Mobile Design */
+    @media (max-width: 768px) {
+        body {
+            flex-direction: column;
+        }
+
+        nav {
+            width: 100%;
+            height: auto;
+            position: relative;
+            padding: 15px;
+        }
+
+        nav ul {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 5px;
+        }
+
+        nav ul li {
+            width: auto;
+        }
+
+        nav ul li a {
+            padding: 8px 12px;
+            font-size: 14px;
+        }
+
+        .container {
+            padding: 15px;
+            max-width: 100%;
+        }
+
+        .box {
+            padding: 15px;
+            margin-bottom: 15px;
+        }
+
+        .row {
+            flex-direction: column;
+        }
+
+        .col-md-6 {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        table {
+            font-size: 12px;
+            display: block;
+            overflow-x: auto;
+        }
+
+        table thead {
+            display: none;
+        }
+
+        table tbody tr {
+            display: block;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 10px;
+            background: white;
+        }
+
+        table tbody td {
+            display: block;
+            text-align: right;
+            padding: 8px;
+            border: none;
+            border-bottom: 1px solid #f1f3f4;
+        }
+
+        table tbody td:before {
+            content: attr(data-label);
+            float: left;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        table tbody td:last-child {
+            border-bottom: none;
+        }
+
+        .btn {
+            width: 100%;
+            margin-bottom: 10px;
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+        .modal-dialog {
+            max-width: 95%;
+            margin: 10px;
+        }
+
+        .modal-content {
+            padding: 15px;
+        }
+
+        .page-title {
+            font-size: 20px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .container {
+            padding: 10px;
+        }
+
+        .box {
+            padding: 10px;
+        }
+
+        table {
+            font-size: 11px;
+        }
+
+        .btn {
+            padding: 6px 10px;
+            font-size: 12px;
+        }
     }
 </style>
 
@@ -142,7 +268,7 @@
 
     <div class="row">
         <div class="col-md-6 box">
-            <h4>ALL CATEGORIES (from Room Items)</h4>
+            <h4 style="font-size: 16px; margin-bottom: 12px;">ALL CATEGORIES (from Room Items)</h4>
             <table class="table table-bordered">
                 <thead>
                     <tr>
@@ -170,7 +296,7 @@
         </div>
 
         <div class="col-md-6 box">
-            <h4>ALL ROOMS</h4>
+            <h4 style="font-size: 16px; margin-bottom: 12px;">ALL ROOMS</h4>
             <table class="table table-bordered">
                 <thead>
                     <tr>

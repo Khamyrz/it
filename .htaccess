@@ -1,83 +1,40 @@
 <IfModule mod_rewrite.c>
     RewriteEngine On
 
-    # Redirect all requests to the public folder
+    # Block direct access to folders (except resources)
+    RewriteCond %{REQUEST_URI} ^/(app|bootstrap|config|database|routes|storage|vendor|tests|node_modules|images|\.git|\.env|composer\.json|artisan|package\.json|vite\.config\.js|phpunit\.xml|README\.md) [NC]
+    RewriteRule ^(.*)$ - [F,L]
+
+    # Block direct access to /public/ folder (directory listing)
+    RewriteCond %{REQUEST_URI} ^/public/?$ [NC]
+    RewriteRule ^(.*)$ - [F,L]
+
+    # Allow access to resources folder
+    RewriteCond %{REQUEST_URI} ^/resources [NC]
+    RewriteRule ^(.*)$ - [L]
+
+    # Redirect all other requests to the public folder
     RewriteRule ^(.*)$ public/$1 [L]
 </IfModule>
-
-# ============================
-# 🔒 SECURITY RULES
-# ============================
-
-# Deny access to sensitive files and folders
-<FilesMatch "(^\.|composer\.json|composer\.lock|artisan|server\.php|storage|vendor|env|.git)">
-    Require all denied
-</FilesMatch>
 
 # Disable directory browsing
 Options -Indexes
 
-# Prevent script execution in storage and vendor directories
-<Directory "/storage">
-    RemoveHandler .php .phtml .php3 .php4 .php5 .php7
-    RemoveType .php .phtml .php3 .php4 .php5 .php7
-</Directory>
-
-<Directory "/vendor">
-    RemoveHandler .php .phtml .php3 .php4 .php5 .php7
-    RemoveType .php .phtml .php3 .php4 .php5 .php7
-</Directory>
-
 # Block access to sensitive files
-<FilesMatch "(^\.|\.env|composer\.json|artisan|server\.php|.git|.env|.htaccess|phpunit\.xml|storage|vendor)">
+<FilesMatch "^(\.env|\.git|composer\.json|artisan|server\.php|storage|vendor|\.htaccess|\.gitignore|\.gitattributes)">
     Order allow,deny
     Deny from all
 </FilesMatch>
 
-# Disable directory listing
-Options -Indexes
+# Block access to PHP files in root (except public)
+<FilesMatch "\.php$">
+    Order allow,deny
+    Deny from all
+</FilesMatch>
 
-# ----------------------------------------------------------------------
-# Block access to all folders EXCEPT resources
-# ----------------------------------------------------------------------
-# Allow access to resources folder and its contents
-RewriteCond %{REQUEST_URI} ^/resources/ [OR]
-RewriteCond %{REQUEST_URI} ^/public/resources/
-RewriteRule ^ - [L]
+# Allow access to resources folder
+<IfModule mod_rewrite.c>
+    RewriteCond %{REQUEST_URI} ^/resources [NC]
+    RewriteRule ^(.*)$ - [L]
+</IfModule>
 
-# Block access to all other sensitive folders
-RedirectMatch 403 ^/(vendor|storage|config|bootstrap|database|app|routes|tests|database|bootstrap|config|routes|storage|vendor)/.*$
-
-# Block direct folder access (returns 403 for directories)
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteCond %{REQUEST_URI} !^/resources/
-RewriteCond %{REQUEST_URI} !^/public/resources/
-RewriteCond %{REQUEST_URI} !^/public/
-RewriteRule ^(.*)$ - [F,L]
-
-
-
-
-# Prevent clickjacking
-Header always append X-Frame-Options SAMEORIGIN
-
-# Prevent content sniffing
-Header set X-Content-Type-Options nosniff
-
-# Prevent XSS
-Header set X-XSS-Protection "1; mode=block"
-
-# ============================
-# 🧱 OPTIONAL: Block known hacker tools
-# ============================
-SetEnvIfNoCase User-Agent "curl" bad_bot
-SetEnvIfNoCase User-Agent "sqlmap" bad_bot
-SetEnvIfNoCase User-Agent "nikto" bad_bot
-SetEnvIfNoCase User-Agent "nmap" bad_bot
-SetEnvIfNoCase User-Agent "wpscan" bad_bot
-SetEnvIfNoCase User-Agent "acunetix" bad_bot
-SetEnvIfNoCase User-Agent "kali" bad_bot
-SetEnvIfNoCase User-Agent "metasploit" bad_bot
-Order Allow,Deny
-Allow from all
-Deny from env=bad_bot

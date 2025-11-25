@@ -19,7 +19,16 @@ class Borrow extends Model
         'longitude',
         'borrow_date',
         'return_date',
+        'due_date',
+        'reason',
+        'borrow_duration',
         'status', // 'Borrowed' or 'Returned'
+    ];
+
+    protected $casts = [
+        'borrow_date' => 'datetime',
+        'return_date' => 'datetime',
+        'due_date' => 'datetime',
     ];
 
     /**
@@ -44,6 +53,16 @@ class Borrow extends Model
     public function scopeReturned($query)
     {
         return $query->where('status', 'Returned');
+    }
+
+    /**
+     * Scope: Only overdue items (borrowed and past due date)
+     */
+    public function scopeOverdue($query)
+    {
+        return $query->where('status', 'Borrowed')
+            ->whereNotNull('due_date')
+            ->where('due_date', '<', now());
     }
 
     /**

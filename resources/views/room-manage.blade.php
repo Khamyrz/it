@@ -37,10 +37,10 @@ if (!function_exists('getBarcodeBase64')) {
 <style>
 /* Room Group Styles - Updated to match maintenance.blade.php */
 .room-group {
-    margin-bottom: 25px;
+    margin-bottom: 15px;
     background: white;
-    border-radius: 15px;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+    border-radius: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
     overflow: hidden;
     transition: all 0.3s ease;
 }
@@ -57,7 +57,7 @@ if (!function_exists('getBarcodeBase64')) {
 
         .main-content {
             flex: 1;
-            padding: 5px;
+            padding: 8px;
             background: #f5f5f5;
             overflow-y: auto;
         }
@@ -884,7 +884,45 @@ if (!function_exists('getBarcodeBase64')) {
             border-color: #28a745;
         }
 
+        /* Enhanced Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .barcode-wrapper {
+                padding: 3px;
+            }
+            
+            .bwippbarcode img,
+            .barcode-display-img {
+                width: 150px !important;
+                height: 40px !important;
+                max-width: 100% !important;
+            }
+            
+            .barcode-text {
+                font-size: 9px;
+            }
+            
+            table {
+                font-size: 12px;
+            }
+            
+            .action-buttons button {
+                padding: 5px 8px;
+                font-size: 11px;
+            }
+        }
+
         @media (max-width: 480px) {
+            .bwippbarcode img,
+            .barcode-display-img {
+                width: 120px !important;
+                height: 35px !important;
+            }
+            
+            .barcode-text {
+                font-size: 8px;
+            }
+            
+        }
             .step-indicator {
                 width: 25px;
                 height: 25px;
@@ -892,7 +930,7 @@ if (!function_exists('getBarcodeBase64')) {
             }
         }
 .room-header {
-    padding: 25px 30px;
+    padding: 12px 18px;
     background: linear-gradient(135deg, #667eea, #764ba2);
     color: white;
     cursor: pointer;
@@ -908,34 +946,35 @@ if (!function_exists('getBarcodeBase64')) {
 }
 
 .room-title {
-    font-size: 24px;
+    font-size: 18px;
     font-weight: 700;
     margin: 0;
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
 }
 
 .room-title::before {
     content: "🖥️";
-    font-size: 22px;
+    font-size: 16px;
 }
 
 .room-stats {
     display: flex;
-    gap: 20px;
+    gap: 10px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .stat-item {
     background: rgba(255, 255, 255, 0.2);
-    padding: 10px 15px;
-    border-radius: 25px;
-    font-size: 14px;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
     font-weight: 600;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 5px;
 }
 
 .toggle-icon {
@@ -958,10 +997,10 @@ if (!function_exists('getBarcodeBase64')) {
 
 /* PC Group Styles - Updated to match maintenance.blade.php */
 .pc-group {
-    margin: 20px;
+    margin: 12px;
     background: white;
-    border-radius: 12px;
-    box-shadow: 0 2px 15px rgba(0, 0, 0, 0.08);
+    border-radius: 8px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
     overflow: hidden;
     transition: all 0.3s ease;
 }
@@ -972,7 +1011,7 @@ if (!function_exists('getBarcodeBase64')) {
 }
 
 .pc-header {
-    padding: 18px 22px;
+    padding: 10px 15px;
     background: linear-gradient(135deg, #34495e, #2c3e50);
     color: white;
     cursor: pointer;
@@ -988,17 +1027,17 @@ if (!function_exists('getBarcodeBase64')) {
 }
 
 .pc-title {
-    font-size: 18px;
+    font-size: 15px;
     font-weight: 600;
     margin: 0;
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .pc-title::before {
     content: "💻";
-    font-size: 16px;
+    font-size: 14px;
 }
 
 .pc-title small {
@@ -1014,15 +1053,16 @@ if (!function_exists('getBarcodeBase64')) {
 
 .pc-stats {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     align-items: center;
+    flex-wrap: wrap;
 }
 
 .pc-stats .stat-item {
     background: rgba(255, 255, 255, 0.2);
-    padding: 6px 10px;
-    border-radius: 15px;
-    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 11px;
     font-weight: 600;
     display: flex;
     align-items: center;
@@ -1169,7 +1209,7 @@ if (!function_exists('getBarcodeBase64')) {
 
 .table-container th,
 .table-container td {
-    padding: 12px 8px;
+    padding: 8px 6px;
     text-align: left;
     border-bottom: 1px solid #eee;
     vertical-align: middle;
@@ -1179,7 +1219,7 @@ if (!function_exists('getBarcodeBase64')) {
     background-color: #f8f9fa;
     font-weight: 600;
     color: #333;
-    font-size: 14px;
+    font-size: 12px;
 }
 
 .table-container tbody tr:hover {
@@ -1221,9 +1261,10 @@ if (!function_exists('getBarcodeBase64')) {
 }
 
 .icon-btn {
-    padding: 6px 8px;
+    padding: 4px 6px;
     border: none;
     border-radius: 4px;
+    font-size: 12px;
     cursor: pointer;
     transition: all 0.2s ease;
     font-size: 14px;
@@ -1276,14 +1317,34 @@ if (!function_exists('getBarcodeBase64')) {
     justify-content: center;
 }
 
-.bwippbarcode img {
+.bwippbarcode img,
+.barcode-display-img {
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
     max-width: 200px;
     height: auto;
     margin: 0 auto;
+    image-rendering: crisp-edges;
+    image-rendering: -webkit-optimize-contrast;
 }
+
+/* Ensure barcode images are always visible */
+.bwippbarcode {
+    min-height: 50px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+.bwippbarcode img,
+.barcode-display-img {
+    max-width: 100% !important;
+    width: auto !important;
+    height: auto !important;
+}
+
 
 /* Empty State */
 .empty-state {
@@ -2053,25 +2114,43 @@ if (!function_exists('getBarcodeBase64')) {
                                                                                     $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
                                                                                     
                                                                                     // Validate the result - must be valid base64 string
+                                                                                    // getBarcodePNG returns base64-encoded PNG data directly
                                                                                     if ($barcodeImage !== false && $barcodeImage !== null && !empty($barcodeImage) && strlen($barcodeImage) >= 50) {
-                                                                                        // Ensure it's valid base64
-                                                                                        if (base64_decode($barcodeImage, true) !== false) {
-                                                                                            // Valid barcode image
-                                                                                        } else {
+                                                                                        // Ensure it's valid base64 by trying to decode it
+                                                                                        $decoded = @base64_decode($barcodeImage, true);
+                                                                                        if ($decoded === false || empty($decoded)) {
+                                                                                            // If not valid base64, try to generate again with error suppression
+                                                                                            $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                            if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage)) {
                                                                                             $barcodeImage = null;
+                                                                                            }
                                                                                         }
                                                                                     } else {
+                                                                                        // Try alternative generation method
+                                                                                        $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                        if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
                                                                                         $barcodeImage = null;
+                                                                                        }
                                                                                     }
                                                                                 }
                                                                             } catch (\Exception $e) {
+                                                                                // Try one more time with error suppression
+                                                                                try {
+                                                                                    $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                    if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
                                                                                 $barcodeImage = null;
+                                                                                    }
+                                                                                } catch (\Exception $e2) {
+                                                                                    $barcodeImage = null;
+                                                                                }
                                                                             } catch (\Throwable $e) {
                                                                                 $barcodeImage = null;
                                                                             }
                                                                         @endphp
                                                                         @if($barcodeImage)
-                                                                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                        @else
+                                                                            <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
                                                                         @endif
                                                                     @else
                                                                         <div style="color: #999; font-size: 12px;">No barcode</div>
@@ -2208,18 +2287,33 @@ if (!function_exists('getBarcodeBase64')) {
                                                                     @php
                                                                         $barcodeImage = null;
                                                                         try {
+                                                                            // Try generating barcode with fully qualified class name
                                                                             $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
                                                                             if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
+                                                                                // Try with alias
+                                                                                $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                            if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
                                                                                 $barcodeImage = null;
+                                                                                }
                                                                             }
                                                                         } catch (\Exception $e) {
+                                                                            // Try alternative method
+                                                                            try {
+                                                                                $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
+                                                                                if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
                                                                             $barcodeImage = null;
+                                                                                }
+                                                                            } catch (\Exception $e2) {
+                                                                                $barcodeImage = null;
+                                                                            }
                                                                         } catch (\Throwable $e) {
                                                                             $barcodeImage = null;
                                                                         }
                                                                     @endphp
                                                                     @if($barcodeImage)
-                                                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                    @else
+                                                                        <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
                                                                     @endif
                                                                     <div class="barcode-text" style="margin-top: 5px; font-size: 10px; color: #666;">{{ $item->barcode }}</div>
                                                                 @else

@@ -62,6 +62,73 @@
         nav ul li a:hover {
             background: #34495e;
         }
+
+        /* Responsive adjustments */
+        @media (max-width: 1200px) {
+            nav {
+                width: 200px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+                height: auto;
+                min-height: 100vh;
+            }
+
+            nav {
+                width: 100%;
+                height: auto;
+                position: relative;
+                padding: 15px;
+            }
+
+            nav ul {
+                display: flex;
+                flex-wrap: wrap;
+                gap: 5px;
+            }
+
+            nav ul li {
+                width: auto;
+                flex: 1 1 auto;
+            }
+
+            nav ul li a {
+                padding: 10px 12px;
+                font-size: 14px;
+                white-space: nowrap;
+            }
+
+            .main-content {
+                width: 100%;
+                padding: 15px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            nav {
+                padding: 10px;
+            }
+
+            nav img {
+                width: 80px;
+            }
+
+            nav h2 {
+                font-size: 14px;
+            }
+
+            nav ul li a {
+                padding: 8px 10px;
+                font-size: 12px;
+            }
+
+            .main-content {
+                padding: 10px;
+            }
+        }
         
     </style>
     @stack('styles')
@@ -82,8 +149,7 @@
     </ul>
 </nav>
 
-
-
+<div class="main-content">
     @yield('content')
 </div>
 

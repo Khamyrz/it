@@ -44,23 +44,23 @@
         .page-header {
             display: flex;
             flex-direction: column;
-            gap: 20px;
-            margin-bottom: 30px;
+            gap: 12px;
+            margin-bottom: 20px;
         }
 
         .page-title {
-            font-size: clamp(24px, 5vw, 32px);
+            font-size: clamp(18px, 4vw, 22px);
             color: #2c3e50;
             margin: 0;
             font-weight: 700;
             display: flex;
             align-items: center;
-            gap: 12px;
+            gap: 8px;
         }
 
         .page-title::before {
             content: "📋";
-            font-size: clamp(20px, 4vw, 28px);
+            font-size: clamp(16px, 3vw, 20px);
         }
 
         /* Top Buttons - Enhanced Responsive Design */
@@ -240,7 +240,7 @@
             background: linear-gradient(135deg, #28a745, #20c997);
             color: white;
             border: none;
-            padding: 8px 16px;
+            padding: 6px 12px;
             cursor: pointer;
             border-radius: 8px;
             font-size: 12px;
@@ -379,11 +379,11 @@
         .submit-btn {
             background: linear-gradient(135deg, #667eea, #764ba2);
             color: white;
-            padding: 12px 24px;
+            padding: 8px 16px;
             border: none;
             border-radius: 10px;
             cursor: pointer;
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 600;
             display: flex;
             align-items: center;
@@ -840,6 +840,102 @@
                 transform: translateY(-10px);
             }
         }
+
+        /* Enhanced Mobile Responsive Styles */
+        @media (max-width: 480px) {
+            .main-content {
+                padding: 10px 5px;
+            }
+
+            .content-wrapper {
+                padding: 0 10px;
+            }
+
+            .page-title {
+                font-size: 18px;
+            }
+
+            .top-buttons {
+                flex-direction: column;
+                width: 100%;
+            }
+
+            .top-buttons button,
+            .top-buttons a {
+                width: 100%;
+                font-size: 12px;
+                padding: 8px 10px;
+            }
+
+            .table-container {
+                width: 100%;
+                transform: none;
+                margin: 0;
+            }
+
+            table {
+                font-size: 11px;
+                min-width: 600px;
+            }
+
+            th, td {
+                padding: 8px 5px;
+            }
+
+            .borrower-group {
+                padding: 10px;
+                margin-bottom: 15px;
+            }
+
+            .modal-content {
+                padding: 15px;
+                width: 95%;
+                margin: 5% auto;
+            }
+
+            .form-group {
+                margin-bottom: 15px;
+            }
+
+            input, select, textarea {
+                font-size: 14px;
+                padding: 10px;
+            }
+
+            .submit-btn {
+                padding: 8px 12px;
+                font-size: 13px;
+            }
+
+            .btn-return {
+                padding: 6px 10px;
+                font-size: 11px;
+            }
+
+            #map, #trackerMap {
+                height: 250px;
+            }
+
+            .card-layout {
+                padding: 0 10px;
+            }
+
+            .item-card {
+                padding: 15px;
+            }
+
+            .card-details {
+                gap: 8px;
+            }
+
+            .card-actions {
+                margin-top: 10px;
+            }
+
+            .btn-return {
+                width: 100%;
+            }
+        }
     </style>
 @endpush
 
@@ -896,7 +992,7 @@
             
             @forelse($borrowerGroups as $borrowerName => $group)
                 <div class="borrower-group" style="margin-bottom: 30px; background: white; border-radius: 10px; padding: 20px; box-shadow: 0 2px 10px rgba(0,0,0,0.1);">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 2px solid #e9ecef;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding-bottom: 10px; border-bottom: 2px solid #e9ecef;">
                         <div style="display: flex; align-items: center; gap: 15px;">
                             @if($group['borrower']->borrower_photo)
                                 <img src="{{ asset('storage/' . $group['borrower']->borrower_photo) }}" 
@@ -908,7 +1004,7 @@
                                 <div style="width: 50px; height: 50px; border-radius: 50%; background: #e9ecef; display: flex; align-items: center; justify-content: center; font-size: 24px;">👤</div>
                             @endif
                             <div>
-                                <h3 style="margin: 0; color: #2c3e50; font-size: 20px;">{{ $borrowerName }}</h3>
+                                <h3 style="margin: 0; color: #2c3e50; font-size: 16px;">{{ $borrowerName }}</h3>
                                 @if($group['borrower']->position)
                                     <p style="margin: 5px 0 0 0; color: #6c757d; font-size: 14px;">{{ $group['borrower']->position }}</p>
                                 @endif

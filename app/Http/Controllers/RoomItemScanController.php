@@ -10,9 +10,10 @@ class RoomItemScanController extends Controller
     /**
      * Display the barcode scan form page
      */
-    public function index()
+    public function index(Request $request)
     {
-        return view('scan-barcode');
+        $barcode = $request->query('barcode', '');
+        return view('scan-barcode', ['barcode' => $barcode]);
     }
 
     /**

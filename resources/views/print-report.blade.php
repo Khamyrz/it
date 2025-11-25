@@ -37,7 +37,7 @@ if (!function_exists('getBarcodeBase64')) {
     .main-content {
         max-width: 100%;
         margin: 0;
-        padding: 20px;
+        padding: 12px;
         background-color: #f8f9fa;
         min-height: 100%;
         overflow-y: auto;
@@ -46,8 +46,8 @@ if (!function_exists('getBarcodeBase64')) {
 
     .page-header {
         text-align: center;
-        margin-bottom: 20px;
-        padding: 10px 0;
+        margin-bottom: 15px;
+        padding: 8px 0;
         border-bottom: 2px solid #e9ecef;
         position: sticky;
         top: 0;
@@ -56,7 +56,7 @@ if (!function_exists('getBarcodeBase64')) {
     }
 
     .page-title {
-        font-size: 28px;
+        font-size: 20px;
         color: #343a40;
         margin: 0;
         font-weight: 700;
@@ -64,9 +64,9 @@ if (!function_exists('getBarcodeBase64')) {
 
     .report-section {
         background: white;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        margin-bottom: 30px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        margin-bottom: 15px;
         overflow: hidden;
         border: 1px solid #e9ecef;
     }
@@ -74,17 +74,17 @@ if (!function_exists('getBarcodeBase64')) {
     .section-header {
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 15px 20px;
+        padding: 10px 15px;
         display: flex;
         justify-content: space-between;
         align-items: center;
         flex-wrap: wrap;
-        gap: 15px;
+        gap: 10px;
     }
 
     .section-header h2 {
         margin: 0;
-        font-size: 1.5rem;
+        font-size: 1.2rem;
         font-weight: 600;
     }
 
@@ -98,10 +98,10 @@ if (!function_exists('getBarcodeBase64')) {
     .filter-form select,
     .filter-form button,
     .section-header button {
-        padding: 8px 16px;
+        padding: 6px 12px;
         border: none;
         border-radius: 6px;
-        font-size: 14px;
+        font-size: 13px;
         cursor: pointer;
         transition: all 0.3s ease;
     }
@@ -126,16 +126,16 @@ if (!function_exists('getBarcodeBase64')) {
     }
 
     .stats-overview {
-        padding: 20px 25px;
+        padding: 12px 15px;
         background: #f8f9fa;
         border-bottom: 1px solid #e9ecef;
         display: flex;
-        gap: 30px;
+        gap: 15px;
         flex-wrap: wrap;
     }
 
     .stats-overview span {
-        font-size: 16px;
+        font-size: 13px;
         color: #495057;
     }
 
@@ -161,21 +161,22 @@ if (!function_exists('getBarcodeBase64')) {
     }
 
     th {
-        padding: 12px 15px;
+        padding: 8px 10px;
         text-align: left;
         font-weight: 600;
         color: #495057;
         border-bottom: 2px solid #e9ecef;
-        font-size: 13px;
+        font-size: 11px;
         text-transform: uppercase;
         letter-spacing: 0.5px;
         background: #f8f9fa;
     }
 
     td {
-        padding: 12px 15px;
+        padding: 8px 10px;
         border-bottom: 1px solid #e9ecef;
         vertical-align: middle;
+        font-size: 12px;
     }
 
     tbody tr:hover {
@@ -337,8 +338,8 @@ if (!function_exists('getBarcodeBase64')) {
         .filter-form select,
         .filter-form button,
         .section-header button {
-            padding: 6px 12px;
-            font-size: 13px;
+            padding: 5px 10px;
+            font-size: 12px;
         }
     }
 
@@ -450,6 +451,59 @@ if (!function_exists('getBarcodeBase64')) {
         .no-photo-placeholder {
             max-width: 50px;
             max-height: 50px;
+        }
+    }
+
+    /* Enhanced Mobile Responsive Styles */
+    @media (max-width: 480px) {
+        .main-content {
+            padding: 5px;
+        }
+
+        .page-title {
+            font-size: 18px;
+        }
+
+        .section-header {
+            padding: 10px 15px;
+        }
+
+        .section-header h2 {
+            font-size: 1.2rem;
+        }
+
+        .filter-form {
+            flex-direction: column;
+            width: 100%;
+        }
+
+        .filter-form select,
+        .filter-form button,
+        .section-header button {
+            width: 100%;
+            margin-bottom: 5px;
+            padding: 6px 10px;
+            font-size: 12px;
+        }
+
+        .stats-overview {
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+        }
+
+        table {
+            font-size: 11px;
+            min-width: 600px;
+        }
+
+        th, td {
+            padding: 8px 5px;
+        }
+
+        .status {
+            font-size: 10px;
+            padding: 3px 6px;
         }
     }
 </style>

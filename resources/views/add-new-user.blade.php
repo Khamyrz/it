@@ -6,17 +6,17 @@
 <style>
     .main-content { 
         flex: 1;
-        padding: 40px 60px; 
+        padding: 15px 20px; 
         background: #f8f9fa; 
         min-height: 100vh; 
         overflow-y: auto;
     }
-    .page-header { margin-bottom: 24px; text-align: center; }
-    .page-title { font-size: 28px; font-weight: 600; color: #2c3e50; margin: 0; display: inline-flex; align-items: center; gap: 10px; justify-content: center; }
-    .card { background: white; border-radius: 12px; padding: 20px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 16px; }
+    .page-header { margin-bottom: 15px; text-align: center; }
+    .page-title { font-size: 20px; font-weight: 600; color: #2c3e50; margin: 0; display: inline-flex; align-items: center; gap: 8px; justify-content: center; }
+    .card { background: white; border-radius: 12px; padding: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.06); margin-bottom: 12px; }
     .row { display: flex; gap: 12px; align-items: center; }
     .row > * { flex: 1; }
-    .btn { padding: 10px 16px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; }
+    .btn { padding: 8px 12px; border: none; border-radius: 10px; font-weight: 600; cursor: pointer; font-size: 13px; }
     .btn-primary { background: #667eea; color: #fff; }
     .btn-danger { background: #dc3545; color: #fff; }
     .btn-secondary { background: #6c757d; color: #fff; }
@@ -33,6 +33,72 @@
         margin-bottom: 25px;
         border-radius: 8px;
         font-weight: 500;
+    }
+
+    /* Responsive Mobile Design */
+    @media (max-width: 768px) {
+        .main-content {
+            padding: 20px 15px;
+        }
+
+        .page-title {
+            font-size: 22px;
+            flex-direction: column;
+        }
+
+        .card {
+            padding: 15px;
+        }
+
+        .row {
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .row > * {
+            width: 100%;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 8px 10px;
+            font-size: 13px;
+        }
+
+        input[type=text] {
+            width: 100%;
+            padding: 12px;
+        }
+
+        li {
+            flex-direction: column;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .pill {
+            font-size: 11px;
+            padding: 3px 8px;
+        }
+    }
+
+    @media (max-width: 480px) {
+        .main-content {
+            padding: 15px 10px;
+        }
+
+        .page-title {
+            font-size: 18px;
+        }
+
+        .card {
+            padding: 12px;
+        }
+
+        .btn {
+            font-size: 12px;
+            padding: 6px 8px;
+        }
     }
 </style>
 @endpush

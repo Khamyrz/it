@@ -153,3 +153,8 @@ Route::post('/super-admin/resend-otp', [SuperAdminController::class, 'resendOtp'
 Route::post('/super-admin/verify-otp', [SuperAdminController::class, 'verifyOtp']);
 Route::get('/super-admin/status', [SuperAdminController::class, 'status']);
 Route::post('/super-admin/register', [SuperAdminController::class, 'register']);
+
+Route::get('/clear-all', function () {
+    \Artisan::call('optimize:clear');
+    return 'Laravel cache cleared!';
+});

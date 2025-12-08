@@ -8935,7 +8935,6 @@
         "laravel/pail",
         "laravel/pint",
         "laravel/sail",
-        "milon/barcode",
         "mockery/mockery",
         "myclabs/deep-copy",
         "nunomaduro/collision",

@@ -1,29 +1,25 @@
 @extends('layouts.app')
 
 @php 
-use Picqer\Barcode\BarcodeGeneratorPNG;
+use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
 
 if (!function_exists('getBarcodeBase64')) {
-    function getBarcodeBase64($barcode, $type = 'C128', $width = 2, $height = 50) {
+    function getBarcodeBase64($barcode, $type = 'C128', $width = 2.0, $height = 50) {
         try {
             if (empty($barcode) || !is_string($barcode)) {
                 return null;
             }
-            if (!class_exists(\Picqer\Barcode\BarcodeGeneratorPNG::class)) {
+            if (!class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
                 return null;
             }
 
-            $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
-            $typeConst = match (strtoupper($type)) {
-                'C39' => $generator::TYPE_CODE_39,
-                'C39+' => $generator::TYPE_CODE_39_CHECKSUM,
-                'C128' => $generator::TYPE_CODE_128,
-                default => $generator::TYPE_CODE_128,
-            };
-
-            $pngData = $generator->getBarcode($barcode, $typeConst, (float) $width, (int) $height);
+            $pngData = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode, $type, (float) $width, (int) $height);
             if ($pngData && strlen($pngData) > 0) {
-                return base64_encode($pngData);
+                $decoded = base64_decode($pngData, true);
+                if ($decoded === false) {
+                    return base64_encode($pngData);
+                }
+                return $pngData;
             }
         } catch (\Throwable $e) {
             return null;

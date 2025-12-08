@@ -12,16 +12,21 @@ if (!function_exists('getBarcodeBase64')) {
                 return null;
             }
 
+            // Try PNG first
             $pngData = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode, $type, (float) $width, (int) $height);
-
-            // getBarcodePNG returns base64 string by default
             if ($pngData && strlen($pngData) > 0) {
-                // Validate base64; if raw binary, encode it
                 $decoded = base64_decode($pngData, true);
                 if ($decoded === false) {
-                    return base64_encode($pngData);
+                    // Treat as raw binary
+                    return 'data:image/png;base64,' . base64_encode($pngData);
                 }
-                return $pngData;
+                return 'data:image/png;base64,' . $pngData;
+            }
+
+            // Fallback: SVG (does not require GD)
+            $svg = \Milon\Barcode\Facades\DNS1DFacade::getBarcodeSVG($barcode, $type, (float) $width, (int) $height);
+            if (!empty($svg)) {
+                return 'data:image/svg+xml;base64,' . base64_encode($svg);
             }
         } catch (\Throwable $e) {
             return null;
@@ -2110,7 +2115,7 @@ if (!function_exists('getBarcodeBase64')) {
                                                                         $barcodeImage = $item->barcode ? getBarcodeBase64($item->barcode, 'C128', 2, 50) : null;
                                                                     @endphp
                                                                     @if($barcodeImage)
-                                                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                        <img src="{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
                                                                     @elseif($item->barcode)
                                                                         <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
                                                                     @else
@@ -2248,7 +2253,7 @@ if (!function_exists('getBarcodeBase64')) {
                                                                     $barcodeImage = $item->barcode ? getBarcodeBase64($item->barcode, 'C128', 2, 50) : null;
                                                                 @endphp
                                                                 @if($barcodeImage)
-                                                                    <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                    <img src="{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
                                                                     <div class="barcode-text" style="margin-top: 5px; font-size: 10px; color: #666;">{{ $item->barcode }}</div>
                                                                 @elseif($item->barcode)
                                                                     <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>

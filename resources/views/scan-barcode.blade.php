@@ -17,9 +17,14 @@ if (!function_exists('getBarcodeBase64')) {
             if ($pngData && strlen($pngData) > 0) {
                 $decoded = base64_decode($pngData, true);
                 if ($decoded === false) {
-                    return base64_encode($pngData);
+                    return 'data:image/png;base64,' . base64_encode($pngData);
                 }
-                return $pngData;
+                return 'data:image/png;base64,' . $pngData;
+            }
+
+            $svg = \Milon\Barcode\Facades\DNS1DFacade::getBarcodeSVG($barcode, $type, (float) $width, (int) $height);
+            if (!empty($svg)) {
+                return 'data:image/svg+xml;base64,' . base64_encode($svg);
             }
         } catch (\Throwable $e) {
             return null;
@@ -1298,7 +1303,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                             $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 1.5, 40);
                                                         @endphp
                                                         @if($barcodeImage)
-                                                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                                                            <img src="{{ $barcodeImage }}" alt="Barcode">
                                                         @endif
                                                         <div class="barcode-text-small">{{ $item->barcode }}</div>
                                                     @else
@@ -1357,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                         $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 2, 60);
                                     @endphp
                                     @if($barcodeImage)
-                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                                        <img src="{{ $barcodeImage }}" alt="Barcode">
                                     @endif
                                     <div class="barcode-text">{{ $item->barcode }}</div>
                                 @else

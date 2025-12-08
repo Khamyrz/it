@@ -78,24 +78,10 @@
                                 </div>
                                 <div class="barcode-image-small">
                                     @php
-                                        $barcodeImage = null;
-                                        try {
-                                            if (function_exists('imagecreate') && function_exists('imagepng')) {
-                                                $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40);
-                                                if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
-                                                    $barcodeImage = null;
-                                                } elseif (base64_decode($barcodeImage, true) === false) {
-                                                    $barcodeImage = null;
-                                                }
-                                            }
-                                        } catch (\Exception $e) {
-                                            $barcodeImage = null;
-                                        } catch (\Throwable $e) {
-                                            $barcodeImage = null;
-                                        }
+                                        $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 1.5, 40);
                                     @endphp
                                     @if($barcodeImage)
-                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                                        <img src="{{ $barcodeImage }}" alt="Barcode">
                                     @endif
                                     <div class="barcode-text-small">{{ $item->barcode }}</div>
                                 </div>
@@ -133,24 +119,10 @@
                     </div>
                     <div class="barcode-image-small">
                         @php
-                            $barcodeImage = null;
-                            try {
-                                if (function_exists('imagecreate') && function_exists('imagepng')) {
-                                    $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40);
-                                    if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
-                                        $barcodeImage = null;
-                                    } elseif (base64_decode($barcodeImage, true) === false) {
-                                        $barcodeImage = null;
-                                    }
-                                }
-                            } catch (\Exception $e) {
-                                $barcodeImage = null;
-                            } catch (\Throwable $e) {
-                                $barcodeImage = null;
-                            }
+                            $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 1.5, 40);
                         @endphp
                         @if($barcodeImage)
-                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
+                            <img src="{{ $barcodeImage }}" alt="Barcode">
                         @endif
                         <div class="barcode-text-small">{{ $item->barcode }}</div>
                     </div>

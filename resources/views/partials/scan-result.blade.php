@@ -81,7 +81,11 @@
                                         $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 1.5, 40);
                                     @endphp
                                     @if($barcodeImage)
-                                        <img src="{{ $barcodeImage }}" alt="Barcode">
+                                        @if(str_starts_with($barcodeImage, '<svg'))
+                                            {!! $barcodeImage !!}
+                                        @else
+                                            <img src="{{ $barcodeImage }}" alt="Barcode">
+                                        @endif
                                     @endif
                                     <div class="barcode-text-small">{{ $item->barcode }}</div>
                                 </div>
@@ -122,7 +126,11 @@
                             $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 1.5, 40);
                         @endphp
                         @if($barcodeImage)
-                            <img src="{{ $barcodeImage }}" alt="Barcode">
+                            @if(str_starts_with($barcodeImage, '<svg'))
+                                {!! $barcodeImage !!}
+                            @else
+                                <img src="{{ $barcodeImage }}" alt="Barcode">
+                            @endif
                         @endif
                         <div class="barcode-text-small">{{ $item->barcode }}</div>
                     </div>

@@ -23,10 +23,25 @@ if (!function_exists('getBarcodeBase64')) {
                 return 'data:image/png;base64,' . $pngData;
             }
 
-            // Fallback: SVG (does not require GD)
+            // Fallback: raw inline SVG (avoids data: URI CSP blocks)
             $svg = \Milon\Barcode\Facades\DNS1DFacade::getBarcodeSVG($barcode, $type, (float) $width, (int) $height);
             if (!empty($svg)) {
-                return 'data:image/svg+xml;base64,' . base64_encode($svg);
+                return $svg;
+            }
+
+            // Final fallback: Picqer generator (no GD requirement)
+            if (class_exists(\Picqer\Barcode\BarcodeGeneratorPNG::class)) {
+                $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
+                $map = [
+                    'C39' => $generator::TYPE_CODE_39,
+                    'C39+' => $generator::TYPE_CODE_39_CHECKSUM,
+                    'C128' => $generator::TYPE_CODE_128,
+                ];
+                $picqType = $map[strtoupper($type)] ?? $generator::TYPE_CODE_128;
+                $raw = $generator->getBarcode($barcode, $picqType, (float) $width, (int) $height);
+                if ($raw) {
+                    return 'data:image/png;base64,' . base64_encode($raw);
+                }
             }
         } catch (\Throwable $e) {
             return null;
@@ -2253,7 +2268,11 @@ if (!function_exists('getBarcodeBase64')) {
                                                                     $barcodeImage = $item->barcode ? getBarcodeBase64($item->barcode, 'C128', 2, 50) : null;
                                                                 @endphp
                                                                 @if($barcodeImage)
-                                                                    <img src="{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                    @if(str_starts_with($barcodeImage, '<svg'))
+                                                                        {!! $barcodeImage !!}
+                                                                    @else
+                                                                        <img src="{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                    @endif
                                                                     <div class="barcode-text" style="margin-top: 5px; font-size: 10px; color: #666;">{{ $item->barcode }}</div>
                                                                 @elseif($item->barcode)
                                                                     <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>

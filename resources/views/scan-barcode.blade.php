@@ -24,7 +24,21 @@ if (!function_exists('getBarcodeBase64')) {
 
             $svg = \Milon\Barcode\Facades\DNS1DFacade::getBarcodeSVG($barcode, $type, (float) $width, (int) $height);
             if (!empty($svg)) {
-                return 'data:image/svg+xml;base64,' . base64_encode($svg);
+                return $svg;
+            }
+
+            if (class_exists(\Picqer\Barcode\BarcodeGeneratorPNG::class)) {
+                $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
+                $map = [
+                    'C39' => $generator::TYPE_CODE_39,
+                    'C39+' => $generator::TYPE_CODE_39_CHECKSUM,
+                    'C128' => $generator::TYPE_CODE_128,
+                ];
+                $picqType = $map[strtoupper($type)] ?? $generator::TYPE_CODE_128;
+                $raw = $generator->getBarcode($barcode, $picqType, (float) $width, (int) $height);
+                if ($raw) {
+                    return 'data:image/png;base64,' . base64_encode($raw);
+                }
             }
         } catch (\Throwable $e) {
             return null;
@@ -1303,7 +1317,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                                             $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 1.5, 40);
                                                         @endphp
                                                         @if($barcodeImage)
-                                                            <img src="{{ $barcodeImage }}" alt="Barcode">
+                                                            @if(str_starts_with($barcodeImage, '<svg'))
+                                                                {!! $barcodeImage !!}
+                                                            @else
+                                                                <img src="{{ $barcodeImage }}" alt="Barcode">
+                                                            @endif
                                                         @endif
                                                         <div class="barcode-text-small">{{ $item->barcode }}</div>
                                                     @else
@@ -1362,7 +1380,11 @@ document.addEventListener('DOMContentLoaded', function() {
                                         $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 2, 60);
                                     @endphp
                                     @if($barcodeImage)
-                                        <img src="{{ $barcodeImage }}" alt="Barcode">
+                                        @if(str_starts_with($barcodeImage, '<svg'))
+                                            {!! $barcodeImage !!}
+                                        @else
+                                            <img src="{{ $barcodeImage }}" alt="Barcode">
+                                        @endif
                                     @endif
                                     <div class="barcode-text">{{ $item->barcode }}</div>
                                 @else

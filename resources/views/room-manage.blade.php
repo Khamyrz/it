@@ -1,27 +1,30 @@
 @php 
-use Milon\Barcode\Facades\DNS1DFacade as DNS1D;
+use Picqer\Barcode\BarcodeGeneratorPNG;
 
 // Helper function to generate barcode safely
 if (!function_exists('getBarcodeBase64')) {
-    function getBarcodeBase64($barcode, $type = 'C128', $width = 2.0, $height = 50) {
+    function getBarcodeBase64($barcode, $type = 'C128', $width = 2, $height = 50) {
         try {
             if (empty($barcode) || !is_string($barcode)) {
                 return null;
             }
-            // Check if the facade class exists
-            if (!class_exists('Milon\Barcode\Facades\DNS1DFacade')) {
+            if (!class_exists(\Picqer\Barcode\BarcodeGeneratorPNG::class)) {
                 return null;
             }
-            // Use fully qualified name to ensure it works in function scope
-            $pngData = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($barcode, $type, $width, $height);
+
+            $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
+            $typeConst = match (strtoupper($type)) {
+                'C39' => $generator::TYPE_CODE_39,
+                'C39+' => $generator::TYPE_CODE_39_CHECKSUM,
+                'C128' => $generator::TYPE_CODE_128,
+                default => $generator::TYPE_CODE_128,
+            };
+
+            $pngData = $generator->getBarcode($barcode, $typeConst, (float) $width, (int) $height);
             if ($pngData && strlen($pngData) > 0) {
                 return base64_encode($pngData);
             }
-        } catch (\Exception $e) {
-            // Silently fail - don't log to avoid potential issues
-            return null;
         } catch (\Throwable $e) {
-            // Catch any other errors
             return null;
         }
         return null;
@@ -2104,54 +2107,13 @@ if (!function_exists('getBarcodeBase64')) {
                                                             <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                                 <div class="barcode-text">{{ $item->barcode }}</div>
                                                                 <div class="bwippbarcode">
-                                                                    @if($item->barcode && !empty($item->barcode))
-                                                                        @php
-                                                                            $barcodeImage = null;
-                                                                            try {
-                                                                                // Check if GD library is available (required for barcode generation)
-                                                                                if (function_exists('imagecreate') && function_exists('imagepng')) {
-                                                                                    // Generate barcode - the library handles output buffering internally
-                                                                                    $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                    
-                                                                                    // Validate the result - must be valid base64 string
-                                                                                    // getBarcodePNG returns base64-encoded PNG data directly
-                                                                                    if ($barcodeImage !== false && $barcodeImage !== null && !empty($barcodeImage) && strlen($barcodeImage) >= 50) {
-                                                                                        // Ensure it's valid base64 by trying to decode it
-                                                                                        $decoded = @base64_decode($barcodeImage, true);
-                                                                                        if ($decoded === false || empty($decoded)) {
-                                                                                            // If not valid base64, try to generate again with error suppression
-                                                                                            $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                            if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage)) {
-                                                                                            $barcodeImage = null;
-                                                                                            }
-                                                                                        }
-                                                                                    } else {
-                                                                                        // Try alternative generation method
-                                                                                        $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                        if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
-                                                                                        $barcodeImage = null;
-                                                                                        }
-                                                                                    }
-                                                                                }
-                                                                            } catch (\Exception $e) {
-                                                                                // Try one more time with error suppression
-                                                                                try {
-                                                                                    $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                    if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
-                                                                                $barcodeImage = null;
-                                                                                    }
-                                                                                } catch (\Exception $e2) {
-                                                                                    $barcodeImage = null;
-                                                                                }
-                                                                            } catch (\Throwable $e) {
-                                                                                $barcodeImage = null;
-                                                                            }
-                                                                        @endphp
-                                                                        @if($barcodeImage)
-                                                                            <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
-                                                                        @else
-                                                                            <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
-                                                                        @endif
+                                                                    @php
+                                                                        $barcodeImage = $item->barcode ? getBarcodeBase64($item->barcode, 'C128', 2, 50) : null;
+                                                                    @endphp
+                                                                    @if($barcodeImage)
+                                                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
+                                                                    @elseif($item->barcode)
+                                                                        <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
                                                                     @else
                                                                         <div style="color: #999; font-size: 12px;">No barcode</div>
                                                                     @endif
@@ -2283,39 +2245,14 @@ if (!function_exists('getBarcodeBase64')) {
                                                         <div id="barcode-{{ $item->id }}" class="barcode-wrapper">
                                                             <div class="barcode-text">{{ $item->barcode }}</div>
                                                             <div class="bwippbarcode">
-                                                                @if($item->barcode && !empty($item->barcode))
-                                                                    @php
-                                                                        $barcodeImage = null;
-                                                                        try {
-                                                                            // Try generating barcode with fully qualified class name
-                                                                            $barcodeImage = \Milon\Barcode\Facades\DNS1DFacade::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                            if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
-                                                                                // Try with alias
-                                                                                $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                            if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
-                                                                                $barcodeImage = null;
-                                                                                }
-                                                                            }
-                                                                        } catch (\Exception $e) {
-                                                                            // Try alternative method
-                                                                            try {
-                                                                                $barcodeImage = @DNS1D::getBarcodePNG($item->barcode, 'C128', 2.0, 50);
-                                                                                if ($barcodeImage === false || $barcodeImage === null || strlen($barcodeImage) == 0) {
-                                                                            $barcodeImage = null;
-                                                                                }
-                                                                            } catch (\Exception $e2) {
-                                                                                $barcodeImage = null;
-                                                                            }
-                                                                        } catch (\Throwable $e) {
-                                                                            $barcodeImage = null;
-                                                                        }
-                                                                    @endphp
-                                                                    @if($barcodeImage)
-                                                                        <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
-                                                                    @else
-                                                                        <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
-                                                                    @endif
+                                                                @php
+                                                                    $barcodeImage = $item->barcode ? getBarcodeBase64($item->barcode, 'C128', 2, 50) : null;
+                                                                @endphp
+                                                                @if($barcodeImage)
+                                                                    <img src="data:image/png;base64,{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
                                                                     <div class="barcode-text" style="margin-top: 5px; font-size: 10px; color: #666;">{{ $item->barcode }}</div>
+                                                                @elseif($item->barcode)
+                                                                    <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
                                                                 @else
                                                                     <div style="color: #999; font-size: 12px;">No barcode</div>
                                                                 @endif

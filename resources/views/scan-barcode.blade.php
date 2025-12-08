@@ -1,6 +1,37 @@
 @extends('layouts.app')
 
-@php use Milon\Barcode\Facades\DNS1DFacade as DNS1D; @endphp
+@php 
+use Picqer\Barcode\BarcodeGeneratorPNG;
+
+if (!function_exists('getBarcodeBase64')) {
+    function getBarcodeBase64($barcode, $type = 'C128', $width = 2, $height = 50) {
+        try {
+            if (empty($barcode) || !is_string($barcode)) {
+                return null;
+            }
+            if (!class_exists(\Picqer\Barcode\BarcodeGeneratorPNG::class)) {
+                return null;
+            }
+
+            $generator = new \Picqer\Barcode\BarcodeGeneratorPNG();
+            $typeConst = match (strtoupper($type)) {
+                'C39' => $generator::TYPE_CODE_39,
+                'C39+' => $generator::TYPE_CODE_39_CHECKSUM,
+                'C128' => $generator::TYPE_CODE_128,
+                default => $generator::TYPE_CODE_128,
+            };
+
+            $pngData = $generator->getBarcode($barcode, $typeConst, (float) $width, (int) $height);
+            if ($pngData && strlen($pngData) > 0) {
+                return base64_encode($pngData);
+            }
+        } catch (\Throwable $e) {
+            return null;
+        }
+        return null;
+    }
+}
+@endphp
 
 @push('styles')
 <style>
@@ -1268,21 +1299,7 @@ document.addEventListener('DOMContentLoaded', function() {
                                                 <div class="barcode-image-small">
                                                     @if($item->barcode)
                                                         @php
-                                                            $barcodeImage = null;
-                                                            try {
-                                                                if (function_exists('imagecreate') && function_exists('imagepng')) {
-                                                                    $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 1.5, 40);
-                                                                    if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
-                                                                        $barcodeImage = null;
-                                                                    } elseif (base64_decode($barcodeImage, true) === false) {
-                                                                        $barcodeImage = null;
-                                                                    }
-                                                                }
-                                                            } catch (\Exception $e) {
-                                                                $barcodeImage = null;
-                                                            } catch (\Throwable $e) {
-                                                                $barcodeImage = null;
-                                                            }
+                                                            $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 1.5, 40);
                                                         @endphp
                                                         @if($barcodeImage)
                                                             <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">
@@ -1341,21 +1358,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <div class="barcode-image">
                                 @if($item->barcode)
                                     @php
-                                        $barcodeImage = null;
-                                        try {
-                                            if (function_exists('imagecreate') && function_exists('imagepng')) {
-                                                $barcodeImage = DNS1D::getBarcodePNG($item->barcode, 'C128', 2, 60);
-                                                if ($barcodeImage === false || $barcodeImage === null || empty($barcodeImage) || strlen($barcodeImage) < 50) {
-                                                    $barcodeImage = null;
-                                                } elseif (base64_decode($barcodeImage, true) === false) {
-                                                    $barcodeImage = null;
-                                                }
-                                            }
-                                        } catch (\Exception $e) {
-                                            $barcodeImage = null;
-                                        } catch (\Throwable $e) {
-                                            $barcodeImage = null;
-                                        }
+                                        $barcodeImage = getBarcodeBase64($item->barcode, 'C128', 2, 60);
                                     @endphp
                                     @if($barcodeImage)
                                         <img src="data:image/png;base64,{{ $barcodeImage }}" alt="Barcode">

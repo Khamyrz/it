@@ -2273,7 +2273,6 @@ if (!function_exists('getBarcodeBase64')) {
                                                                     @else
                                                                         <img src="{{ $barcodeImage }}" alt="{{ $item->barcode }}" class="barcode-display-img" style="display:block !important; visibility:visible !important; opacity: 1 !important; width: 200px; height: 50px; object-fit: contain; margin: 0 auto;">
                                                                     @endif
-                                                                    <div class="barcode-text" style="margin-top: 5px; font-size: 10px; color: #666;">{{ $item->barcode }}</div>
                                                                 @elseif($item->barcode)
                                                                     <div style="color: #999; font-size: 12px;">Barcode: {{ $item->barcode }}</div>
                                                                 @else

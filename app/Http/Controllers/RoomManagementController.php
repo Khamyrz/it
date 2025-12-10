@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\DB;
 use App\Models\RoomItem;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Database\QueryException;
 
 class RoomManagementController extends Controller
 {
@@ -160,7 +161,26 @@ class RoomManagementController extends Controller
             RoomItem::where('id', $request->route('item'))->update($itemData);
             $item = RoomItem::find($request->route('item'));
         } else {
-            $item = RoomItem::create($itemData);
+            // Create with retry in case barcode collides (unique index)
+            $item = null;
+            $retryIndex = 0;
+            $baseBarcode = $barcode;
+            while (true) {
+                try {
+                    $itemData['barcode'] = $barcode;
+                    $item = RoomItem::create($itemData);
+                    break;
+                } catch (QueryException $e) {
+                    // Handle duplicate barcode collisions only, rethrow others
+                    $message = $e->getMessage();
+                    if (strpos($message, 'room_items_barcode_unique') === false && strpos($message, 'Duplicate entry') === false) {
+                        throw $e;
+                    }
+                    $retryIndex++;
+                    // Append a small suffix to keep barcode unique (CL1-S-SC001-01, -02, ...)
+                    $barcode = $baseBarcode . '-' . str_pad($retryIndex, 2, '0', STR_PAD_LEFT);
+                }
+            }
         }
 
         // Return JSON response for AJAX requests

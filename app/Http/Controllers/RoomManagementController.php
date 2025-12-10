@@ -1293,7 +1293,14 @@ class RoomManagementController extends Controller
         }
 
         // Generate barcode for the component using the existing PC number
-        $barcode = $this->generateBarcodeForFullSet($validatedData['room_title'], $validatedData['device_category'], $pc);
+        // If the exact barcode already exists (same room/device/PC), append a suffix to keep it unique
+        $baseBarcode = $this->generateBarcodeForFullSet($validatedData['room_title'], $validatedData['device_category'], $pc);
+        $barcode = $baseBarcode;
+        $duplicateIndex = 1;
+        while (RoomItem::where('barcode', $barcode)->exists()) {
+            $duplicateIndex++;
+            $barcode = $baseBarcode . '-' . str_pad($duplicateIndex, 2, '0', STR_PAD_LEFT);
+        }
 
         // Format PC number to match barcode format (e.g., 1 -> 001)
         $formattedPc = str_pad($pc, 3, '0', STR_PAD_LEFT);
